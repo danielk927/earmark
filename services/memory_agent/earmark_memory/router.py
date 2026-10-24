@@ -99,8 +99,11 @@ def analyze(question: str) -> Analysis:
     advice = _any(_ADVICE, q) and (med_topic or _any(_HEALTH, q) or bool(re.search(_TAKE, q)))
     medical = advice or _any(_HEALTH, q)
 
-    if med_topic or (re.search(_TAKE, q) and not re.search(_WHERE, q)):
-        intent: Intent = "medication"
+    asks_where = bool(re.search(_WHERE, q)) and not re.search(_TAKE, q)
+    if asks_where and not medical:
+        intent: Intent = "where"
+    elif med_topic or re.search(_TAKE, q):
+        intent = "medication"
     elif _any(_UNTOUCHED, q):
         intent = "untouched"
     elif re.search(_WHERE, q):
@@ -179,7 +182,7 @@ async def _dose_facts(question: str, a: Analysis, tb: Toolbox) -> tuple[str, str
     day = explicit or clock.today
     resp = await tb.adherence(day.isoformat() if day != clock.today else None)
     if not resp.doses:
-        return "", f"Earmark has no medication doses scheduled {clock.day_phrase(day)}."
+        return "", f"Earmark has no medication doses on record for {clock.relative_day(day) or clock.date_name(day)}."
     doses = _filter(resp.doses, a.part)
     if not doses:
         times = " and ".join(sorted({d.scheduled_local_time for d in resp.doses}))

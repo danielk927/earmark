@@ -166,6 +166,9 @@ class FixtureData:
         self.objects = {o.object_id: o for o in self.registry.objects}
         self.spot_labels = {s.spot: s.label for s in self.space.spots}
         self.events = self._build_events()
+        # Like convex/ medications.activeSinceT: no doses before monitoring began (the start of the history).
+        first_day = datetime.fromtimestamp(now_t, self.tz).date() + timedelta(days=min(s[0] for s in HISTORY_SCRIPT))
+        self.active_since_t = datetime.combine(first_day, dtime(0, 0), self.tz).timestamp()
 
     @property
     def clock(self) -> HouseholdClock:
@@ -237,7 +240,7 @@ class FixtureData:
                 medication=med, name=self.objects[med.object_id].name, pickups=pickups,
                 day=day, tz=self.tz, now_t=self.now_t,
             )
-        return sorted(doses, key=lambda d: d.scheduled_for_t)
+        return sorted((d for d in doses if d.scheduled_for_t >= self.active_since_t), key=lambda d: d.scheduled_for_t)
 
     # ------------------------------------------------------------ endpoints
 
