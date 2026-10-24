@@ -50,6 +50,7 @@ h3 {
 p {
   margin: 0 0 0.75em;
   max-width: 68ch;
+  text-wrap: pretty;
 }
 
 a {
@@ -324,6 +325,9 @@ main:focus {
 
 .colophon {
   border-top: 1px solid var(--rule);
+}
+
+.colophon .wrap {
   padding-block: 1.5rem 3rem;
   color: var(--ink-soft);
   font-size: var(--step--1);
@@ -557,7 +561,7 @@ main:focus {
   max-width: 100%;
   height: auto;
   font-family: var(--font);
-  overflow: visible;
+  overflow: hidden;
 }
 
 .glow-in {
@@ -840,6 +844,16 @@ input[type="checkbox"] {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
 }
 
+/* Labels line up at the top and inputs at the bottom, whatever the hint length. */
+.field-row > .field {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-row > .field > :is(input, select) {
+  margin-top: auto;
+}
+
 .field.check {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -1092,7 +1106,7 @@ fieldset {
 .schedules {
   display: grid;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
   margin-block: 1rem;
 }
 
@@ -1107,6 +1121,10 @@ fieldset {
 
 .schedule h3 {
   margin: 0;
+}
+
+.schedule .actions {
+  margin-top: 0;
 }
 
 .times {

@@ -35,12 +35,14 @@ export function Layout({ children, connected = true }: { children: ReactNode; co
       <main id="main" tabIndex={-1} className="wrap">
         {children}
       </main>
-      <footer className="colophon wrap">
-        <p>
+      <footer className="colophon">
+        <div className="wrap">
+          <p>
           Earmark has no cameras in the home. It keeps item names, spots, and times, and nothing else about the people
           who live there.
         </p>
-        <p>Earmark reports what its sensors detected. It does not give medical advice.</p>
+          <p>Earmark reports what its sensors detected. It does not give medical advice.</p>
+        </div>
       </footer>
     </>
   );
