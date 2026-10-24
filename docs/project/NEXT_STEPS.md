@@ -12,7 +12,7 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 | Moss | Works (warm it up once before any demo: the first start takes minutes) |
 | Cartesia (voice) | Key set; speech works |
 | AirPods 3D sound and head tracking | Tested on real AirPods and works |
-| Beacons, phone locator app | Not built or tested; no hardware yet |
+| Beacons, phone locator app | Not built yet. A teammate's laptop-speaker test: an iPhone heard a 19 kHz tone at 2 m in a loud place. Still to test: the real buzzer, at 4 m |
 
 ## A real test you can do today (no hardware)
 
