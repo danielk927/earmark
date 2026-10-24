@@ -168,7 +168,7 @@ async def test_offline_queue_survives_downtime_and_restart_then_flushes_in_order
     runner2.cancel()
     await sync2.client.aclose()
     assert fake.order == ids  # in order, label request in between
-    assert [l["name"] for l in fake.labels] == ["honey"]
+    assert [lab["name"] for lab in fake.labels] == ["honey"]
     assert queue.read_text() == ""
     assert sync2.reachable is True
     assert fake.secrets == {SECRET}

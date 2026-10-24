@@ -51,7 +51,8 @@ def home_states() -> list[ObjectState]:
 
 
 def snapshot(states: list[ObjectState] | None = None, objects=None) -> Snapshot:
-    return Snapshot(household=Household(name="Demo household", timezone="America/Los_Angeles"), space=SPACE, objects=objects or OBJECTS,
+    return Snapshot(household=Household(name="Demo household", timezone="America/Los_Angeles"),
+                    space=SPACE, objects=objects or OBJECTS,
                     states=home_states() if states is None else states, registry_version=None)
 
 

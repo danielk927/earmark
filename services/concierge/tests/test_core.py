@@ -228,3 +228,17 @@ def test_snapshot_household_sets_timezone_unless_pinned():
     pinned = World("UTC", pinned=True)
     pinned.apply_snapshot(snap)
     assert pinned.timezone == "UTC"
+
+
+async def test_mac_app_reporting_wrong_stt_engine_gets_stt_mode_resent(h):
+    from earmark_contracts import StatusMsg
+
+    engine = h.core.stt.engine
+    wrong = "cartesia" if engine == "apple" else "apple"
+    h.clear()
+    await h.feed(StatusMsg(component="mac_app", ok=True, detail="x", info={"stt_engine": wrong}))
+    modes = h.of("stt_mode")
+    assert len(modes) == 1 and modes[0]["engine"] == engine
+    h.clear()
+    await h.feed(StatusMsg(component="mac_app", ok=True, detail="x", info={"stt_engine": engine}))
+    assert not h.of("stt_mode")

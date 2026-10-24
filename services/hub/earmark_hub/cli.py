@@ -13,7 +13,7 @@ from pathlib import Path
 from earmark_contracts import DetectionEvent, Reset, dump, parse_bus, to_dict
 from pydantic import ValidationError
 
-from .config import ROOT, bus_url, convex_env, load_config, load_dotenv_once, parse_adapters
+from .config import bus_url, convex_env, load_config, load_dotenv_once, parse_adapters
 
 log = logging.getLogger("earmark.cli")
 
@@ -175,7 +175,6 @@ async def _sim(args) -> int:
     from .adapters.simulator import Simulator, load_scenario
     from .client import BusClient
     from .clock import ScaledClock, SystemClock
-    from .config import SimulatorCfg
 
     lines = load_scenario(args.scenario) if args.scenario else None
     try:

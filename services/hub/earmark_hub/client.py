@@ -51,7 +51,7 @@ class BusClient:
         try:
             return await self.recv()
         except ConnectionClosed:
-            raise StopAsyncIteration
+            raise StopAsyncIteration from None
 
     async def close(self) -> None:
         await self.ws.close()

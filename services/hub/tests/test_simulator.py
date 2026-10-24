@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from itertools import pairwise
 
 from earmark_contracts import DetectionEvent, Reset, Transcript
 
@@ -52,7 +53,7 @@ async def test_loop_continues_time(space, objects):
         pass
     second = got[len(lines)]
     assert second.t == T0 + lines[-1].t + 0.5  # next loop starts one poll after the last line
-    assert all(b.t >= a.t for a, b in zip(got, got[1:]))
+    assert all(b.t >= a.t for a, b in pairwise(got))
 
 
 async def test_speed_scales_wall_time_not_timestamps(space, objects):
@@ -62,7 +63,7 @@ async def test_speed_scales_wall_time_not_timestamps(space, objects):
     got = await collect(Simulator(clock, objects=objects, spots=space.spot_numbers, scenario=lines))
     elapsed = time.monotonic() - start
     assert elapsed < 1.0  # 2 s of scenario at 20x
-    gaps = [round(b.t - a.t, 3) for a, b in zip(got, got[1:]) if b.t != a.t]
+    gaps = [round(b.t - a.t, 3) for a, b in pairwise(got) if b.t != a.t]
     assert set(gaps) == {0.5}
 
 
@@ -107,7 +108,7 @@ async def test_step_rebases_time_after_a_pause(space, objects):
     lines = scenario("normal_pickup")
     got = await collect(Simulator(clock, objects=objects, spots=space.spot_numbers, scenario=lines, step=True,
                                   gate=gate))
-    assert all(b.t >= a.t for a, b in zip(got, got[1:]))
+    assert all(b.t >= a.t for a, b in pairwise(got))
     eng = StateEngine(space, objects)
     out = []
     for m in got:

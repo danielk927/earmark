@@ -190,7 +190,8 @@ class Hub:
     # ------------------------------------------------------------ actions
 
     def snapshot(self) -> Snapshot:
-        return Snapshot(household=self.registry.registry.household, space=self.space.space, objects=self.registry.objects, states=self.engine.states(),
+        return Snapshot(household=self.registry.registry.household, space=self.space.space,
+                        objects=self.registry.objects, states=self.engine.states(),
                         registry_version=self.registry.version, t=self.clock.now())
 
     async def reset(self) -> None:

@@ -119,11 +119,11 @@ contracts-test: ## Contracts: every example, config file, and scenario (Python, 
 
 .PHONY: hub-test
 hub-test:
-	cd services/hub && uv run --quiet pytest -q
+	cd services/hub && uv run --quiet pytest -q && uvx --quiet ruff check .
 
 .PHONY: concierge-test
 concierge-test:
-	cd services/concierge && uv run --quiet pytest -q && uv run --quiet ruff check .
+	cd services/concierge && uv run --quiet pytest -q && uvx --quiet ruff check .
 
 .PHONY: convex-test
 convex-test:
@@ -131,7 +131,7 @@ convex-test:
 
 .PHONY: memory-test
 memory-test:
-	@if [ -f services/memory_agent/pyproject.toml ]; then cd services/memory_agent && uv run --quiet pytest -q; else echo "memory agent not built yet"; fi
+	@if [ -f services/memory_agent/pyproject.toml ]; then cd services/memory_agent && uv run --quiet pytest -q && uvx --quiet ruff check .; else echo "memory agent not built yet"; fi
 
 .PHONY: dashboard-test
 dashboard-test:

@@ -155,6 +155,10 @@ class Concierge:
         elif isinstance(msg, StatusMsg):
             if msg.component == "mac_app":
                 self._saw_mac_app()
+                # Self-heal: the Mac app may have missed stt_mode (it connected late or restarted).
+                reported = (msg.info or {}).get("stt_engine")
+                if reported in ("cartesia", "apple") and reported != self.stt.engine:
+                    await self.emit(SttMode(engine=self.stt.engine, reason=f"resync: {self.stt.reason}"))
         elif isinstance(msg, HeadPose):
             self._saw_mac_app()
         elif isinstance(msg, TrialStart):
