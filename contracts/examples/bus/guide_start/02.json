@@ -1,0 +1,13 @@
+{
+  "type": "guide_start",
+  "object_id": "salt",
+  "name": "salt",
+  "target_position": [
+    -0.16,
+    0.58,
+    0.0
+  ],
+  "precision": "exact",
+  "utterance_id": "u-18",
+  "t": 1761350400.12
+}

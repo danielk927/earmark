@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://earmark.local/schemas/phrases.schema.json",
+  "title": "Phrases",
+  "description": "config/phrases.json. Static phrases pre-synthesized to config/phrases/<phrase_id>.wav at build time and played via speak_cached.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["phrases"],
+  "properties": {
+    "phrases": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["phrase_id", "text"],
+        "properties": {
+          "phrase_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "text": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

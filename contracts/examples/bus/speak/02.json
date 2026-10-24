@@ -1,0 +1,10 @@
+{
+  "type": "speak",
+  "utterance_id": "u-17",
+  "seq": 9,
+  "format": "pcm_s16le",
+  "sample_rate": 24000,
+  "chunk_b64": "",
+  "final": true,
+  "t": 1761350400.12
+}

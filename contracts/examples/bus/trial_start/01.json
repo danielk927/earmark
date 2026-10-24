@@ -1,0 +1,8 @@
+{
+  "type": "trial_start",
+  "trial_id": "t-0001",
+  "mode": "earmark",
+  "target_object_id": "sugar",
+  "tester": "tester-A",
+  "t": 1761350400.12
+}

@@ -1,0 +1,14 @@
+{
+  "phrases": [
+    { "phrase_id": "not_understood", "text": "Sorry, I didn't catch that." },
+    { "phrase_id": "one_moment", "text": "One moment." },
+    { "phrase_id": "stopping", "text": "Okay, stopping." },
+    { "phrase_id": "behind_turn_left", "text": "It's behind you. Turn left." },
+    { "phrase_id": "behind_turn_right", "text": "It's behind you. Turn right." },
+    { "phrase_id": "unknown_object", "text": "I don't know that item yet. Put it on the setup spot and say, this is, then its name." },
+    { "phrase_id": "no_new_tag", "text": "I don't feel a new item on any spot yet." },
+    { "phrase_id": "chirping", "text": "I'll make it beep." },
+    { "phrase_id": "stt_fallback", "text": "Switching to backup listening." },
+    { "phrase_id": "ready", "text": "Earmark is ready." }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "type": "trial_start",
+  "trial_id": "t-0002",
+  "mode": "baseline",
+  "target_object_id": "salt",
+  "tester": "tester-B",
+  "t": 1761350400.12
+}

@@ -1,0 +1,8 @@
+{
+  "type": "hello",
+  "component": "mac_app",
+  "subscribe": [
+    "*"
+  ],
+  "t": 1761350400.12
+}

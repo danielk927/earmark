@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://earmark.local/schemas/registry.schema.json",
+  "title": "Registry",
+  "description": "The object registry. Shape of config/objects.seed.json, config/objects.cache.json, and the Convex GET /api/registry response. Convex is the source of truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["household", "objects", "medications"],
+  "properties": {
+    "household": {
+      "type": "object", "additionalProperties": false, "required": ["name", "timezone"],
+      "properties": {
+        "name": { "type": "string" },
+        "timezone": { "type": "string", "description": "IANA tz, e.g. America/Los_Angeles. Medication schedule times are in this zone." }
+      }
+    },
+    "objects": { "type": "array", "items": { "$ref": "#/$defs/registry_object" } },
+    "medications": { "type": "array", "items": { "$ref": "#/$defs/medication" } },
+    "version": { "type": ["number", "null"], "description": "Monotonic registry version (Convex: max updated time in ms). Absent in seed files." }
+  },
+  "$defs": {
+    "registry_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["object_id", "name", "aliases", "notes", "description", "tag", "home_spot", "is_medication", "fob_id"],
+      "properties": {
+        "object_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "name": { "type": "string", "minLength": 1, "description": "Spoken name, e.g. \"sugar\"." },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string", "description": "Family-entered notes, e.g. \"for coffee\"." },
+        "description": { "type": "string", "description": "Short physical description, e.g. \"glass jar with a metal lid\"." },
+        "tag": { "type": ["string", "null"], "description": "NFC UID hex (uppercase) or null." },
+        "home_spot": { "type": ["integer", "null"] },
+        "is_medication": { "type": "boolean" },
+        "fob_id": { "type": ["string", "null"], "description": "BLE fob id (matches DetectionEvent.tag from the ble adapter) or null." }
+      }
+    },
+    "medication": {
+      "type": "object", "additionalProperties": false, "required": ["object_id", "schedule_times", "window_minutes"],
+      "properties": {
+        "object_id": { "type": "string" },
+        "schedule_times": { "type": "array", "items": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" } },
+        "window_minutes": { "type": "integer", "minimum": 1, "default": 60 }
+      }
+    }
+  }
+}

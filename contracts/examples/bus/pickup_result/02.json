@@ -1,0 +1,7 @@
+{
+  "type": "pickup_result",
+  "expected": "sugar",
+  "actual": "sugar",
+  "correct": true,
+  "t": 1761350400.12
+}

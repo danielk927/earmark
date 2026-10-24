@@ -1,0 +1,21 @@
+{
+  "type": "registry_update",
+  "objects": [
+    {
+      "object_id": "salt",
+      "name": "salt",
+      "aliases": [
+        "table salt",
+        "sea salt"
+      ],
+      "notes": "For cooking and for eggs.",
+      "description": "Small glass jar with a white lid, identical to the sugar jar.",
+      "tag": "04A1B2C3D4E501",
+      "home_spot": 2,
+      "is_medication": false,
+      "fob_id": null
+    }
+  ],
+  "registry_version": null,
+  "t": 1761350400.12
+}

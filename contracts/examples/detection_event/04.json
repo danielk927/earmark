@@ -1,0 +1,10 @@
+{
+  "type": "detection",
+  "source": "ble",
+  "tag": "fob_keys",
+  "kind": "lost",
+  "where": null,
+  "precision": "none",
+  "rssi": null,
+  "t": 1761350400.12
+}

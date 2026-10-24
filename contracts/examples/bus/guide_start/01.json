@@ -1,0 +1,13 @@
+{
+  "type": "guide_start",
+  "object_id": "sugar",
+  "name": "sugar",
+  "target_position": [
+    0.16,
+    0.58,
+    0.0
+  ],
+  "precision": "exact",
+  "utterance_id": "u-17",
+  "t": 1761350400.12
+}

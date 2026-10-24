@@ -1,0 +1,24 @@
+{
+  "listener": {
+    "label": "counter",
+    "origin_note": "center of head, standing"
+  },
+  "spots": [
+    {
+      "spot": 1,
+      "label": "left",
+      "position": [
+        -0.3,
+        0.5,
+        -0.4
+      ]
+    }
+  ],
+  "areas": [],
+  "receivers": [
+    {
+      "receiver": "hub",
+      "label": "the hub"
+    }
+  ]
+}

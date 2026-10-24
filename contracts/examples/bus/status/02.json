@@ -1,0 +1,7 @@
+{
+  "type": "status",
+  "component": "concierge",
+  "ok": false,
+  "detail": "LLM timeout, using keyword grammar",
+  "t": 1761350400.12
+}

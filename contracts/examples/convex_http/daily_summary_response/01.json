@@ -1,0 +1,24 @@
+{
+  "date": "2025-10-23",
+  "timezone": "America/Los_Angeles",
+  "generated_t": 1761350400.12,
+  "doses": [
+    {
+      "object_id": "bp_meds",
+      "name": "blood pressure pills",
+      "scheduled_local_time": "20:00",
+      "scheduled_for_t": 1761274800,
+      "scheduled_for_local": "2025-10-23T20:00:00-07:00",
+      "status": "missed",
+      "taken_t": null,
+      "taken_local": null,
+      "evidence_event_id": null
+    }
+  ],
+  "pickup_count": 14,
+  "untouched_7d": [
+    "pepper"
+  ],
+  "missing": [],
+  "text": "On Thursday, October 23: the 20:00 blood pressure pills dose was missed (no pickup between 19:00 and 22:00). 14 pickups recorded. Not touched in 7 days: pepper."
+}

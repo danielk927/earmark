@@ -1,0 +1,12 @@
+{
+  "type": "trial_end",
+  "trial_id": "t-0002",
+  "mode": "baseline",
+  "target_object_id": "salt",
+  "tester": "tester-B",
+  "outcome": "gave_up",
+  "started_t": 1761350340.12,
+  "seconds_to_find": null,
+  "wrong_picks": 2,
+  "t": 1761350400.12
+}

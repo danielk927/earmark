@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://earmark.local/schemas/convex_http.schema.json",
+  "title": "ConvexHttp",
+  "description": "Request/response bodies of Earmark's Convex HTTP actions. All JSON is snake_case; Convex tables are camelCase internally and convert only in convex/http.ts. Auth: header `X-Earmark-Secret`. EARMARK_HUB_SECRET is accepted on every route; EARMARK_READ_SECRET only on GET /api/*. Times are unix seconds; *_local fields are ISO 8601 in the household timezone.",
+  "$defs": {
+    "ingest_request": {
+      "description": "POST /ingest (hub). Idempotent by event_id.",
+      "type": "object", "additionalProperties": false, "required": ["events", "states"],
+      "properties": {
+        "events": { "type": "array", "items": { "$ref": "#/$defs/hub_event" } },
+        "states": { "type": "array", "items": { "$ref": "object_state.schema.json" } }
+      }
+    },
+    "ingest_response": {
+      "type": "object", "additionalProperties": false, "required": ["ok", "accepted_events", "duplicate_events", "accepted_states"],
+      "properties": {
+        "ok": { "type": "boolean" },
+        "accepted_events": { "type": "integer" },
+        "duplicate_events": { "type": "integer" },
+        "accepted_states": { "type": "integer" }
+      }
+    },
+    "hub_event": {
+      "description": "Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}.",
+      "type": "object", "additionalProperties": false, "required": ["event_id", "kind", "object_id", "t", "data"],
+      "properties": {
+        "event_id": { "type": "string", "minLength": 8, "description": "Hub-generated UUID; Convex ignores duplicates (offline-queue retries)." },
+        "kind": { "enum": ["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "chirp", "trial_start", "trial_end"] },
+        "object_id": { "type": ["string", "null"] },
+        "t": { "type": "number" },
+        "data": { "type": "object" }
+      }
+    },
+    "label_request": {
+      "description": "POST /api/label (hub). Create an object for `tag`, or rename the object that already has it.",
+      "type": "object", "additionalProperties": false, "required": ["tag", "name", "aliases"],
+      "properties": {
+        "tag": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "spot": { "type": ["integer", "null"] }
+      }
+    },
+    "label_response": {
+      "type": "object", "additionalProperties": false, "required": ["ok", "object_id", "created"],
+      "properties": { "ok": { "type": "boolean" }, "object_id": { "type": "string" }, "created": { "type": "boolean" } }
+    },
+    "object_summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_id", "name", "aliases", "notes", "description", "home_spot", "home_spot_label", "is_medication", "fob_id", "state", "last_touched_t", "last_touched_local"],
+      "properties": {
+        "object_id": { "type": "string" },
+        "name": { "type": "string" },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "description": { "type": "string" },
+        "home_spot": { "type": ["integer", "null"] },
+        "home_spot_label": { "type": ["string", "null"] },
+        "is_medication": { "type": "boolean" },
+        "fob_id": { "type": ["string", "null"] },
+        "state": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object", "additionalProperties": false,
+              "required": ["status", "spot", "spot_label", "area", "near", "distance_class", "precision", "last_seen_t", "last_seen_local"],
+              "properties": {
+                "status": { "enum": ["on_spot", "held", "missing", "roaming"] },
+                "spot": { "type": ["integer", "null"] },
+                "spot_label": { "type": ["string", "null"] },
+                "area": { "type": ["string", "null"] },
+                "near": { "type": ["string", "null"] },
+                "distance_class": { "enum": ["near", "mid", "far", null] },
+                "precision": { "enum": ["exact", "area", "proximity", "none"] },
+                "last_seen_t": { "type": ["number", "null"] },
+                "last_seen_local": { "type": ["string", "null"] }
+              }
+            }
+          ]
+        },
+        "last_touched_t": { "type": ["number", "null"], "description": "Last pickup or placement." },
+        "last_touched_local": { "type": ["string", "null"] }
+      }
+    },
+    "object_lookup_response": {
+      "description": "GET /api/object?name=  Case-insensitive match on name, then aliases, then substring. Zero or more matches, best first.",
+      "type": "object", "additionalProperties": false, "required": ["query", "matches", "now_t", "now_local"],
+      "properties": {
+        "query": { "type": "string" },
+        "matches": { "type": "array", "items": { "$ref": "#/$defs/object_summary" } },
+        "now_t": { "type": "number" },
+        "now_local": { "type": "string" }
+      }
+    },
+    "objects_response": {
+      "description": "GET /api/objects  Every object, for questions like \"what hasn't been touched in a week?\".",
+      "type": "object", "additionalProperties": false, "required": ["objects", "now_t", "now_local"],
+      "properties": {
+        "objects": { "type": "array", "items": { "$ref": "#/$defs/object_summary" } },
+        "now_t": { "type": "number" },
+        "now_local": { "type": "string" }
+      }
+    },
+    "history_event": {
+      "type": "object", "additionalProperties": false, "required": ["event_id", "kind", "t", "at_local", "spot", "spot_label", "detail"],
+      "properties": {
+        "event_id": { "type": "string" },
+        "kind": { "type": "string" },
+        "t": { "type": "number" },
+        "at_local": { "type": "string" },
+        "spot": { "type": ["integer", "null"] },
+        "spot_label": { "type": ["string", "null"] },
+        "detail": { "type": "string", "description": "Deterministic human-readable sentence, e.g. \"Picked up from the center right spot.\"" }
+      }
+    },
+    "history_response": {
+      "description": "GET /api/history?objectId=&since=  `since` is unix seconds; default 7 days ago. Newest first, max 200.",
+      "type": "object", "additionalProperties": false, "required": ["object_id", "name", "since_t", "events"],
+      "properties": {
+        "object_id": { "type": "string" },
+        "name": { "type": "string" },
+        "since_t": { "type": "number" },
+        "events": { "type": "array", "items": { "$ref": "#/$defs/history_event" } }
+      }
+    },
+    "dose": {
+      "type": "object", "additionalProperties": false,
+      "required": ["object_id", "name", "scheduled_local_time", "scheduled_for_t", "scheduled_for_local", "status", "taken_t", "taken_local", "evidence_event_id"],
+      "properties": {
+        "object_id": { "type": "string" },
+        "name": { "type": "string" },
+        "scheduled_local_time": { "type": "string", "description": "HH:MM as configured." },
+        "scheduled_for_t": { "type": "number" },
+        "scheduled_for_local": { "type": "string" },
+        "status": { "enum": ["taken", "late", "missed", "pending"] },
+        "taken_t": { "type": ["number", "null"] },
+        "taken_local": { "type": ["string", "null"] },
+        "evidence_event_id": { "type": ["string", "null"] }
+      }
+    },
+    "adherence_response": {
+      "description": "GET /api/adherence?date=YYYY-MM-DD (household-local date; default today).",
+      "type": "object", "additionalProperties": false, "required": ["date", "timezone", "doses", "now_t"],
+      "properties": {
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "timezone": { "type": "string" },
+        "doses": { "type": "array", "items": { "$ref": "#/$defs/dose" } },
+        "now_t": { "type": "number" }
+      }
+    },
+    "daily_summary_response": {
+      "description": "GET /api/daily-summary?date=  Deterministic facts only; `text` is generated by code, not an LLM. No medical advice.",
+      "type": "object", "additionalProperties": false,
+      "required": ["date", "timezone", "generated_t", "doses", "pickup_count", "untouched_7d", "missing", "text"],
+      "properties": {
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "timezone": { "type": "string" },
+        "generated_t": { "type": "number" },
+        "doses": { "type": "array", "items": { "$ref": "#/$defs/dose" } },
+        "pickup_count": { "type": "integer" },
+        "untouched_7d": { "type": "array", "items": { "type": "string" }, "description": "object_ids with no pickup/placement in the 7 days before end of `date`." },
+        "missing": { "type": "array", "items": { "type": "string" }, "description": "object_ids whose current status is missing." },
+        "text": { "type": "string" }
+      }
+    },
+    "error_response": {
+      "type": "object", "additionalProperties": false, "required": ["ok", "error"],
+      "properties": { "ok": { "const": false }, "error": { "type": "string" } }
+    }
+  }
+}

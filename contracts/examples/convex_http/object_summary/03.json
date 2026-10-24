@@ -1,0 +1,16 @@
+{
+  "object_id": "pepper",
+  "name": "pepper",
+  "aliases": [
+    "house keys"
+  ],
+  "notes": "",
+  "description": "Key ring with a fob.",
+  "home_spot": null,
+  "home_spot_label": null,
+  "is_medication": false,
+  "fob_id": null,
+  "state": null,
+  "last_touched_t": null,
+  "last_touched_local": null
+}

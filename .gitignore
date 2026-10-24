@@ -1,0 +1,38 @@
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# node
+node_modules/
+dist/
+.vite/
+
+# convex
+.convex/
+
+# swift / mac
+.build/
+.swiftpm/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+mac/build/
+
+# earmark runtime
+logs/*
+!logs/.gitkeep
+config/objects.cache.json
+var/
+
+# os
+.DS_Store

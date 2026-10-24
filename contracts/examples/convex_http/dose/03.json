@@ -1,0 +1,11 @@
+{
+  "object_id": "bp_meds",
+  "name": "blood pressure pills",
+  "scheduled_local_time": "20:00",
+  "scheduled_for_t": 1761361200,
+  "scheduled_for_local": "2025-10-24T20:00:00-07:00",
+  "status": "pending",
+  "taken_t": null,
+  "taken_local": null,
+  "evidence_event_id": null
+}

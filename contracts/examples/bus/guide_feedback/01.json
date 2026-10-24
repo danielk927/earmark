@@ -1,0 +1,8 @@
+{
+  "type": "guide_feedback",
+  "object_id": "sugar",
+  "event": "behind",
+  "turn": "right",
+  "error_deg": 135.0,
+  "t": 1761350400.12
+}

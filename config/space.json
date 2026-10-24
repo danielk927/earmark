@@ -1,0 +1,11 @@
+{
+  "listener": { "label": "demo chair", "origin_note": "center of head, seated" },
+  "spots": [
+    { "spot": 1, "label": "far left",     "position": [-0.42, 0.42, 0.0] },
+    { "spot": 2, "label": "center left",  "position": [-0.16, 0.58, 0.0] },
+    { "spot": 3, "label": "center right", "position": [ 0.16, 0.58, 0.0] },
+    { "spot": 4, "label": "far right",    "position": [ 0.42, 0.42, 0.0] }
+  ],
+  "areas": [ { "area": "kitchen_counter", "label": "the counter", "position": [0, 0.6, 0] } ],
+  "receivers": [ { "receiver": "hub", "label": "the counter", "position": [0, 0.6, 0] } ]
+}

@@ -1,0 +1,12 @@
+{
+  "event_id": "e-22222222",
+  "kind": "unknown_tag",
+  "object_id": null,
+  "t": 1761350400.12,
+  "data": {
+    "type": "unknown_tag",
+    "tag": "04A1B2C3D4E5FF",
+    "spot": 1,
+    "t": 1761350400.12
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://earmark.local/schemas/object_state.schema.json",
+  "title": "ObjectState",
+  "description": "Hub -> bus and Convex. Current belief about one registered object.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "object_id", "location", "precision", "status", "home_spot", "last_seen_t", "source", "t"],
+  "properties": {
+    "type": { "const": "state_update" },
+    "object_id": { "type": "string", "minLength": 1 },
+    "location": { "$ref": "#/$defs/location" },
+    "precision": { "enum": ["exact", "area", "proximity", "none"] },
+    "status": {
+      "enum": ["on_spot", "held", "missing", "roaming"],
+      "description": "on_spot: resting on a spot (home or not). held: lifted from a spot and not yet placed. missing: never seen or lost. roaming: tracked by proximity (BLE)."
+    },
+    "home_spot": { "type": ["integer", "null"] },
+    "last_seen_t": { "type": ["number", "null"], "description": "Unix seconds of the last observation; null if never seen." },
+    "source": { "enum": ["simulator", "nfc", "ble", "camera", "ultrasonic", "none"], "description": "Informational only. Nothing downstream may branch on it." },
+    "t": { "type": "number", "description": "Unix seconds when this state was computed." }
+  },
+  "$defs": {
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "All fields optional/nullable. position is always filled when the hub can resolve one (spot, area, or receiver position).",
+      "properties": {
+        "spot": { "type": ["integer", "null"] },
+        "position": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+          ]
+        },
+        "area": { "type": ["string", "null"] },
+        "near": { "type": ["string", "null"] },
+        "distance_class": { "enum": ["near", "mid", "far", null] }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@earmark/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript types generated from contracts/schemas. Do not edit index.ts by hand; run `npm run gen`.",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "gen": "node gen.mjs",
+    "check": "node gen.mjs --check && tsc --noEmit -p ."
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.9.3"
+  }
+}

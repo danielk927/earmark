@@ -1,0 +1,9 @@
+{
+  "event_id": "e-6f1c2a9b",
+  "kind": "pickup",
+  "t": 1761350400.12,
+  "at_local": "2025-10-24T17:00:00.120-07:00",
+  "spot": 3,
+  "spot_label": "center right",
+  "detail": "Picked up from the center right spot."
+}

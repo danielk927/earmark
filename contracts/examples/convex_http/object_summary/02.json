@@ -1,0 +1,26 @@
+{
+  "object_id": "keys",
+  "name": "keys",
+  "aliases": [
+    "house keys"
+  ],
+  "notes": "",
+  "description": "Key ring with a fob.",
+  "home_spot": null,
+  "home_spot_label": null,
+  "is_medication": false,
+  "fob_id": "fob_keys",
+  "state": {
+    "status": "roaming",
+    "spot": null,
+    "spot_label": null,
+    "area": null,
+    "near": "hub",
+    "distance_class": "near",
+    "precision": "proximity",
+    "last_seen_t": 1761350400.12,
+    "last_seen_local": "2025-10-24T17:00:00.120-07:00"
+  },
+  "last_touched_t": null,
+  "last_touched_local": null
+}

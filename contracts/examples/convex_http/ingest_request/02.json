@@ -1,0 +1,34 @@
+{
+  "events": [
+    {
+      "event_id": "e-0a1b2c3d",
+      "kind": "placed",
+      "object_id": "sugar",
+      "t": 1761350400.12,
+      "data": {
+        "spot": 1,
+        "tag": "04A1B2C3D4E502",
+        "source": "nfc"
+      }
+    },
+    {
+      "event_id": "e-0a1b2c3e",
+      "kind": "trial_end",
+      "object_id": "sugar",
+      "t": 1761350400.12,
+      "data": {
+        "type": "trial_end",
+        "trial_id": "t-0001",
+        "mode": "earmark",
+        "target_object_id": "sugar",
+        "tester": "tester-A",
+        "outcome": "found",
+        "started_t": 1761350392.7199998,
+        "seconds_to_find": 7.4,
+        "wrong_picks": 0,
+        "t": 1761350400.12
+      }
+    }
+  ],
+  "states": []
+}

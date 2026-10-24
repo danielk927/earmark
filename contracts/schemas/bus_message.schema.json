@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://earmark.local/schemas/bus_message.schema.json",
+  "title": "BusMessage",
+  "description": "Every JSON message on the local WebSocket bus ws://127.0.0.1:8765. Discriminated by `type`. All times are unix seconds (float).",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/snapshot" },
+    { "$ref": "#/$defs/registry_update" },
+    { "$ref": "detection_event.schema.json" },
+    { "$ref": "object_state.schema.json" },
+    { "$ref": "#/$defs/unknown_tag" },
+    { "$ref": "#/$defs/label" },
+    { "$ref": "#/$defs/mic_audio" },
+    { "$ref": "#/$defs/transcript" },
+    { "$ref": "#/$defs/stt_mode" },
+    { "$ref": "#/$defs/trial_start" },
+    { "$ref": "#/$defs/trial_end" },
+    { "$ref": "#/$defs/guide_start" },
+    { "$ref": "#/$defs/guide_stop" },
+    { "$ref": "#/$defs/guide_feedback" },
+    { "$ref": "#/$defs/speak" },
+    { "$ref": "#/$defs/speak_cached" },
+    { "$ref": "#/$defs/speak_text" },
+    { "$ref": "#/$defs/playback" },
+    { "$ref": "#/$defs/chirp" },
+    { "$ref": "#/$defs/pickup" },
+    { "$ref": "#/$defs/pickup_result" },
+    { "$ref": "#/$defs/head_pose" },
+    { "$ref": "#/$defs/status" },
+    { "$ref": "#/$defs/reset" }
+  ],
+  "$defs": {
+    "t": { "type": "number", "description": "Unix seconds." },
+    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 },
+    "component": { "enum": ["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent"] },
+
+    "hello": {
+      "description": "Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak.",
+      "type": "object", "additionalProperties": false, "required": ["type", "component", "t"],
+      "properties": {
+        "type": { "const": "hello" },
+        "component": { "$ref": "#/$defs/component" },
+        "subscribe": { "type": "array", "items": { "type": "string" }, "description": "Message types to receive, or [\"*\"] for all including audio." },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "snapshot": {
+      "description": "Hub -> one client, in reply to hello and after reset. Everything a client needs to render and reason.",
+      "type": "object", "additionalProperties": false, "required": ["type", "space", "objects", "states", "registry_version", "t"],
+      "properties": {
+        "type": { "const": "snapshot" },
+        "space": { "$ref": "space.schema.json" },
+        "objects": { "type": "array", "items": { "$ref": "registry.schema.json#/$defs/registry_object" } },
+        "states": { "type": "array", "items": { "$ref": "object_state.schema.json" } },
+        "registry_version": { "type": ["number", "null"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "registry_update": {
+      "description": "Hub -> bus whenever the registry changes (dashboard edit synced from Convex, or a voice label). Full replacement list.",
+      "type": "object", "additionalProperties": false, "required": ["type", "objects", "registry_version", "t"],
+      "properties": {
+        "type": { "const": "registry_update" },
+        "objects": { "type": "array", "items": { "$ref": "registry.schema.json#/$defs/registry_object" } },
+        "registry_version": { "type": ["number", "null"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "unknown_tag": {
+      "description": "Hub -> bus when a debounced placement carries a tag not in the registry. The concierge uses the latest one for \"this is X\".",
+      "type": "object", "additionalProperties": false, "required": ["type", "tag", "spot", "t"],
+      "properties": {
+        "type": { "const": "unknown_tag" },
+        "tag": { "type": "string" },
+        "spot": { "type": ["integer", "null"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "label": {
+      "description": "Concierge -> hub. Register `tag` as a new object (or rename the object that has it). The hub updates its local registry immediately and syncs to Convex.",
+      "type": "object", "additionalProperties": false, "required": ["type", "tag", "name", "aliases", "t"],
+      "properties": {
+        "type": { "const": "label" },
+        "tag": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "type": "array", "items": { "type": "string" } },
+        "spot": { "type": ["integer", "null"], "description": "Spot the tag is on; becomes home_spot for a new object." },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "mic_audio": {
+      "description": "Mac app -> concierge. Streamed microphone audio for Cartesia STT.",
+      "type": "object", "additionalProperties": false, "required": ["type", "seq", "sample_rate", "encoding", "chunk_b64", "t"],
+      "properties": {
+        "type": { "const": "mic_audio" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "sample_rate": { "type": "integer", "enum": [8000, 16000, 22050, 24000, 44100, 48000] },
+        "encoding": { "enum": ["pcm_s16le"] },
+        "chunk_b64": { "type": "string", "contentEncoding": "base64" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "transcript": {
+      "description": "Concierge -> bus (from Cartesia STT), or Mac app -> concierge (Apple Speech fallback), or CLI (typed).",
+      "type": "object", "additionalProperties": false, "required": ["type", "text", "is_final", "source", "t"],
+      "properties": {
+        "type": { "const": "transcript" },
+        "text": { "type": "string" },
+        "is_final": { "type": "boolean" },
+        "source": { "enum": ["cartesia", "apple", "typed"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "stt_mode": {
+      "description": "Concierge -> Mac app. Which speech-to-text engine the Mac app should feed: cartesia = stream mic_audio; apple = run SFSpeechRecognizer and send transcript.",
+      "type": "object", "additionalProperties": false, "required": ["type", "engine", "reason", "t"],
+      "properties": {
+        "type": { "const": "stt_mode" },
+        "engine": { "enum": ["cartesia", "apple"] },
+        "reason": { "type": "string" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "trial_start": {
+      "type": "object", "additionalProperties": false, "required": ["type", "trial_id", "mode", "target_object_id", "tester", "t"],
+      "properties": {
+        "type": { "const": "trial_start" },
+        "trial_id": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["earmark", "baseline"] },
+        "target_object_id": { "type": "string" },
+        "tester": { "type": "string", "description": "Pseudonym only, never a real name." },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "trial_end": {
+      "description": "Sent by scripts/trial.py. Metrics are computed in code from the bus pickups between start and end.",
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "trial_id", "mode", "target_object_id", "tester", "outcome", "started_t", "seconds_to_find", "wrong_picks", "t"],
+      "properties": {
+        "type": { "const": "trial_end" },
+        "trial_id": { "type": "string", "minLength": 1 },
+        "mode": { "enum": ["earmark", "baseline"] },
+        "target_object_id": { "type": "string" },
+        "tester": { "type": "string" },
+        "outcome": { "enum": ["found", "gave_up", "aborted"] },
+        "started_t": { "$ref": "#/$defs/t" },
+        "seconds_to_find": { "type": ["number", "null"], "description": "Null unless outcome=found." },
+        "wrong_picks": { "type": "integer", "minimum": 0 },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "guide_start": {
+      "description": "Concierge -> Mac app. Start spatial guidance toward target_position (Earmark coordinates). Replaces any active guidance.",
+      "type": "object", "additionalProperties": false, "required": ["type", "object_id", "name", "target_position", "precision", "utterance_id", "t"],
+      "properties": {
+        "type": { "const": "guide_start" },
+        "object_id": { "type": "string" },
+        "name": { "type": "string", "description": "Display name for the UI." },
+        "target_position": { "$ref": "#/$defs/vec3" },
+        "precision": { "enum": ["exact", "area", "proximity", "none"] },
+        "utterance_id": { "type": "string" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "guide_stop": {
+      "type": "object", "additionalProperties": false, "required": ["type", "reason", "t"],
+      "properties": {
+        "type": { "const": "guide_stop" },
+        "reason": { "enum": ["found", "cancelled", "timeout", "reset"] },
+        "object_id": { "type": ["string", "null"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "guide_feedback": {
+      "description": "Mac app -> bus, on transitions only. behind: target > 100 deg from head direction (turn = shorter way). front: target back within 100 deg. locked: error < 8 deg for > 300 ms.",
+      "type": "object", "additionalProperties": false, "required": ["type", "object_id", "event", "turn", "error_deg", "t"],
+      "properties": {
+        "type": { "const": "guide_feedback" },
+        "object_id": { "type": "string" },
+        "event": { "enum": ["behind", "front", "locked"] },
+        "turn": { "enum": ["left", "right", null] },
+        "error_deg": { "type": "number", "description": "Signed angle from head direction to target, degrees, positive = target is to the right." },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "speak": {
+      "description": "Concierge -> Mac app. Streamed TTS audio (non-spatial speech layer). Chunks of one utterance share utterance_id and increase seq; the last has final=true (its chunk_b64 may be empty).",
+      "type": "object", "additionalProperties": false, "required": ["type", "utterance_id", "seq", "format", "sample_rate", "chunk_b64", "final", "t"],
+      "properties": {
+        "type": { "const": "speak" },
+        "utterance_id": { "type": "string" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "format": { "enum": ["pcm_s16le", "pcm_f32le"] },
+        "sample_rate": { "type": "integer" },
+        "chunk_b64": { "type": "string", "contentEncoding": "base64" },
+        "final": { "type": "boolean" },
+        "text": { "type": "string", "description": "Full utterance text, on seq 0, for captions and logs." },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "speak_cached": {
+      "description": "Concierge -> Mac app. Play config/phrases/<phrase_id>.wav. If missing, the Mac app speaks `text` with the system voice.",
+      "type": "object", "additionalProperties": false, "required": ["type", "phrase_id", "utterance_id", "text", "t"],
+      "properties": {
+        "type": { "const": "speak_cached" },
+        "phrase_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "utterance_id": { "type": "string" },
+        "text": { "type": "string" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "speak_text": {
+      "description": "Concierge -> Mac app. Last-resort speech: the Mac app speaks `text` with the system voice (same voices as macOS `say`), ducking the cue.",
+      "type": "object", "additionalProperties": false, "required": ["type", "utterance_id", "text", "t"],
+      "properties": {
+        "type": { "const": "speak_text" },
+        "utterance_id": { "type": "string" },
+        "text": { "type": "string", "minLength": 1 },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "playback": {
+      "description": "Mac app -> bus. Speech playback progress, used for the latency report (first audible audio) and for barge-in.",
+      "type": "object", "additionalProperties": false, "required": ["type", "utterance_id", "event", "t"],
+      "properties": {
+        "type": { "const": "playback" },
+        "utterance_id": { "type": "string" },
+        "event": { "enum": ["started", "finished", "interrupted"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "chirp": {
+      "description": "Concierge -> hub. Make a BLE fob beep.",
+      "type": "object", "additionalProperties": false, "required": ["type", "fob_id", "action", "t"],
+      "properties": {
+        "type": { "const": "chirp" },
+        "fob_id": { "type": "string" },
+        "action": { "enum": ["start", "stop"] },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "pickup": {
+      "description": "Hub -> bus when a registered object leaves a spot (after debounce).",
+      "type": "object", "additionalProperties": false, "required": ["type", "object_id", "from_spot", "t"],
+      "properties": {
+        "type": { "const": "pickup" },
+        "object_id": { "type": "string" },
+        "from_spot": { "type": "integer" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "pickup_result": {
+      "description": "Concierge -> bus, for a pickup that happens while guiding.",
+      "type": "object", "additionalProperties": false, "required": ["type", "expected", "actual", "correct", "t"],
+      "properties": {
+        "type": { "const": "pickup_result" },
+        "expected": { "type": "string" },
+        "actual": { "type": "string" },
+        "correct": { "type": "boolean" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "head_pose": {
+      "description": "Mac app -> bus, debug only, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up.",
+      "type": "object", "additionalProperties": false, "required": ["type", "yaw", "pitch", "t"],
+      "properties": {
+        "type": { "const": "head_pose" },
+        "yaw": { "type": "number" },
+        "pitch": { "type": "number" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "status": {
+      "description": "Any -> bus. Health/mode report. `info` carries component-specific details (e.g. mac_app: renderer, head_tracking, guidance_mode, input_device, output_device, stt_engine).",
+      "type": "object", "additionalProperties": false, "required": ["type", "component", "ok", "detail", "t"],
+      "properties": {
+        "type": { "const": "status" },
+        "component": { "$ref": "#/$defs/component" },
+        "ok": { "type": "boolean" },
+        "detail": { "type": "string" },
+        "info": { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean", "null"] } },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    },
+    "reset": {
+      "description": "Any -> bus. Return every component to the demo starting state (stop guidance and chirps, clear held state, hub re-reads seed/cache and re-sends snapshot).",
+      "type": "object", "additionalProperties": false, "required": ["type", "t"],
+      "properties": {
+        "type": { "const": "reset" },
+        "t": { "$ref": "#/$defs/t" }
+      }
+    }
+  }
+}

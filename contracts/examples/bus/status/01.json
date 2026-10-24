@@ -1,0 +1,16 @@
+{
+  "type": "status",
+  "component": "mac_app",
+  "ok": true,
+  "detail": "spatial + head tracking",
+  "info": {
+    "renderer": "avaudio_hrtfhq",
+    "head_tracking": "connected",
+    "guidance_mode": "spatial_tracked",
+    "input_device": "MacBook Pro Microphone",
+    "output_device": "DK's AirPods Pro",
+    "stt_engine": "cartesia",
+    "yaw": -3.1
+  },
+  "t": 1761350400.12
+}

@@ -1,0 +1,12 @@
+{
+  "type": "trial_end",
+  "trial_id": "t-0001",
+  "mode": "earmark",
+  "target_object_id": "sugar",
+  "tester": "tester-A",
+  "outcome": "found",
+  "started_t": 1761350392.7199998,
+  "seconds_to_find": 7.4,
+  "wrong_picks": 0,
+  "t": 1761350400.12
+}

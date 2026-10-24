@@ -1,0 +1,38 @@
+{
+  "household": {
+    "name": "Test",
+    "timezone": "UTC"
+  },
+  "objects": [
+    {
+      "object_id": "salt",
+      "name": "salt",
+      "aliases": [
+        "table salt",
+        "sea salt"
+      ],
+      "notes": "For cooking and for eggs.",
+      "description": "Small glass jar with a white lid, identical to the sugar jar.",
+      "tag": "04A1B2C3D4E501",
+      "home_spot": 2,
+      "is_medication": false,
+      "fob_id": null
+    },
+    {
+      "object_id": "sugar",
+      "name": "sugar",
+      "aliases": [
+        "white sugar",
+        "sweetener"
+      ],
+      "notes": "For coffee and tea.",
+      "description": "Small glass jar with a white lid, identical to the salt jar.",
+      "tag": "04A1B2C3D4E502",
+      "home_spot": 3,
+      "is_medication": false,
+      "fob_id": null
+    }
+  ],
+  "medications": [],
+  "version": 1761350400000
+}

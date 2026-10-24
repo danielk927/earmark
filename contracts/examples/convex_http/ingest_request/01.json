@@ -1,0 +1,32 @@
+{
+  "events": [
+    {
+      "event_id": "e-6f1c2a9b",
+      "kind": "pickup",
+      "object_id": "salt",
+      "t": 1761350400.12,
+      "data": {
+        "type": "pickup",
+        "object_id": "salt",
+        "from_spot": 2,
+        "t": 1761350400.12
+      }
+    }
+  ],
+  "states": [
+    {
+      "type": "state_update",
+      "object_id": "salt",
+      "location": {
+        "spot": null,
+        "position": null
+      },
+      "precision": "none",
+      "status": "held",
+      "home_spot": 2,
+      "last_seen_t": 1761350398.62,
+      "source": "nfc",
+      "t": 1761350400.12
+    }
+  ]
+}

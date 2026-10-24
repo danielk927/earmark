@@ -1,0 +1,8 @@
+{
+  "type": "mic_audio",
+  "seq": 41,
+  "sample_rate": 16000,
+  "encoding": "pcm_s16le",
+  "chunk_b64": "",
+  "t": 1761350404.2199998
+}
