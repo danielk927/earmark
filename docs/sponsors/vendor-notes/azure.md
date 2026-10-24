@@ -333,7 +333,7 @@ Two options, both UNVERIFIED:
 1. Run the agent locally once with the same seed, register the mailbox through the Inspector, then deploy to Azure with that seed (the agent address is derived from the seed).
 2. Temporarily add ingress (`az containerapp ingress enable --name $APP_NAME --resource-group $RG --type external --target-port 8000`) and open the Inspector with the app's HTTPS URL.
 
-Check `docs/vendor-notes/fetchai.md` (if present) for the authoritative registration flow.
+Check `docs/sponsors/vendor-notes/fetchai.md` (if present) for the authoritative registration flow.
 
 ### 5.7 Operate and tear down
 
@@ -351,13 +351,13 @@ az group delete --name $RG --yes --no-wait
 Log commands: https://learn.microsoft.com/en-us/azure/container-apps/log-streaming
 `az group delete` deletes every resource in the group: https://learn.microsoft.com/en-us/azure/container-apps/quickstart-code-to-cloud
 
-## 6. Production-path talking points (for `docs/PRODUCTION.md`)
+## 6. Production-path talking points (for `docs/project/PRODUCTION.md`)
 
 - Static Web Apps Standard plan adds an SLA, custom auth providers, and private endpoints. https://learn.microsoft.com/en-us/azure/static-web-apps/plans
 - Microsoft says to avoid literal secret values in production and use Key Vault references with a managed identity. https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets
 - Container Apps scales on HTTP, TCP, or KEDA event sources, so one agent per household can grow into a pool driven by queue length. https://learn.microsoft.com/en-us/azure/container-apps/scale-app
 - Use managed identity for registry pulls instead of registry passwords. https://learn.microsoft.com/en-us/azure/container-apps/containers
-- Microsoft's responsible AI "Operate" stage asks for a phased delivery plan, incident response plan, rollback plan, and user feedback channels; see `docs/sponsor-packs/microsoft.md`.
+- Microsoft's responsible AI "Operate" stage asks for a phased delivery plan, incident response plan, rollback plan, and user feedback channels; see `docs/sponsors/sponsor-packs/microsoft.md`.
 
 ## Sources
 

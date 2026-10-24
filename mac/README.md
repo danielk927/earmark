@@ -72,7 +72,7 @@ Use `--hold` to keep guidance active (for screenshots).
 ## Phase 0.5 spatial gate: procedure for the human
 
 Do this before anything else (brief rule 11).
-Record results in `docs/STATUS.md` (spatial gate table).
+Record results in `docs/project/STATUS.md` (spatial gate table).
 
 ### 0. Set up
 
@@ -96,7 +96,7 @@ Record results in `docs/STATUS.md` (spatial gate table).
 3. Turn your head **left**: the YAW readout must go **negative**, and the ping must move into your **right** ear.
 4. Turn your head **right**: yaw positive, ping moves to your **left** ear.
 5. Look **up**: PITCH must go **positive** (the ping may move slightly down; elevation is a weak cue, so trust the number).
-6. Nod and watch PITCH and ROLL: if nodding moves ROLL instead of PITCH, note it in `docs/STATUS.md`.
+6. Nod and watch PITCH and ROLL: if nodding moves ROLL instead of PITCH, note it in `docs/project/STATUS.md`.
 7. If yaw has the wrong sign: in `mac/Sources/EarmarkAudio/HeadSigns.swift` change `yawSign` from `-1` to `1`, run `mac/build_app.sh --open spike`, and repeat from step 1.
    Same for `pitchSign`.
    These two constants are the only place the CoreMotion signs are applied.
@@ -132,7 +132,7 @@ Each log line has `t`, `session_id`, `trial`, `set`, `renderer`, `timbre`, `targ
 
 1. With the AirPods connected, run `mac/build_app.sh --open app` and allow the microphone.
 2. The status bar must show MIC = MacBook Pro Microphone and OUTPUT = AirPods at 48 kHz, also while you hold Space and talk.
-3. If OUTPUT drops below 44.1 kHz, a red banner appears: record it in `docs/STATUS.md` (audio routing check).
+3. If OUTPUT drops below 44.1 kHz, a red banner appears: record it in `docs/project/STATUS.md` (audio routing check).
 
 ## Audio routing rule (what the app changes)
 
@@ -223,7 +223,7 @@ AudioRouteController: input rule, device watcher, debounced restarts -> EarmarkC
 - Mic and Apple Speech: not started (`--no-mic`); the conversion, chunking, and gating are unit-tested, and routing to bus or Apple Speech is tested with a mock transcriber.
 - The hub: `mac/tools/fake_bus.py`.
 
-## Only real AirPods can verify (from docs/vendor-notes/apple-spatial-audio.md section 10)
+## Only real AirPods can verify (from docs/sponsors/vendor-notes/apple-spatial-audio.md section 10)
 
 - `yawSign = -1` and `pitchSign = +1`, and whether nodding shows up in pitch or roll.
 - The motion update rate, and whether motion flows from this SwiftPM-built bundle, when the app is not frontmost, or when the AirPods are not the active output.

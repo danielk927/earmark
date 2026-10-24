@@ -1,4 +1,4 @@
-"""Moss in-process session index over the registry (docs/vendor-notes/moss.md).
+"""Moss in-process session index over the registry (docs/sponsors/vendor-notes/moss.md).
 
 One document per object (name, aliases, notes, description). Rebuilt by diff
 (delete removed ids, upsert the rest) on every registry change. Any Moss error

@@ -9,17 +9,17 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 | Software (voice, memory, dashboard, backend, Mac app, locator tools) | Built and tested on a laptop |
 | Claude | Works with the real key |
 | Convex | Live on the cloud dev deployment with demo data |
-| Moss | Key set; live check pending |
-| Cartesia (voice) | No key yet |
+| Moss | Works (warm it up once before any demo: the first start takes minutes) |
+| Cartesia (voice) | Key set; speech works |
 | AirPods head tracking | Never tested on real AirPods |
 | Beacons, phone locator app | Not built or tested; no hardware yet |
 
 ## A real test you can do today (no hardware)
 
-1. `make demo-sim` starts everything with the simulator (see `docs/DEMO_SCRIPT.md`).
+1. `make demo-sim` starts everything with the simulator (see `docs/project/DEMO_SCRIPT.md`).
 2. Say or type "Where's the sugar?", "I put my keys in the drawer", "Where did I put my keys before?".
 3. Check the dashboard (live map and timeline) updates.
-4. With the AirPods on: run the spatial test in `mac/README.md` and fill in the table in `docs/STATUS.md`. This is the most important test that has not been done.
+4. With the AirPods on: run the spatial test in `mac/README.md` and fill in the table in `docs/project/STATUS.md`. This is the most important test that has not been done.
 
 ## Hardware: how to start (in this order, each step must pass before the next)
 

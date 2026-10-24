@@ -1,4 +1,4 @@
-"""The Fetch.ai uAgent: Agent Chat Protocol over an Agentverse mailbox (docs/vendor-notes/fetchai.md)."""
+"""The Fetch.ai uAgent: Agent Chat Protocol over an Agentverse mailbox (docs/sponsors/vendor-notes/fetchai.md)."""
 
 from __future__ import annotations
 

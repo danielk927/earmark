@@ -3,7 +3,7 @@
 Summary of Cartesia's official Cal Hacks 13.0 starter pack, fetched 2026-10-24.
 Primary source: https://docs.cartesia.ai/calhacks (raw Markdown at https://docs.cartesia.ai/calhacks.md).
 Prize listing cross-checked on Devpost: https://cal-hacks-13-0.devpost.com/
-Technical integration details are in `docs/vendor-notes/cartesia.md`.
+Technical integration details are in `docs/sponsors/vendor-notes/cartesia.md`.
 
 ## Prize
 

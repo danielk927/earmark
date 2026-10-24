@@ -40,13 +40,13 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 
 ## Q&A crib
 
-- **Why not a camera app?** Scene-description apps describe what the camera sees now; they don't remember where things are and can't tell identical containers apart. Earmark's identity comes from tags, not appearance (`docs/CUSTOMER.md`).
+- **Why not a camera app?** Scene-description apps describe what the camera sees now; they don't remember where things are and can't tell identical containers apart. Earmark's identity comes from tags, not appearance (`docs/project/CUSTOMER.md`).
 - **Front/back confusion?** Past 100 degrees off target the cue switches to a distinct "behind" sound and Earmark says which way to turn.
 - **Latency?** Final transcript to first audio: [LATENCY: median and p90 from `make latency`], target 1.2 s.
-- **What if the internet is down?** The local loop keeps working; speech falls back to cached phrases, then the system voice; intent falls back to a keyword grammar (`docs/ARCHITECTURE.md`, failure table).
-- **Cost per home?** About $147-$559 in parts, an estimate (`docs/PRODUCTION.md`).
-- **Privacy?** `docs/RESPONSIBLE_DESIGN.md`.
-- **Can it save "leaving my keys here"?** Not yet: the app does not know where the user is standing, so it asks for a named place (cupboard, drawer, bag, box). Tracking the user is the next step (`docs/PRODUCTION.md`).
+- **What if the internet is down?** The local loop keeps working; speech falls back to cached phrases, then the system voice; intent falls back to a keyword grammar (`docs/project/ARCHITECTURE.md`, failure table).
+- **Cost per home?** About $147-$559 in parts, an estimate (`docs/project/PRODUCTION.md`).
+- **Privacy?** `docs/project/RESPONSIBLE_DESIGN.md`.
+- **Can it save "leaving my keys here"?** Not yet: the app does not know where the user is standing, so it asks for a named place (cupboard, drawer, bag, box). Tracking the user is the next step (`docs/project/PRODUCTION.md`).
 
 ## If something fails (Operator)
 

@@ -5,7 +5,7 @@ Sources: the PyPI JSON API, the uAgents GitHub source at tag `v0.26.1`, the rele
 This was read-only research.
 Nothing was installed or run, except that the snippet in section 7 was syntax-checked with `py_compile` on Python 3.12.
 Anything I could not confirm from a source is marked UNVERIFIED.
-The hack pack summary is in `docs/sponsor-packs/fetchai.md`.
+The hack pack summary is in `docs/sponsors/sponsor-packs/fetchai.md`.
 
 ## 1. Key facts
 
@@ -228,7 +228,7 @@ register_chat_agent(
      Ranking depends on having the Chat Protocol, a good README, a custom handle, active status, an avatar, a description, and interaction history ("Receive at least 10 interactions") (https://docs.agentverse.ai/documentation/agent-discovery/setup-guide, https://docs.agentverse.ai/documentation/agent-optimization/ranking).
      Don't count on this for a brand-new agent.
 - The agent must be running: "Remember that the Agent needs to be running otherwise you won't be able to chat with it!" (https://uagents.fetch.ai/docs/examples/asi-1).
-- **Shared chat URL** (for the submission form): in the left sidebar click the search icon, then Current chat, then Share chat (submission doc, see `docs/sponsor-packs/fetchai.md`).
+- **Shared chat URL** (for the submission form): in the left sidebar click the search icon, then Current chat, then Share chat (submission doc, see `docs/sponsors/sponsor-packs/fetchai.md`).
 - I could not confirm whether ASI:One shows the agent's reply word for word or rewrites it - UNVERIFIED.
   Test this early, because Earmark's "timestamps, no medical advice" wording has to survive.
 - **ASI:One LLM API** (optional, not required by the hack pack): base URL `https://api.asi1.ai/v1`, OpenAI-compatible.
@@ -447,7 +447,7 @@ What ASI:One matching reads from the agent README (https://innovationlab.fetch.a
    Fetch asks for a **3-5 minute demo video** showing the agents.
    Teams must also register through the **Cal Hacks ASI:One Submission agent**, and every teammate must join with the Team ID or the status stays "Incomplete".
    The required form fields include the Devpost URL and the demo video URL.
-   Details are in `docs/sponsor-packs/fetchai.md`.
+   Details are in `docs/sponsors/sponsor-packs/fetchai.md`.
 7. **Azure hosting (brief 6.1).**
    A mailbox agent runs anywhere with outbound HTTPS, but the Inspector step needs a browser on the same machine or a port-forward.
    For Azure Container Apps, either connect once through a port-forward, or register with `register_chat_agent` using the app's public HTTPS endpoint (section 5).

@@ -1,7 +1,7 @@
 """Settings from the environment.
 
 Every vendor URL, model ID, and voice ID comes from an env var. Defaults are the
-values verified in docs/vendor-notes/{cartesia,moss}.md. A repo-root
+values verified in docs/sponsors/vendor-notes/{cartesia,moss}.md. A repo-root
 .env is loaded if present, without overriding the real environment. Empty
 values count as unset, so a test can blank a key that .env would provide.
 """
@@ -43,7 +43,7 @@ def _path(name: str, default: Path) -> Path:
 class Settings:
     bus_url: str = "ws://127.0.0.1:8765"
 
-    # Cartesia (docs/vendor-notes/cartesia.md)
+    # Cartesia (docs/sponsors/vendor-notes/cartesia.md)
     cartesia_api_key: str | None = None
     cartesia_version: str = "2026-08-14"
     stt_url: str = "wss://api.cartesia.ai/stt/turns/websocket"
@@ -56,7 +56,7 @@ class Settings:
     tts_encoding: str = "pcm_f32le"
     tts_sample_rate: int = 48000
 
-    # Moss (docs/vendor-notes/moss.md)
+    # Moss (docs/sponsors/vendor-notes/moss.md)
     moss_project_id: str | None = None
     moss_project_key: str | None = None
     moss_index_name: str = "earmark-objects"

@@ -15,7 +15,7 @@ Anything marked **estimate** or **proposal** is our planning number, not a measu
 | Spatial audio app | macOS app with AirPods head tracking (in progress) | iPhone app (section 3) |
 | Backend | Convex: tables, HTTP actions with shared secrets, adherence rules with tests, crons, photo labeling (`convex/README.md`) | Convex with user auth, household scoping, and roles (section 5) |
 | Caregiver dashboard and memory agent | In progress | Azure Static Web Apps and Azure Container Apps (section 4) |
-| Users | None yet; see `docs/CUSTOMER.md` | Pilot households through a blindness organization (section 10) |
+| Users | None yet; see `docs/project/CUSTOMER.md` | Pilot households through a blindness organization (section 10) |
 
 ## 1. Hardware bill of materials per home (estimate)
 
@@ -63,7 +63,7 @@ At volume, one reader chip switching between several spot antennas would cut rea
 ## 2. The home hub
 
 The hub and concierge are plain Python 3.12 services, so the production plan is to run the same code on a Raspberry Pi-class box.
-The Mac-specific parts are small: serial port names, Bluetooth permission prompts, and CoreBluetooth device IDs, which only work on the Mac that scanned them (`docs/vendor-notes/bleak.md` 2).
+The Mac-specific parts are small: serial port names, Bluetooth permission prompts, and CoreBluetooth device IDs, which only work on the Mac that scanned them (`docs/sponsors/vendor-notes/bleak.md` 2).
 bleak, the Bluetooth library the hub uses, also has a Linux backend.
 Changes needed:
 
@@ -89,7 +89,7 @@ Every framework it uses exists on iOS:
 
 What changes on iPhone:
 - **Audio routing gets easier.**
-  macOS has no `AVAudioSession`, so the Mac app switches the system default input to the built-in mic to keep AirPods in high-quality stereo (`docs/STATUS.md`, finding 7).
+  macOS has no `AVAudioSession`, so the Mac app switches the system default input to the built-in mic to keep AirPods in high-quality stereo (`docs/project/STATUS.md`, finding 7).
   On iOS, use the `playAndRecord` category with `allowBluetoothA2DP` and without the hands-free option, because "when a single device supports both the Hands-Free Profile (HFP) and A2DP, the system gives hands-free ports a higher priority".
   Source: https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/allowbluetootha2dp
 - **Route changes and interruptions** (a phone call, AirPods removed) arrive as `AVAudioSession` notifications instead of the polling the Mac needs.
@@ -100,12 +100,12 @@ What changes on iPhone:
 - **Permissions:** `NSMotionUsageDescription` (iOS 7.0+), microphone and speech recognition descriptions, and `NSLocalNetworkUsageDescription` (iOS 14.0+) to reach the home hub.
   Sources: https://developer.apple.com/documentation/bundleresources/information-property-list/nsmotionusagedescription, https://developer.apple.com/documentation/bundleresources/information-property-list/nslocalnetworkusagedescription
 - **UI:** the map becomes a VoiceOver-first SwiftUI screen; the primary user still never has to touch it, since every job works by voice.
-- **Hardware coverage:** head tracking needs supported headphones; the fallback ladder in `docs/ARCHITECTURE.md` covers everyone else.
+- **Hardware coverage:** head tracking needs supported headphones; the fallback ladder in `docs/project/ARCHITECTURE.md` covers everyone else.
 
 ## 4. Cloud hosting on Azure
 
 Convex stays the database.
-Azure hosts the two cloud services; commands and constraints are in `docs/vendor-notes/azure.md`.
+Azure hosts the two cloud services; commands and constraints are in `docs/sponsors/vendor-notes/azure.md`.
 
 | Part | Hosting | Pilot setting | Production setting | Cost (estimate) |
 |---|---|---|---|---|
@@ -171,7 +171,7 @@ Data that leaves the home, and to whom:
 - Convex: the registry, events, doses, trials, and briefly a labeling photo.
 - Cartesia: microphone audio during a request, and the text of each spoken reply.
 - Anthropic (Claude): the transcript plus item names, aliases, notes, and saved place names for tool choice, and the labeling photo.
-- Moss: the concierge uses an in-process session index, so item names are embedded and searched on the hub (`docs/vendor-notes/moss.md` 3).
+- Moss: the concierge uses an in-process session index, so item names are embedded and searched on the hub (`docs/sponsors/vendor-notes/moss.md` 3).
 
 We have not yet reviewed Cartesia's or Anthropic's data retention terms.
 Signing data processing agreements with every vendor, or replacing a vendor, is a gate before the first home pilot.
@@ -202,12 +202,12 @@ Signing data processing agreements with every vendor, or replacing a vendor, is 
 
 **Estimate:** 235 mAh at 21.5 µA would last about 15 months of advertising alone.
 Real fobs will last less: their advertising interval is unknown, every chirp holds a connection and drives a buzzer, and coin cells lose capacity in the cold.
-Plan: measure current on the pilot fobs, read each fob's Battery Level characteristic (0x2A19, present on common iTag units per `docs/vendor-notes/bleak.md` 4) once a day, and tell the caregiver at 20%.
+Plan: measure current on the pilot fobs, read each fob's Battery Level characteristic (0x2A19, present on common iTag units per `docs/sponsors/vendor-notes/bleak.md` 4) once a day, and tell the caregiver at 20%.
 Battery swap is a caregiver task, budgeted at twice a year until we have measurements.
 
 ## 8. Reliability and safe failure
 
-Every fallback in `docs/ARCHITECTURE.md` ("Failure handling") applies; `docs/RESPONSIBLE_DESIGN.md` covers what the user hears in each case.
+Every fallback in `docs/project/ARCHITECTURE.md` ("Failure handling") applies; `docs/project/RESPONSIBLE_DESIGN.md` covers what the user hears in each case.
 Production adds:
 
 | Risk | Mitigation | Pilot metric |
@@ -236,9 +236,9 @@ Target numbers are proposals to be agreed with the partner organization.
 |---|---|---|
 | 0. Prototype (this weekend) | Simulator, one demo counter, blindfolded-teammate trials, which are a pilot and not user evidence | Definition of done in `BUILD_BRIEF.md` section 8; trial results shown with raw counts |
 | 1. Bench hardening (about 4 weeks) | Real readers and fobs, reader firmware, home hub on a Pi-class box, user auth and household scoping, delete flow, vendor data agreements | 7-day soak with 1,000 scripted lifts: zero missed or false pickups, zero cross-spot reads, zero wrong-identity answers; latency target met |
-| 2. Usability sessions (about 4 weeks) | 5 to 8 blind and low-vision participants, recruited with consent through a blindness organization, for example LightHouse for the Blind and Visually Impaired in San Francisco (https://lighthouse-sf.org/) or The Chicago Lighthouse (https://chicagolighthouse.org/); neither has been contacted yet; ethics review if run through a university | At least 80% of find tasks completed in under 30 seconds; no participant misled about which container they hold; findings recorded in `docs/CUSTOMER.md` with consent |
+| 2. Usability sessions (about 4 weeks) | 5 to 8 blind and low-vision participants, recruited with consent through a blindness organization, for example LightHouse for the Blind and Visually Impaired in San Francisco (https://lighthouse-sf.org/) or The Chicago Lighthouse (https://chicagolighthouse.org/); neither has been contacted yet; ethics review if run through a university | At least 80% of find tasks completed in under 30 seconds; no participant misled about which container they hold; findings recorded in `docs/project/CUSTOMER.md` with consent |
 | 3. Home pilot (8 weeks) | 3 to 5 households, installed together with the organization's staff, iPhone app, caregiver dashboard | Setup under 60 minutes; hub uptime at least 99%; zero wrong-identity confirmations; Earmark used in at least 5 of 7 days; caregiver and user both still opted in at the end |
 | 4. Expanded pilot (3 months) | 20 to 30 households across 2 or 3 organizations; support process; measured fob battery life; cost per household including installation | At least 70% of households still using Earmark weekly at week 8; support contacts under 1 per household per month; cost per household known |
-| 5. Scale | Installer training kit for partner organizations, Azure Standard plan, on-call rotation, incident response and rollback plans (Microsoft's "Operate" stage, `docs/sponsor-packs/microsoft.md` 4.3) | Ongoing: the same reliability and safety metrics, reported monthly |
+| 5. Scale | Installer training kit for partner organizations, Azure Standard plan, on-call rotation, incident response and rollback plans (Microsoft's "Operate" stage, `docs/sponsors/sponsor-packs/microsoft.md` 4.3) | Ongoing: the same reliability and safety metrics, reported monthly |
 
 Feedback channels from phase 2 on: a spoken "That was wrong" logged against the guidance event, a feedback button on the dashboard, and a phone number at the partner organization.

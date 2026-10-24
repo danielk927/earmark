@@ -44,7 +44,7 @@ Built in `convex/labeling.ts` (`convex/README.md`, "Photo-assisted labeling"):
 Tested: `convex/labeling.test.ts` checks photo deletion on every path, the timeout, and the sweeper, with a mocked model.
 Not yet tested: the live Claude model (no key yet).
 Planned: the dashboard states, before upload, that the photo is deleted after the suggestion (HAX G16).
-Residual exposure: the photo is processed by Anthropic, whose retention terms we have not reviewed yet (`docs/PRODUCTION.md` 6.1).
+Residual exposure: the photo is processed by Anthropic, whose retention terms we have not reviewed yet (`docs/project/PRODUCTION.md` 6.1).
 
 ## 4. Data minimization
 
@@ -54,10 +54,10 @@ Family members choose item names, so a medication can be called "evening pills" 
 
 Two gaps we know about:
 - The concierge writes each final transcript, with timings, to `logs/latency.jsonl` on the hub machine for the latency report.
-  It is never sent to Convex; production keeps timings only (`docs/PRODUCTION.md` 6.1).
+  It is never sent to Convex; production keeps timings only (`docs/project/PRODUCTION.md` 6.1).
 - The concierge sends the transcript plus item names, aliases, notes, and saved place names to Claude to choose a tool.
 
-The full storage and retention table is in `docs/PRODUCTION.md` 6.1.
+The full storage and retention table is in `docs/project/PRODUCTION.md` 6.1.
 
 ## 5. Caregiver access controls
 
@@ -66,7 +66,7 @@ The full storage and retention table is in `docs/PRODUCTION.md` 6.1.
   That is acceptable only with the synthetic demo household.
 - **Production:** each person signs in through Convex auth with an OpenID Connect provider such as Clerk; every row carries a `householdId`; every function checks membership and role.
   The primary user owns the data, caregiver visibility requires the user's consent, and the user can withdraw it.
-  Roles and the permission matrix are in `docs/PRODUCTION.md` 5.2.
+  Roles and the permission matrix are in `docs/project/PRODUCTION.md` 5.2.
 - **Proposal:** an access log the primary user can hear ("Your daughter checked the medication log today at 9:02 AM"), so caregiver access is never invisible to the person it concerns.
 
 ## 6. No medical advice
@@ -105,7 +105,7 @@ Directions, distances, times, ambiguity, and every spoken sentence are produced 
 
 ### 8.1 When a service fails
 
-From `docs/ARCHITECTURE.md` ("Failure handling") and the concierge fallback ladder:
+From `docs/project/ARCHITECTURE.md` ("Failure handling") and the concierge fallback ladder:
 
 | Failure | Behavior | What the user notices |
 |---|---|---|
@@ -147,25 +147,25 @@ Trial mode (`BUILD_BRIEF.md` 5.I) produces the "measurable usefulness" numbers, 
 - The primary user needs no screen: every job works by voice and sound, and the Mac app design adds push-to-talk for noisy rooms.
 - The caregiver dashboard must be fully usable with a screen reader and keyboard: semantic HTML, visible focus, high contrast, no information by color alone, light and dark modes, and a text list equivalent of the map (`BUILD_BRIEF.md` rule 7 and 5.F).
   Production target: an audit against WCAG 2.2 level AA (https://www.w3.org/TR/WCAG22/) before the home pilot.
-- Older users often have hearing loss as well as vision loss; voice-only use by people with both is an open question in `docs/CUSTOMER.md` 6.
+- Older users often have hearing loss as well as vision loss; voice-only use by people with both is an open question in `docs/project/CUSTOMER.md` 6.
 - Users without head-tracking headphones still get stereo panning and spoken clock directions, then speech only.
 
 ## 11. Mapping to Microsoft's Responsible AI principles
 
-Principle descriptions are Microsoft's, from https://www.microsoft.com/en-us/ai/principles-and-approach (collected in `docs/sponsor-packs/microsoft.md` 4.1).
+Principle descriptions are Microsoft's, from https://www.microsoft.com/en-us/ai/principles-and-approach (collected in `docs/sponsors/sponsor-packs/microsoft.md` 4.1).
 
 | Principle | Microsoft | What Earmark does | Known gap |
 |---|---|---|---|
-| Fairness | "AI systems should treat all people fairly." | Works by voice alone, with no reading, braille, or screen required; low-cost parts (`docs/PRODUCTION.md` 1); no recognition of people at all | Speech recognition quality varies across accents and speech differences; untested with real users |
+| Fairness | "AI systems should treat all people fairly." | Works by voice alone, with no reading, braille, or screen required; low-cost parts (`docs/project/PRODUCTION.md` 1); no recognition of people at all | Speech recognition quality varies across accents and speech differences; untested with real users |
 | Reliability and safety | "AI systems should perform reliably and safely." | Deterministic, unit-tested math and adherence rules; the model only picks a tool; identity from tags; timeouts and fallbacks on every external call; debounce; durable offline queue | Spatial gate on real AirPods not run yet; no real readers or fobs tested yet |
 | Privacy and security | "AI systems should be secure and respect privacy." | No cameras; labeling photos deleted; data minimization; secrets never logged; constant-time secret comparison | Dashboard functions have no auth yet; vendor retention terms not reviewed |
-| Inclusiveness | "AI systems should empower everyone and engage all people, regardless of their backgrounds." | Designed for blind and low-vision people first; caregivers and family included through labeling and evidence; fallbacks for users without AirPods | No blind or low-vision person has been involved yet (`docs/CUSTOMER.md`) |
+| Inclusiveness | "AI systems should empower everyone and engage all people, regardless of their backgrounds." | Designed for blind and low-vision people first; caregivers and family included through labeling and evidence; fallbacks for users without AirPods | No blind or low-vision person has been involved yet (`docs/project/CUSTOMER.md`) |
 | Transparency | "AI systems should be understandable." | Says when it is unsure, why ("last seen at 8:12"), and which mode is active; the latency log attributes every decision path | No first-run spoken explanation of what Earmark can and cannot do yet |
-| Accountability | "People should be accountable for AI systems." | Labels change only by explicit human action; trial data is immutable; every decision is logged with its path | No incident or feedback process until the pilot (`docs/PRODUCTION.md` 10) |
+| Accountability | "People should be accountable for AI systems." | Labels change only by explicit human action; trial data is immutable; every decision is logged with its path | No incident or feedback process until the pilot (`docs/project/PRODUCTION.md` 10) |
 
 ### 11.1 Harms: identify, measure, mitigate, operate
 
-Following Microsoft's four stages for responsible generative AI (https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/openai/overview, summarized in `docs/sponsor-packs/microsoft.md` 4.3):
+Following Microsoft's four stages for responsible generative AI (https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/openai/overview, summarized in `docs/sponsors/sponsor-packs/microsoft.md` 4.3):
 
 | Harm (identify) | Measure | Mitigate | Operate |
 |---|---|---|---|
@@ -174,7 +174,7 @@ Following Microsoft's four stages for responsible generative AI (https://learn.m
 | False reassurance about medication | Pickups compared with the user's own record in the pilot | "Picked up", never "took"; no advice; deterministic rules | Caregiver onboarding explains what evidence means |
 | Overreliance | Whether users keep their own backup techniques | Earmark announces fallbacks and offline states | Partner organization's staff check in during the pilot |
 | Caregiver access felt as surveillance | Ask both sides, separately, in interviews | Consent, revocable access, spoken access log (proposal) | Consent re-confirmed at the end of each pilot phase |
-| Data exposure | Security review before the home pilot | Auth and household scoping, per-device credentials, deletion | Incident response and rollback plans (`docs/PRODUCTION.md` 10) |
+| Data exposure | Security review before the home pilot | Auth and household scoping, per-device credentials, deletion | Incident response and rollback plans (`docs/project/PRODUCTION.md` 10) |
 
 ### 11.2 Guidelines for Human-AI Interaction (HAX)
 
@@ -192,5 +192,5 @@ Guideline titles from https://www.microsoft.com/en-us/haxtoolkit/library/; the m
 | G14 Update and adapt cautiously | Labels change only by explicit human action | Built |
 | G15 Encourage granular feedback | "That was wrong" logged against the guidance event | Planned |
 | G16 Convey the consequences of user actions | Dashboard says the photo is deleted after labeling | Planned |
-| G17 Provide global controls | Caregiver access controls and data deletion | Planned (`docs/PRODUCTION.md` 5 and 6) |
+| G17 Provide global controls | Caregiver access controls and data deletion | Planned (`docs/project/PRODUCTION.md` 5 and 6) |
 | G18 Notify users about changes | Spoken notice when a caregiver relabels an item | Planned |

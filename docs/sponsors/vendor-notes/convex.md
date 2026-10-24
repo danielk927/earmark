@@ -3,8 +3,8 @@
 Verified 2026-10-24 against docs.convex.dev (index: https://docs.convex.dev/llms.txt; every page is also served as Markdown by appending `.md`), the `convex` 1.48.0 npm package source, PyPI, and the convex-esp32 README.
 I also exercised the local, account-free flow end to end in a throwaway project outside the repo (convex 1.48.0, Node 26.10.0, macOS): anonymous deployment, HTTP action with a secret header, env vars, typed `env`, an interval cron, `npx convex run`, `npx convex import`, `ai-files install`, convex-test with Vitest 5, and the Python client.
 Anything marked "observed" comes from that run; anything marked UNVERIFIED is an inference or a gap in the docs.
-Hackathon details (prize, workshop, the home-page agent prompt) are in `docs/sponsor-packs/convex.md`.
-The official AI guidelines are copied verbatim in `docs/vendor-notes/convex-ai-guidelines.md`; read them before writing any Convex code.
+Hackathon details (prize, workshop, the home-page agent prompt) are in `docs/sponsors/sponsor-packs/convex.md`.
+The official AI guidelines are copied verbatim in `docs/sponsors/vendor-notes/convex-ai-guidelines.md`; read them before writing any Convex code.
 
 ## Quick reference for Earmark
 
@@ -338,7 +338,7 @@ Expose it as `npm run seed` -> `npx convex run seed:reset`.
 
 ## 11. Hackathon resources
 
-See `docs/sponsor-packs/convex.md`.
+See `docs/sponsors/sponsor-packs/convex.md`.
 In short: the prize is "Best use of Convex", $5,000 cash, with no published rubric.
 The Convex workshop is Saturday 10/24, 4:00-5:00 PM PDT, at Gate 3, and was still upcoming when I checked.
 Coupons are "sometimes" provided; there is no fixed credit amount.

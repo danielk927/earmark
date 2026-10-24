@@ -36,7 +36,7 @@ uv run pytest -q
 ## Configure
 
 Env vars are read at start; a repo-root `.env` is loaded without overriding the real environment, and empty values count as unset.
-Vendor defaults are the values verified in `docs/vendor-notes/` on 2026-10-24.
+Vendor defaults are the values verified in `docs/sponsors/vendor-notes/` on 2026-10-24.
 
 | Variable | Default | Verified in |
 | - | - | - |

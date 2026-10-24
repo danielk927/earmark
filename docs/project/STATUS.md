@@ -1,12 +1,12 @@
 # Earmark status
 
 Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed).
-Sponsor prizes, what each wants, and what we do: `docs/TRACKS.md`. What is left to do and who does it: `docs/NEXT_STEPS.md`.
+Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
 
-- **Merged in Aidan's hardware work** (his repo is retired): `locator/` (beacon firmware, mic-only iPhone app, Python positioning tools; its 188 tests pass), `firmware/` (NFC reader, ESP-NOW gateway and Bluetooth anchor sketches), and `docs/HARDWARE_NFC.md` (his wiring guide). His own hub, dashboard, Mac app and camera-based iPhone app were not brought over.
-  **Now connected** (see "Walking: the locator" in `docs/ARCHITECTURE.md`): the bus accepts `listener_pose` and `ptt` (and the locator's `hello` with a token, `status`, and `mic_audio` without a timestamp). The Mac app places the ping relative to the user, speeds it up and makes it louder as they approach, and stops at 0.5 m with an arrival tone (`guide_feedback arrived`). The concierge gives directions from the user's position and heading, says "You're here..." on arrival, and saves "I'm leaving my keys here" at the user's position. Verified by Python tests, a new end-to-end scenario (`put_here`), and a throwaway Swift program that exercised the Mac app's new logic against the mock renderer; the new Swift tests are written in the repo but cannot run on this Mac.
+- **Merged in Aidan's hardware work** (his repo is retired): `locator/` (beacon firmware, mic-only iPhone app, Python positioning tools; its 188 tests pass), `firmware/` (NFC reader, ESP-NOW gateway and Bluetooth anchor sketches), and `docs/project/HARDWARE_NFC.md` (his wiring guide). His own hub, dashboard, Mac app and camera-based iPhone app were not brought over.
+  **Now connected** (see "Walking: the locator" in `docs/project/ARCHITECTURE.md`): the bus accepts `listener_pose` and `ptt` (and the locator's `hello` with a token, `status`, and `mic_audio` without a timestamp). The Mac app places the ping relative to the user, speeds it up and makes it louder as they approach, and stops at 0.5 m with an arrival tone (`guide_feedback arrived`). The concierge gives directions from the user's position and heading, says "You're here..." on arrival, and saves "I'm leaving my keys here" at the user's position. Verified by Python tests, a new end-to-end scenario (`put_here`), and a throwaway Swift program that exercised the Mac app's new logic against the mock renderer; the new Swift tests are written in the repo but cannot run on this Mac.
   **Not built yet:** the AirPods stem as push-to-talk and phone-microphone speech input (the Mac app only announces `ptt`), and nothing here has run against the real locator app, beacons or AirPods. The locator's own hub notes (`locator/docs/CONTRACT_NOTES.md`) describe Aidan's old hub, not this one.
 
 - **Memory by named places.** The user says "I put my keys in the drawer"; Earmark saves it (a new `place_item` bus message and `stored` event, using the `areas` in `config/space.json`: the counter, cupboard, drawer, bag, box).
@@ -123,8 +123,8 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 |---|---|
 | Anthropic | Key in `.env`; real calls verified: tool choice with Haiku (0.9 to 1.4 s each), family questions with Sonnet (4 to 8 s), both against the real Convex data |
 | Convex | Dev deployment `diligent-ptarmigan-12`: functions deployed, demo data seeded, `EARMARK_HUB_SECRET`, `EARMARK_READ_SECRET` and `ANTHROPIC_API_KEY` set. The photo-naming action has not been run against a real photo yet |
-| Moss | Project ID and key in `.env` (see the Moss line in the next-steps list for the live check) |
-| Cartesia | No key yet: signup failed, a teammate needs to try |
+| Moss | Verified: finds the right items ("something for my eggs" gives pepper and salt). The very first start took 7 minutes (it downloads a model); after that 2 seconds. Start it once well before any demo |
+| Cartesia | Key and voice in `.env`; real speech verified (first sound after about 2 seconds on a cold start). Listening (speech to text) not tried yet |
 | Fetch.ai | Not started |
 
 ## Blockers needing the human (batched)
@@ -139,7 +139,7 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 4. **Hardware facts:** NFC module model, microcontroller board, number of readers, BLE fob model.
 5. **Repo visibility:** Fetch.ai requires a public repo; OK to make `danielk927/earmark` public before submission?
 6. **Azure:** whether Azure for Students is activated and on which account.
-7. **Customer research:** has anyone talked to a blind or low-vision person or an accessibility professional? (`docs/CUSTOMER.md` never invents interviews.)
+7. **Customer research:** has anyone talked to a blind or low-vision person or an accessibility professional? (`docs/project/CUSTOMER.md` never invents interviews.)
 8. **Timing:** the Convex workshop "Build Your Backend with Convex" is today, Saturday, 4:00-5:00 PM PDT at Gate 3.
 9. **Product decisions:** whether to add Fetch.ai bonus items (Payment Protocol, multi-agent, Interactive Cards); stretch items (Creao, Visa + Apify) stay off unless approved.
 10. **Bluetooth permission:** launch the hub once from Terminal.app and accept the Bluetooth prompt before using real fobs.

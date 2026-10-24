@@ -19,7 +19,7 @@ public enum Angles {
 public enum Geometry {
     /// Earmark world point -> AVAudio3DPoint (and PHASE): +x right, +y up, -z forward.
     /// The matrix [[1,0,0],[0,0,1],[0,-1,0]] has determinant +1 (a rotation, no mirror).
-    /// VERIFIED LOCALLY by offline rendering (docs/vendor-notes/apple-spatial-audio.md section 2).
+    /// VERIFIED LOCALLY by offline rendering (docs/sponsors/vendor-notes/apple-spatial-audio.md section 2).
     public static func avPoint(_ p: EarmarkPoint) -> AVAudio3DPoint {
         AVAudio3DPoint(x: Float(p.x), y: Float(p.z), z: Float(-p.y))
     }

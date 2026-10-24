@@ -3,7 +3,7 @@
 The grammar result is computed immediately. The LLM's single tool call wins if
 it arrives within the timeout and validates; otherwise the grammar result is
 used. A prefetch started on Cartesia's turn.eager_end is reused when the final
-transcript matches (docs/vendor-notes/cartesia.md, section 3.6).
+transcript matches (docs/sponsors/vendor-notes/cartesia.md, section 3.6).
 """
 from __future__ import annotations
 

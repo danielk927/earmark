@@ -3,7 +3,7 @@
 What each prize is, what the judges want, what Earmark already does, and what is still ours to do.
 Prize details come from the team's design doc (v7), which took them from each sponsor's Cal Hacks Slack channel.
 Re-check them on Devpost before submitting. On Devpost you opt in to each track at submission (around step 3 or 4); join the Cal Hacks 13.0 Devpost first.
-Longer per-sponsor notes are in `docs/sponsor-packs/`.
+Longer per-sponsor notes are in `docs/sponsors/sponsor-packs/`.
 
 ## Summary
 
@@ -27,7 +27,7 @@ Longer per-sponsor notes are in `docs/sponsor-packs/`.
   - Impact measure: time to find an item, with and without Earmark. The Trials page in the dashboard records this.
 - **Still to do:**
   - Put `ANTHROPIC_API_KEY` in `.env` and on the Convex deployment, then run each path once for real (all tests mock the API).
-  - Talk to at least one blind or low-vision person before judging and get one quote for the pitch (`docs/CUSTOMER.md` never invents interviews).
+  - Talk to at least one blind or low-vision person before judging and get one quote for the pitch (`docs/project/CUSTOMER.md` never invents interviews).
   - Redeem the $50 Claude credit link in `#cohost-anthropic`.
   - The track was not on Devpost yet; organizers said it will be added.
 
@@ -53,7 +53,7 @@ Longer per-sponsor notes are in `docs/sponsor-packs/`.
 ## Microsoft: Built for the Real World (grand) / Customer Impact Award
 
 - **They judge:** customer understanding, measurable usefulness, path from prototype to production, responsible design, end-to-end function. Microsoft technology is not required (Microsoft confirmed on Slack).
-- **What we do:** the story is a production-minded assistant with no cameras in the home. `docs/RESPONSIBLE_DESIGN.md`, `docs/PRODUCTION.md` and `docs/CUSTOMER.md` cover the rest, and the time-to-find measure comes from the Trials page.
+- **What we do:** the story is a production-minded assistant with no cameras in the home. `docs/project/RESPONSIBLE_DESIGN.md`, `docs/project/PRODUCTION.md` and `docs/project/CUSTOMER.md` cover the rest, and the time-to-find measure comes from the Trials page.
 - **Still to do:** real customer research, and a short "how this ships" slide (phone-only version, better location hardware).
 
 ## Fetch.ai: ASI:One Agent Challenge (optional)
@@ -72,6 +72,6 @@ Bitdeer (low prize value; the project now uses Claude instead), Creao (needs a C
 - [ ] Opt in to Anthropic, Cartesia, Moss, Convex, Microsoft (and Fetch.ai if the agent is registered).
 - [ ] Keys in `.env`: Anthropic, Cartesia, Moss, Fetch.ai seed.
 - [ ] Convex cloud deployment.
-- [ ] AirPods spatial test run (see `docs/STATUS.md`).
+- [ ] AirPods spatial test run (see `docs/project/STATUS.md`).
 - [ ] One conversation with a blind or low-vision person, plus a quote.
 - [ ] Demo video (Fetch.ai needs 3 to 5 minutes).

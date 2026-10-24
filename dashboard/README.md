@@ -58,7 +58,7 @@ It needs Playwright's Chromium once: `npx playwright install chromium`.
 
 ## Build and deploy to Azure Static Web Apps
 
-`public/staticwebapp.config.json` rewrites client routes to `index.html` (see `docs/vendor-notes/azure.md` section 4).
+`public/staticwebapp.config.json` rewrites client routes to `index.html` (see `docs/sponsors/vendor-notes/azure.md` section 4).
 The Convex URL is baked in at build time and is public by design; never put a secret in a `VITE_` variable.
 
 ```bash
@@ -73,7 +73,7 @@ swa deploy ./dist --env production
 az staticwebapp show --name $SWA_NAME --resource-group $RG --query defaultHostname -o tsv
 ```
 
-If the subscription's region policy blocks Static Web Apps, use the Azure Storage static website fallback in `docs/vendor-notes/azure.md` section 4.5.
+If the subscription's region policy blocks Static Web Apps, use the Azure Storage static website fallback in `docs/sponsors/vendor-notes/azure.md` section 4.5.
 Remote labeling from a phone needs a cloud Convex deployment; a local anonymous deployment is only reachable from this Mac.
 
 ## Environment

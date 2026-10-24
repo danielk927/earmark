@@ -12,7 +12,7 @@ public enum Cue: String, CaseIterable, Sendable {
 }
 
 /// Ping timbre. Pure tones localize poorly front/back because HRTF spectral cues need broadband
-/// energy (docs/vendor-notes/apple-spatial-audio.md section 3), so the spike makes this switchable.
+/// energy (docs/sponsors/vendor-notes/apple-spatial-audio.md section 3), so the spike makes this switchable.
 public enum PingTimbre: String, CaseIterable, Sendable, Identifiable {
     case tone
     case broadband

@@ -503,7 +503,7 @@ func setDefaultInput(_ dev: AudioDeviceID) -> OSStatus {
 
 ## 6. Mic capture to 16-bit PCM at 16 kHz
 
-- Target per `docs/vendor-notes/cartesia.md`: raw mono `pcm_s16le` at 16000 Hz, 100 ms chunks (1600 samples, 3200 bytes).
+- Target per `docs/sponsors/vendor-notes/cartesia.md`: raw mono `pcm_s16le` at 16000 Hz, 100 ms chunks (1600 samples, 3200 bytes).
 - `installTap(onBus:bufferSize:format:block:)`: the "Supported range is [100, 400] ms" for buffer size (`SDK: AVFAudio.framework/Headers/AVAudioNode.h`).
   "When rendering from an audio device, the input node does not support format conversion" (`SDK: AVFAudio.framework/Headers/AVAudioIONode.h`).
   So tap at the hardware format and convert with `AVAudioConverter`.

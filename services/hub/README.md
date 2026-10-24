@@ -137,7 +137,7 @@ Pure and deterministic: time comes only from event timestamps and `tick(now)`, a
   Non-detection lines (e.g. `transcript`) are published as if sent by component `simulator`.
   `earmark-sim` runs the same simulator as a bus client.
 - `nfc_serial`: parses `SPOT <n> TAG <uid>`, `SPOT <n> EMPTY`, `SPOT <n> ERROR <reason>` (errors become a hub `status`); raw lines go to `logs/serial.log`; it re-detects and reopens the port when the board is unplugged.
-- `ble_fobs`: follows `docs/vendor-notes/bleak.md`.
+- `ble_fobs`: follows `docs/sponsors/vendor-notes/bleak.md`.
   One continuous scan; fobs matched by CoreBluetooth address (or advertised name, cached per address); time-weighted RSSI EMA; thresholds -> `distance_class`; `lost` after `stale_s` without advertisements.
   Chirp: connect with the scanner's `BLEDevice`, log every service and characteristic, resolve Alert Level `2a06` through service `1802`, choose the write type from the characteristic's properties, write `alert_level`, hold the connection until `stop` or `chirp_timeout_s`, write `0x00`, optionally write `link_loss_value` to `1803/2a06`, and disconnect.
   If the connect times out while scanning, it retries once with the scanner paused.

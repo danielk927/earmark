@@ -24,7 +24,7 @@ firmware/build.sh            # host tests + compiles all 11 variants
 
 ## Path A: NFC readers on ESP32 (PN532 or RC522)
 
-Up to 5 readers share one SPI bus. Each gets its own chip-select (CS) pin. Pins and spot numbers live in [`firmware/earmark_reader/config.h`](../firmware/earmark_reader/config.h).
+Up to 5 readers share one SPI bus. Each gets its own chip-select (CS) pin. Pins and spot numbers live in [`firmware/earmark_reader/config.h`](../../firmware/earmark_reader/config.h).
 
 ### PN532 (red "PN532 NFC RFID Module V3", Elechouse style)
 
@@ -54,7 +54,7 @@ Use the 8-pin header:
 - Input-only pins 34–39
 - 16 and 17 on WROVER modules (PSRAM)
 
-**Driver.** By default the firmware uses its own PN532 driver ([`pn532_spi.h`](../firmware/earmark_reader/pn532_spi.h)). The Adafruit library reads only 20 bytes of the tag-list reply, which cuts off 7-byte NTAG UID frames. That is the likely cause of Adafruit-PN532 issue #52, where reads alternate found / not found. To compare against the library, build with `-DPN532_USE_ADAFRUIT=1`.
+**Driver.** By default the firmware uses its own PN532 driver ([`pn532_spi.h`](../../firmware/earmark_reader/pn532_spi.h)). The Adafruit library reads only 20 bytes of the tag-list reply, which cuts off 7-byte NTAG UID frames. That is the likely cause of Adafruit-PN532 issue #52, where reads alternate found / not found. To compare against the library, build with `-DPN532_USE_ADAFRUIT=1`.
 
 ### RC522 (blue MFRC522 boards): **3.3 V only**
 
@@ -153,7 +153,7 @@ This is the strongest **room-scale** option. The phone on the judge's chest trac
    ```bash
    cd hub && .venv/bin/earmark markers --cm 15 --out markers.html
    ```
-   Open the file, print at **100% / Actual size** on matte paper, and check one code with a ruler. Stick each code flat on its object, facing out. Codes are Micro QR (`EM01`…). Their 13×13 modules stay readable from farther away than a full QR code of the same size. Map marker → object in `hub/config/registry.json` (`"marker": "EM01"`) and in [`apple/EarmarkAR/Resources/markers.json`](../apple/EarmarkAR/Resources/markers.json) for standalone mode.
+   Open the file, print at **100% / Actual size** on matte paper, and check one code with a ruler. Stick each code flat on its object, facing out. Codes are Micro QR (`EM01`…). Their 13×13 modules stay readable from farther away than a full QR code of the same size. Map marker → object in `hub/config/registry.json` (`"marker": "EM01"`) and in [`apple/EarmarkAR/Resources/markers.json`](../../apple/EarmarkAR/Resources/markers.json) for standalone mode.
    - *Measured on this Mac with Apple Vision* (renders, not camera photos): all codes decode down to about 45 px wide, even with 1 px blur and a 45° tilt, and decoding degrades below about 34 px. A 15 cm code is 45 px at about 5 m on the iPhone's 1920-px camera frame. **Plan on 3–4 m for 15 cm codes** and about 2.5 m for 10 cm.
 2. **Install the app.** Open `apple/EarmarkAR/EarmarkAR.xcodeproj` (or run `xcodegen` in that folder first).
    - Under Signing & Capabilities, pick your team. A free Apple ID works, with a 7-day profile.

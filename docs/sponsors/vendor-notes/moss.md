@@ -3,7 +3,7 @@
 Researched 2026-10-24.
 Unless marked otherwise, every claim below comes from the linked official page.
 Anything I could not confirm is marked UNVERIFIED.
-The hack pack summary is in `docs/sponsor-packs/moss.md`.
+The hack pack summary is in `docs/sponsors/sponsor-packs/moss.md`.
 
 Tip for agents: https://docs.moss.dev/llms.txt indexes every doc page.
 Append `.md` to any docs URL to get the raw Markdown (for example https://docs.moss.dev/docs/start/quickstart.md).
@@ -318,7 +318,7 @@ Tune T and D on the seeded registry.
 4. **Sponsor resources table (2.5) expects judging criteria in the hack pack.**
    The pack has none.
    Devpost lists only "Best Use of Moss", 1 winner, "$996 in cash" / "Airpod Max/pros" (https://cal-hacks-13-0.devpost.com/).
-   See `docs/sponsor-packs/moss.md`.
+   See `docs/sponsors/sponsor-packs/moss.md`.
 5. **Moss Inference.**
    The hack pack gives a full section to Moss Inference, an OpenAI-compatible chat API with retrieval on the same host and <200 ms TTFT (https://docs.moss.dev/docs/reference/python/inference).
    The brief routes all LLM calls to Bitdeer.

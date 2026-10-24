@@ -47,7 +47,7 @@ public struct AudioDeviceInfo: Equatable, Sendable, Identifiable {
     public var isBuiltInMic: Bool { uid == AudioDevices.builtInMicUID || (transport == .builtIn && inputChannels > 0) }
 }
 
-/// CoreAudio device queries (docs/vendor-notes/apple-spatial-audio.md section 5c).
+/// CoreAudio device queries (docs/sponsors/vendor-notes/apple-spatial-audio.md section 5c).
 public enum AudioDevices {
     /// VERIFIED LOCALLY: the built-in mic's CoreAudio UID, identical to its AVCaptureDevice.uniqueID.
     public static let builtInMicUID = "BuiltInMicrophoneDevice"

@@ -1,8 +1,8 @@
 # Convex - Cal Hacks 13.0 sponsor pack
 
 Fetched 2026-10-24 (about 03:40 PDT, Saturday of the event).
-Technical notes are in `docs/vendor-notes/convex.md`.
-The official AI code-generation guidelines are copied verbatim in `docs/vendor-notes/convex-ai-guidelines.md`.
+Technical notes are in `docs/sponsors/vendor-notes/convex.md`.
+The official AI code-generation guidelines are copied verbatim in `docs/sponsors/vendor-notes/convex-ai-guidelines.md`.
 
 Sources:
 - Convex home page: https://www.convex.dev
@@ -71,7 +71,7 @@ How it applies to Earmark:
   Never run `npm create convex` in this repo.
 - The plugin step installs at `--scope user`, which changes the human's global Claude Code (and Codex) configuration, not just this repo.
   The orchestrator should decide whether to run it now or leave it for the human.
-- What `npx convex ai-files install` actually writes is listed in `docs/vendor-notes/convex.md`, section 1 (observed in a scratch project).
+- What `npx convex ai-files install` actually writes is listed in `docs/sponsors/vendor-notes/convex.md`, section 1 (observed in a scratch project).
 
 ## Hackathon resources page (contents)
 
@@ -127,4 +127,4 @@ The brief links https://github.com/convex/convex-esp32.
 Its README installs from `https://github.com/get-convex/convex-esp32.git` and describes it as alpha with "no guarantee of support".
 It connects over TLS to the `https://<deployment>.convex.cloud` URL, so it targets cloud deployments.
 Earmark's NFC board talks to the hub over serial, so this client is not on the critical path.
-Details are in `docs/vendor-notes/convex.md`, section 9.
+Details are in `docs/sponsors/vendor-notes/convex.md`, section 9.

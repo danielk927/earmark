@@ -13,7 +13,7 @@ Sections 02, 03 and 05 are not in the document, so nothing was lost in the expor
 - No prize description, no judging criteria, no required usage.
   See "Prize and judging (from Devpost)" below for what I found elsewhere.
 - No code; it links to the docs instead.
-  Technical notes are in `docs/vendor-notes/moss.md`.
+  Technical notes are in `docs/sponsors/vendor-notes/moss.md`.
 
 ## Full copy of the pack
 

@@ -7,7 +7,7 @@ import PackageDescription
 // - SpatialSpike: the Phase 0.5 gate app (no bus, no network).
 // - EarmarkApp: the judge-facing app (brief 5.E).
 // Built without Xcode; see build_app.sh. Swift 5 language mode avoids strict-concurrency friction
-// around CoreMotion, CoreAudio, and AVAudioEngine callbacks (docs/vendor-notes/apple-spatial-audio.md section 8).
+// around CoreMotion, CoreAudio, and AVAudioEngine callbacks (docs/sponsors/vendor-notes/apple-spatial-audio.md section 8).
 let package = Package(
     name: "EarmarkMac",
     platforms: [.macOS(.v14)],

@@ -127,7 +127,7 @@ The concierge's `LLM_TIMEOUT_S` is not used here.
 
 ## Register on Agentverse and chat through ASI:One (human steps)
 
-These follow `docs/vendor-notes/fetchai.md` section 5.
+These follow `docs/sponsors/vendor-notes/fetchai.md` section 5.
 The browser steps are needed once per agent address.
 
 1. Create accounts at https://agentverse.ai and https://asi1.ai, and stay logged in to both in Chrome.

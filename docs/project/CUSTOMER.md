@@ -102,7 +102,7 @@ Earmark uses the same NFC sticker idea as WayAround, but the reader is under the
 |---|---|---|---|
 | Apple AirTag | $29 each or $99 for four; Precision Finding with VoiceOver gives directions like "AirTag is 9 feet away on your left"; current model has a louder speaker; user-replaceable CR2032 "works for more than a year" | Precision Finding needs iPhone 11 or later (not iPhone SE 2nd and 3rd generation or iPhone 16e); one tag per item is too costly and bulky for jars and pill bottles; phone in hand | https://www.apple.com/shop/buy-airtag/airtag, https://www.apple.com/airtag/, https://www.apple.com/newsroom/2021/04/apple-introduces-airtag/, https://support.apple.com/en-us/111847 |
 | Tile (Life360) | Bluetooth trackers; tap Find in the Tile app to make one ring | Same per-item cost and phone dependence | https://support.life360.com/hc/en-us/articles/30583078813719-Ring-My-Tile |
-| Generic "iTag" key finders | Very cheap Bluetooth fobs that beep on command | No useful app of their own | Earmark uses these for keys; see `docs/PRODUCTION.md` |
+| Generic "iTag" key finders | Very cheap Bluetooth fobs that beep on command | No useful app of their own | Earmark uses these for keys; see `docs/project/PRODUCTION.md` |
 
 For keys alone, an AirTag is a strong option and Earmark does not try to beat it.
 Earmark's addition is one voice interface for every item, hands-free, with the same "where is it" question working for jars, pill bottles, and keys.
@@ -124,13 +124,13 @@ Earmark's addition is one voice interface for every item, hands-free, with the s
 | VisionAware: "Not being able to read the information on prescription medications is a particularly dangerous problem for individuals who are blind or low vision." | https://aphconnectcenter.org/visionaware/new-to-vision-loss/medication-management/ |
 
 What Earmark adds is evidence, not advice: the bottle left its spot at 8:04 PM, inside the 8:00 PM window.
-It does not say whether a dose was correct, and it tells anyone who asks for advice that it cannot give medical advice (see `docs/RESPONSIBLE_DESIGN.md`).
+It does not say whether a dose was correct, and it tells anyone who asks for advice that it cannot give medical advice (see `docs/project/RESPONSIBLE_DESIGN.md`).
 
 ## Conversations with users
 
 **Status on 2026-10-24: no conversations recorded.**
 No one on the team has yet recorded a conversation about Earmark with a blind or low-vision person, a caregiver, or an accessibility professional.
-The team has been asked to do so this weekend (`docs/STATUS.md`, blockers, item 7).
+The team has been asked to do so this weekend (`docs/project/STATUS.md`, blockers, item 7).
 Until that happens, every user need in this document is an assumption drawn from the public sources above.
 
 We will never invent an interview, a quote, or user feedback.
@@ -175,5 +175,5 @@ Rules for this section:
 | 6 | Do caregivers want pickup evidence, and does the user consent to it being shared? | Job 6 must be wanted by both sides; it can feel like surveillance | Paired interviews with user and caregiver, separately |
 | 7 | Is "bottle lifted in the window" good enough evidence, or will it mislead? | False reassurance is a real harm | Compare pilot pickup logs with the user's own record |
 | 8 | Who installs the readers and tags, and how long does setup take? | Setup cost may decide adoption | Timed installs with a blindness organization's staff |
-| 9 | What would people pay, and who pays (user, family, insurer, agency)? | Sets the hardware budget in `docs/PRODUCTION.md` | Interviews with users, caregivers, and agency staff |
+| 9 | What would people pay, and who pays (user, family, insurer, agency)? | Sets the hardware budget in `docs/project/PRODUCTION.md` | Interviews with users, caregivers, and agency staff |
 | 10 | Does a voice-only interface work for people with hearing loss as well as vision loss? | Many older users have both | Interviews with dual-sensory-loss users; volume and pitch settings |

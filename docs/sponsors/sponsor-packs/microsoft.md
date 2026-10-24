@@ -2,7 +2,7 @@
 
 Compiled 2026-10-24 by a read-only research agent.
 Anything not confirmed against an official page is marked UNVERIFIED.
-Azure hosting commands live in `docs/vendor-notes/azure.md`.
+Azure hosting commands live in `docs/sponsors/vendor-notes/azure.md`.
 
 ## 1. Source status
 
@@ -44,13 +44,13 @@ The "evidence" column is what a judge should be able to see or click in under a 
 
 | Criterion | Deliverable | Evidence for judges |
 |---|---|---|
-| Customer understanding | `docs/CUSTOMER.md`: blind and low-vision users plus caregivers, the specific jobs Earmark does, why camera apps fall short | Named jobs-to-be-done, and any real conversation recorded with permission. Never invent interviews or quotes. |
+| Customer understanding | `docs/project/CUSTOMER.md`: blind and low-vision users plus caregivers, the specific jobs Earmark does, why camera apps fall short | Named jobs-to-be-done, and any real conversation recorded with permission. Never invent interviews or quotes. |
 | Measurable usefulness | Trial mode (5.I) with real results on the dashboard, plus live metrics | Guidance latency, time to find, medication adherence, shown as numbers on the deployed dashboard |
-| Path from prototype to production | `docs/PRODUCTION.md`, plus a live Azure deployment | Public dashboard URL on Azure Static Web Apps and a memory agent running on Azure Container Apps; hardware cost per home; rollout plan |
-| Responsible design | `docs/RESPONSIBLE_DESIGN.md` | Each design choice tied to a Microsoft Responsible AI principle and HAX guideline (section 4) |
+| Path from prototype to production | `docs/project/PRODUCTION.md`, plus a live Azure deployment | Public dashboard URL on Azure Static Web Apps and a memory agent running on Azure Container Apps; hardware cost per home; rollout plan |
+| Responsible design | `docs/project/RESPONSIBLE_DESIGN.md` | Each design choice tied to a Microsoft Responsible AI principle and HAX guideline (section 4) |
 | End-to-end functionality | `BUILD_BRIEF.md` section 8 definition of done, demonstrated live | One unbroken demo: object lifted, spoken guidance, remote label change, adherence update |
 
-## 4. Responsible AI references for `docs/RESPONSIBLE_DESIGN.md`
+## 4. Responsible AI references for `docs/project/RESPONSIBLE_DESIGN.md`
 
 ### 4.1 Microsoft Responsible AI principles
 
@@ -90,9 +90,9 @@ Source: https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/openai
 4. **Operate:** "Define and execute a deployment and operational readiness plan."
 
 The Operate stage lists a phased delivery plan, an incident response plan, a rollback plan, immediate action for unanticipated harms, effective user feedback channels, and telemetry.
-These map directly onto `docs/PRODUCTION.md` sections.
+These map directly onto `docs/project/PRODUCTION.md` sections.
 
-A natural structure for `docs/RESPONSIBLE_DESIGN.md` is one table per stage: harms identified (wrong bottle named, stale location, overreliance), how each is measured (trial mode error rate, wrong-guidance count), the mitigation, and the operating plan.
+A natural structure for `docs/project/RESPONSIBLE_DESIGN.md` is one table per stage: harms identified (wrong bottle named, stale location, overreliance), how each is measured (trial mode error rate, wrong-guidance count), the mitigation, and the operating plan.
 
 ### 4.4 HAX Guidelines for Human-AI Interaction, mapped to Earmark
 
@@ -130,7 +130,7 @@ Source: https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/openai
 
 ## 5. Azure deployment for the "path to production" criterion
 
-See `docs/vendor-notes/azure.md`.
+See `docs/sponsors/vendor-notes/azure.md`.
 Summary:
 - Dashboard on Azure Static Web Apps, Free plan, deployed from the CLI with a deployment token.
 - Memory agent on Azure Container Apps with one pinned replica and secrets referenced by `secretref:`.

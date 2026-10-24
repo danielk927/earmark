@@ -5,7 +5,7 @@ Ask "Where's the sugar?" and a ping plays through AirPods from the sugar's direc
 Say "I put my keys in the drawer" and Earmark remembers; later it tells you where the keys are, when it noted that, and where they were before.
 There are no cameras in the home.
 
-Built for Cal Hacks 13.0. Sponsor tracks and what we do for each: `docs/TRACKS.md`. Current state and open items: `docs/STATUS.md`.
+Built for Cal Hacks 13.0. Sponsor tracks and what we do for each: `docs/sponsors/TRACKS.md`. Current state and open items: `docs/project/STATUS.md`.
 
 ## What's in here
 
@@ -21,7 +21,8 @@ Built for Cal Hacks 13.0. Sponsor tracks and what we do for each: `docs/TRACKS.m
 | `firmware/` | ESP32 firmware for NFC readers, an ESP-NOW gateway and Bluetooth anchors (from Aidan's repo) |
 | `contracts/` | The message and data formats every part shares |
 | `scenarios/` | Replayable test scenarios (including `put_in_place`) |
-| `docs/` | Architecture, demo script, responsible design, production plan, sponsor tracks |
+| `docs/project/` | Status, next steps, architecture, demo script, privacy, production plan |
+| `docs/sponsors/` | Sponsor prizes (`TRACKS.md`) and research notes for each sponsor |
 
 ## Run it
 
@@ -29,7 +30,7 @@ Copy `.env.example` to `.env` and fill in the keys you have (everything falls ba
 
 ```
 make test        # every test suite
-make demo-sim    # the demo with no hardware (see docs/DEMO_SCRIPT.md)
+make demo-sim    # the demo with no hardware (see docs/project/DEMO_SCRIPT.md)
 ```
 
 Needs `uv` (Python 3.12), Node, and for the Mac app the Swift command line tools. More in each folder's README.

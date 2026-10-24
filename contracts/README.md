@@ -64,4 +64,4 @@ Each pickup is evidence for at most one dose (the nearest scheduled time).
 1. Edit the schema and add or adjust examples.
 2. Mirror the change in `python/earmark_contracts/__init__.py` and `swift/Sources/EarmarkContracts/BusMessage.swift`; regenerate `ts/index.ts`.
 3. Run `make contracts-test`.
-4. Note the change in `docs/STATUS.md` under "Contract changes".
+4. Note the change in `docs/project/STATUS.md` under "Contract changes".

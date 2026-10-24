@@ -7,7 +7,7 @@ The real challenge statement, judging criteria and deliverables live on Fetch.ai
 I fetched that page and the two linked Google Docs (5-minute setup, submission process) too, and all three are copied or summarized below.
 Nothing here needs the human to export anything.
 
-Technical notes (packages, code, gotchas) are in `docs/vendor-notes/fetchai.md`.
+Technical notes (packages, code, gotchas) are in `docs/sponsors/vendor-notes/fetchai.md`.
 
 ## Documents covered
 
@@ -173,7 +173,7 @@ The page also has a "Quick start example" Chat Protocol agent.
 As printed on the page it has an indentation error (`return ChatMessage(` is over-indented) and is missing `from uagents import Agent, Context, Protocol`.
 It also calls `Agent()` with no seed, which gives the agent a new random address on every run.
 I checked this against the page's raw HTML, not just a text extraction.
-Use the code in `docs/vendor-notes/fetchai.md` instead, which follows the working official examples.
+Use the code in `docs/sponsors/vendor-notes/fetchai.md` instead, which follows the working official examples.
 
 ## 3. Full copy of the "5 Minute setup" Google Doc
 

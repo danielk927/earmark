@@ -1,4 +1,4 @@
-"""Cartesia Ink streaming STT on the turns WebSocket (docs/vendor-notes/cartesia.md, section 3).
+"""Cartesia Ink streaming STT on the turns WebSocket (docs/sponsors/vendor-notes/cartesia.md, section 3).
 
 Credit saving: the socket opens lazily on the first mic_audio of a burst (audio
 is buffered while connecting) and closes with {"type":"close"} after

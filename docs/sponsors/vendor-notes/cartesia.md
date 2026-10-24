@@ -3,7 +3,7 @@
 Verified 2026-10-24 against docs.cartesia.ai (index: https://docs.cartesia.ai/llms.txt), the current AsyncAPI/OpenAPI specs, PyPI, and the `cartesia-python` v4.2.0 source.
 Nothing here was exercised against the live API, because no API key was available during research.
 Items marked UNVERIFIED are inferences or gaps in the docs.
-Sponsor and prize details are in `docs/sponsor-packs/cartesia.md`.
+Sponsor and prize details are in `docs/sponsors/sponsor-packs/cartesia.md`.
 
 ## Quick reference for Earmark
 
@@ -24,7 +24,7 @@ Sponsor and prize details are in `docs/sponsor-packs/cartesia.md`.
 
 ## 1. Cal Hacks
 
-- Prize, judging criteria, and submission requirements are summarized in `docs/sponsor-packs/cartesia.md` (source: https://docs.cartesia.ai/calhacks).
+- Prize, judging criteria, and submission requirements are summarized in `docs/sponsors/sponsor-packs/cartesia.md` (source: https://docs.cartesia.ai/calhacks).
 - The Cal Hacks page does not mention credits or a claim process.
 - Free plan: 20K credits/month; Pro: $5/month for 100K credits (https://cartesia.ai/pricing).
 

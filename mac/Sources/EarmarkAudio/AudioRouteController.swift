@@ -3,7 +3,7 @@ import Foundation
 
 /// Applies the audio-routing rule and coalesces route changes into one restart.
 ///
-/// Routing rule (brief 5.E, docs/vendor-notes/apple-spatial-audio.md section 5b): on macOS AVAudioEngine follows
+/// Routing rule (brief 5.E, docs/sponsors/vendor-notes/apple-spatial-audio.md section 5b): on macOS AVAudioEngine follows
 /// the system default devices and may aggregate the default input even for playback, so if the system default
 /// input is Bluetooth (the AirPods mic), switch it to the built-in mic before any playback engine is built,
 /// and re-assert it whenever it changes. This changes a user-visible system setting: it is logged, shown in the

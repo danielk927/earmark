@@ -5,7 +5,7 @@ import simd
 
 /// Option B: PHASE with binaural output, its listener driven manually by our own head tracker.
 /// No entitlements or provisioning profile needed (automatic head tracking and the personal HRTF profile
-/// would need paid-team entitlements; docs/vendor-notes/apple-spatial-audio.md section 4).
+/// would need paid-team entitlements; docs/sponsors/vendor-notes/apple-spatial-audio.md section 4).
 /// Each cue is a one-shot PHASESoundEvent at the target's PHASESource.
 public final class PHASECueRenderer: SpatialRenderer {
     public let kind = RendererKind.phaseManual
