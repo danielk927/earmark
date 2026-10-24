@@ -23,10 +23,14 @@ Run all contract tests with `make contracts-test`.
 
 ## Conventions
 
-- Units are meters; +x right, +y forward, +z up, from the listener at calibration time.
-  The origin is the calibrated listening position (center of the head).
-- Head yaw is degrees from the calibrated forward direction, positive when the head turns right.
+- Units are meters; +x right, +y forward, +z up.
+- **Amendment 01 (walking):** the origin is a fixed room point, the floor directly under the center of the mat.
+  Forward (+y) is the direction of the mat's tape arrow.
+  The listener is not at the origin: their ear position comes from `listener_pose` (about 3 Hz, from the iPhone locator, or the simulator).
+  Without a pose for 1.5 s, consumers hold the last position ("position lost"); after 5 s they use `space.listener.fallback_position` (the mat at standing ear height).
+- Head yaw is degrees from the calibrated forward direction (recentered facing the mat arrow), positive when the head turns right.
   Pitch is positive looking up.
+- The only Earmark-to-AVAudio conversion is `avaudio = (x, z, -y)`, in one Swift function.
 - Every time is unix seconds as a float (`t`, `*_t`).
   In `scenarios/*.jsonl`, `t` is seconds from scenario start and the simulator rewrites it to wall time.
 - All JSON on the wire and on disk is snake_case.
@@ -35,6 +39,11 @@ Run all contract tests with `make contracts-test`.
 - A field listed in a schema's `required` but typed nullable must be sent as `null`, never omitted.
 
 ## Bus rules
+
+- The hub binds `0.0.0.0:8765` so LAN clients (the iPhone locator over the Mac's hotspot or Wi-Fi) can connect.
+  Non-loopback clients must present `EARMARK_BUS_TOKEN` as `ws://<mac>:8765/?token=<token>` or the header `X-Earmark-Token`; without a configured token, non-loopback clients are refused.
+  Loopback clients (the components on the Mac) need no token.
+- The locator sends `hello` with component `locator`, publishes `listener_pose`, subscribes to `ptt`, and streams `mic_audio` between `ptt` start and stop.
 
 - Every client sends `hello` first and receives a `snapshot` (space, registry, all object states).
 - The hub forwards each message to every other client whose `subscribe` list includes its type.
@@ -58,6 +67,14 @@ For each scheduled time S (household-local) and window W minutes, using pickups 
 - `missed`: neither, and now > S + 2W.
 - `pending`: neither, and now <= S + 2W.
 Each pickup is evidence for at most one dose (the nearest scheduled time).
+
+## Walking guidance (Amendment 01, implemented in the Mac app)
+
+- Ping interval = 0.15 + 0.3 x distance seconds, clamped to 0.18-1.0 s (distance from the ear to the target, 3D).
+- Inverse distance attenuation with reference distance 0.5 m and maximum 6 m.
+- Locked tone when the azimuth error stays under about 10 deg for 300 ms; behind sound when it exceeds 100 deg.
+- Height cue: a higher-pitched ping when the target is 0.3 m or more above the ears, lower when it is 0.6 m or more below.
+- `arrived` when the horizontal distance to the target drops below 0.45 m; the concierge then speaks the spot's `detail`.
 
 ## Changing a contract
 

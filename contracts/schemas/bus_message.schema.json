@@ -78,6 +78,15 @@
     },
     {
       "$ref": "#/$defs/reset"
+    },
+    {
+      "$ref": "#/$defs/listener_pose"
+    },
+    {
+      "$ref": "#/$defs/arrived"
+    },
+    {
+      "$ref": "#/$defs/ptt"
     }
   ],
   "$defs": {
@@ -102,7 +111,8 @@
         "trial_cli",
         "dashboard",
         "cli",
-        "memory_agent"
+        "memory_agent",
+        "locator"
       ]
     },
     "hello": {
@@ -279,7 +289,7 @@
       }
     },
     "mic_audio": {
-      "description": "Mac app -> concierge. Streamed microphone audio for Cartesia STT.",
+      "description": "Locator (during PTT) or Mac app (fallback) -> concierge. Streamed microphone audio for Cartesia STT.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -892,6 +902,94 @@
       "properties": {
         "type": {
           "const": "reset"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "listener_pose": {
+      "description": "Locator (iPhone, separate repo) -> bus, about 3 Hz. `position` is the user's EAR position in room coordinates; the locator applies the phone-to-ear offset. Consumers predict forward from the velocity of recent poses (at most 300 ms). No pose for 1.5 s = position lost (hold last); 5 s = fall back to space.listener.fallback_position.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "position",
+        "quality",
+        "beacons_heard",
+        "source",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "listener_pose"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "quality": {
+          "enum": [
+            "ok",
+            "degraded",
+            "lost"
+          ]
+        },
+        "beacons_heard": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source": {
+          "enum": [
+            "beacons",
+            "steps",
+            "sim",
+            "manual"
+          ]
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "arrived": {
+      "description": "Mac app -> bus while guiding: the listener's horizontal distance to the target dropped below 0.45 m. The concierge speaks the spot detail; pickup confirmation takes over. Sent once per guidance (again only after leaving and re-entering).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "object_id",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "arrived"
+        },
+        "object_id": {
+          "type": "string"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "ptt": {
+      "description": "Mac app -> bus: push-to-talk from the AirPods stem press (or Space). The locator streams mic_audio between start and stop; without a locator the Mac's own mic is used.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "state",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "ptt"
+        },
+        "state": {
+          "enum": [
+            "start",
+            "stop"
+          ]
         },
         "t": {
           "$ref": "#/$defs/t"

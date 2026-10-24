@@ -17,15 +17,20 @@ import json
 from pathlib import Path
 
 TICK = 0.5
-SPOTS = (1, 2, 3, 4)
+SPOTS = (1, 2, 3, 4, 5, 6)
 TAG = {
     "salt": "04A1B2C3D4E501",
     "sugar": "04A1B2C3D4E502",
     "pepper": "04A1B2C3D4E503",
     "bp_meds": "04A1B2C3D4E504",
+    "keys": "04A1B2C3D4E505",
+    "wallet": "04A1B2C3D4E506",
     "unknown": "04A1B2C3D4E5FF",
 }
-HOME = {2: "salt", 3: "sugar", 4: "bp_meds"}
+# Amendment 01 room: 1 drawer, 2-3 cupboard top shelf, 4 box behind, 5 bag, 6 setup spot (empty).
+HOME = {1: "keys", 2: "salt", 3: "sugar", 4: "bp_meds", 5: "wallet"}
+EAR = 1.6           # standing ear height (m), matches space.json listener.fallback_position
+POSE_HZ = 3.0
 OUT = Path(__file__).resolve().parent.parent / "scenarios"
 
 
@@ -77,6 +82,34 @@ def fob_lost(t):
             "where": None, "precision": "none", "rssi": None, "t": t}
 
 
+def pose(t, x, y, quality="ok", beacons=5, z=EAR):
+    return {"type": "listener_pose", "position": [round(x, 3), round(y, 3), z], "quality": quality,
+            "beacons_heard": beacons, "source": "sim", "t": round(t, 3)}
+
+
+def stand(t0, t1, x, y):
+    """Listener standing still: poses at POSE_HZ in [t0, t1)."""
+    n = int(round((t1 - t0) * POSE_HZ))
+    return [pose(t0 + k / POSE_HZ, x, y) for k in range(n)]
+
+
+def walk(t0, t1, start, end, sway=0.02):
+    """Straight walk from start to end (x, y) at POSE_HZ, with a small left-right sway like real steps."""
+    import math
+    n = max(int(round((t1 - t0) * POSE_HZ)), 1)
+    out = []
+    for k in range(n + 1):
+        f = k / n
+        x = start[0] + (end[0] - start[0]) * f + sway * math.sin(k * math.pi / 2)
+        y = start[1] + (end[1] - start[1]) * f
+        out.append(pose(t0 + k / POSE_HZ, x, y))
+    return out
+
+
+CUPBOARD_FRONT = (0.0, 1.08)   # 0.42 m from both cupboard spots horizontally: inside the 0.45 m arrival radius
+BOX_FRONT = (0.0, -1.08)       # 0.42 m from the pill box
+
+
 def keys_far_to_near(start, end):
     """Fob walking from far to near at 1 Hz, RSSI rising from -92 to -48 dBm."""
     lines = []
@@ -90,59 +123,89 @@ def keys_far_to_near(start, end):
 
 def scenarios():
     s = {}
+    # Stationary scenarios (no listener_pose: consumers use space.listener.fallback_position, the mat).
     s["normal_pickup"] = spot_reads(20, [(5.0, 3, None), (12.0, 3, "sugar")])
 
     s["wrong_jar"] = spot_reads(20, [(6.0, 2, None), (14.0, 2, "salt")]) + [
         say(2.0, "Where's the sugar?"),
     ]
 
-    s["moved_item"] = spot_reads(25, [(5.0, 3, None), (10.0, 1, "sugar")]) + [
+    s["moved_item"] = spot_reads(25, [(5.0, 3, None), (10.0, 6, "sugar")]) + [
         say(15.0, "Where is the sugar?"),
     ]
 
     # Rapid EMPTY/TAG alternation on spot 3 and one stray misread of the salt
-    # tag on spot 1. After debounce this must produce no events at all.
+    # tag on the empty setup spot. After debounce this must produce no events at all.
     flicker = {}
     for k in range(8, 16):
         t = round(k * TICK, 3)
         if k % 2 == 0:
             flicker[(t, 3)] = None
-    flicker[(9.0, 1)] = "salt"
+    flicker[(9.0, 6)] = "salt"
     s["flicker"] = spot_reads(15, [], overrides=flicker)
 
-    # The medication on spot 4 is never lifted. Adherence is judged in Convex
+    # The medication in the box is never lifted. Adherence is judged in Convex
     # against the schedule; the hub must simply emit no pickup for bp_meds.
     s["missed_dose"] = spot_reads(20, [])
 
-    # The fob is first heard at t=2 (far), so the question at t=8 gets the proximity answer.
+    # STRETCH (Amendment 01: no BLE fobs on hand). The keys are not on their drawer
+    # spot here; a fob walks from far to near. The fob is first heard at t=2 (far),
+    # so the question at t=8 gets the proximity answer.
     s["roaming_keys"] = [fob_lost(0.0), say(8.0, "Where are my keys?")] + keys_far_to_near(2.0, 20.0)
 
-    s["label_new_item"] = spot_reads(15, [(3.0, 1, "unknown")]) + [
+    s["label_new_item"] = spot_reads(15, [(3.0, 6, "unknown")]) + [
         say(7.0, "This is honey."),
     ]
 
-    # The live demo, in order:
-    #  1. "Where's the sugar?"            -> guide to spot 3
-    #  2. salt lifted (wrong jar)         -> correction naming salt, sugar one spot right
-    #  3. salt back on spot 2
-    #  4. sugar lifted                    -> "Got it, that's the sugar."
-    #  5. sugar put down on spot 1 (moved)
-    #  6. "Where's the sugar?"            -> guide to spot 1
-    #  7. sugar lifted                    -> confirmation; sugar back home to spot 3
-    #  8. "Where are my keys?"            -> proximity phrase + chirp; fob walks closer
-    #  9. "Something for my eggs"          -> Moss: salt (and pepper), asks which one
-    full = spot_reads(100, [
-        (8.0, 2, None), (16.0, 2, "salt"),
-        (22.0, 3, None), (30.0, 1, "sugar"),
-        (40.0, 1, None), (46.0, 3, "sugar"),
+    # Walking scenarios (Amendment 01). Poses are the user's ear position at 3 Hz.
+    #  walk_to_cupboard: ask on the mat, walk to the cupboard (arrival), lift the sugar.
+    s["walk_to_cupboard"] = (
+        spot_reads(16, [(11.0, 3, None)])
+        + [say(1.0, "Where's the sugar?")]
+        + stand(0.0, 3.0, 0.0, 0.0) + walk(3.0, 9.0, (0.0, 0.0), CUPBOARD_FRONT) + stand(9.0 + 1 / POSE_HZ, 16.0, *CUPBOARD_FRONT)
+    )
+    #  walk_past_target: the drawer is at x=1.5, y=0; walking straight ahead at x=0.9 passes it on
+    #  the right, so its bearing goes front-right (27 deg) -> right (90) -> behind-right (153).
+    s["walk_past_target"] = (
+        spot_reads(14, [])
+        + [say(1.0, "Where are my keys?")]
+        + stand(0.0, 3.0, 0.9, -1.2) + walk(3.0, 11.0, (0.9, -1.2), (0.9, 1.2)) + stand(11.0 + 1 / POSE_HZ, 14.0, 0.9, 1.2)
+    )
+    #  pose_dropout: walking toward the cupboard, the locator degrades and then goes silent twice:
+    #  2 s (hold the last position, "position lost") and 6 s (fall back to the mat), then recovers.
+    drop = walk(3.0, 15.0, (0.0, 0.0), CUPBOARD_FRONT)
+    drop = [p for p in drop if not (5.0 <= p["t"] < 7.0 or 8.5 <= p["t"] < 14.5)]
+    for p in drop:
+        if 4.3 <= p["t"] < 5.0 or 7.8 <= p["t"] < 8.5:
+            p["quality"], p["beacons_heard"] = "degraded", 3
+    drop += [pose(5.0, drop[-1]["position"][0], 0.3, quality="lost", beacons=1)]
+    s["pose_dropout"] = (
+        spot_reads(18, [])
+        + [say(1.0, "Where's the sugar?")]
+        + stand(0.0, 3.0, 0.0, 0.0) + drop + stand(15.0 + 1 / POSE_HZ, 18.0, *CUPBOARD_FRONT)
+    )
+
+    # The live demo, in order (Amendment 01):
+    #  1. On the mat: "Where's the sugar?"            -> guide_start to the cupboard, top shelf right
+    #  2. Walk to the cupboard                          -> louder, faster pings; arrival -> "Top shelf, front right."
+    #  3. Salt lifted (wrong jar)                       -> correction naming the salt; the sugar is just to its right
+    #  4. Salt back; sugar lifted                       -> "Got it, that's the sugar."; sugar back
+    #  5. "Where are my blood pressure pills?"          -> the box is behind: behind cue + "It's behind you. Turn ..."
+    #  6. Walk and turn to the box                      -> arrival -> "In the box, on top."; pills lifted -> confirmation
+    #  7. "I need something for my eggs."               -> Moss: salt and pepper, asks which one
+    full = spot_reads(58, [
+        (10.0, 2, None), (16.0, 2, "salt"),
+        (19.0, 3, None), (25.0, 3, "sugar"),
+        (43.0, 4, None), (48.0, 4, "bp_meds"),
     ])
     full += [
-        say(3.0, "Where's the sugar?"),
-        say(34.0, "Where's the sugar?"),
-        say(55.0, "Where are my keys?"),
-        say(85.0, "I need something for my eggs."),
+        say(1.0, "Where's the sugar?"),
+        say(28.0, "Where are my blood pressure pills?"),
+        say(53.0, "I need something for my eggs."),
     ]
-    full += [fob_lost(0.0)] + keys_far_to_near(50.0, 75.0)
+    full += stand(0.0, 3.0, 0.0, 0.0) + walk(3.0, 9.0, (0.0, 0.0), CUPBOARD_FRONT)
+    full += stand(9.0 + 1 / POSE_HZ, 31.0, *CUPBOARD_FRONT)
+    full += walk(31.0, 40.0, CUPBOARD_FRONT, BOX_FRONT) + stand(40.0 + 1 / POSE_HZ, 58.0, *BOX_FRONT)
     s["full_demo"] = full
     return s
 

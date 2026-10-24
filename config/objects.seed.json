@@ -1,11 +1,17 @@
 {
-  "household": { "name": "Demo household", "timezone": "America/Los_Angeles" },
+  "household": {
+    "name": "Demo household",
+    "timezone": "America/Los_Angeles"
+  },
   "objects": [
     {
       "object_id": "salt",
       "name": "salt",
-      "aliases": ["table salt", "sea salt"],
-      "notes": "For cooking and for eggs.",
+      "aliases": [
+        "table salt",
+        "sea salt"
+      ],
+      "notes": "For cooking and for eggs. Kept in the cupboard.",
       "description": "Small glass jar with a white lid, identical to the sugar jar.",
       "tag": "04A1B2C3D4E501",
       "home_spot": 2,
@@ -15,8 +21,11 @@
     {
       "object_id": "sugar",
       "name": "sugar",
-      "aliases": ["white sugar", "sweetener"],
-      "notes": "For coffee and tea.",
+      "aliases": [
+        "white sugar",
+        "sweetener"
+      ],
+      "notes": "For coffee and tea. Kept in the cupboard.",
       "description": "Small glass jar with a white lid, identical to the salt jar.",
       "tag": "04A1B2C3D4E502",
       "home_spot": 3,
@@ -26,7 +35,10 @@
     {
       "object_id": "pepper",
       "name": "pepper",
-      "aliases": ["black pepper", "pepper grinder"],
+      "aliases": [
+        "black pepper",
+        "pepper grinder"
+      ],
       "notes": "For eggs and soup. Usually kept in the pantry.",
       "description": "Tall wooden pepper grinder.",
       "tag": "04A1B2C3D4E503",
@@ -37,8 +49,15 @@
     {
       "object_id": "bp_meds",
       "name": "blood pressure pills",
-      "aliases": ["pills", "medication", "medicine", "blood pressure medicine", "morning pills", "evening pills"],
-      "notes": "Taken at 8 in the morning and 8 in the evening.",
+      "aliases": [
+        "pills",
+        "medication",
+        "medicine",
+        "blood pressure medicine",
+        "morning pills",
+        "evening pills"
+      ],
+      "notes": "Taken at 8 in the morning and 8 in the evening. Kept in the box.",
       "description": "White plastic pill bottle with a child-proof cap.",
       "tag": "04A1B2C3D4E504",
       "home_spot": 4,
@@ -48,16 +67,41 @@
     {
       "object_id": "keys",
       "name": "keys",
-      "aliases": ["house keys", "car keys", "key ring"],
-      "notes": "Roams; carries a Bluetooth fob.",
-      "description": "Key ring with a small Bluetooth tracker fob.",
-      "tag": null,
-      "home_spot": null,
+      "aliases": [
+        "house keys",
+        "car keys",
+        "key ring"
+      ],
+      "notes": "Usually in the drawer. Its NFC tag is on the key ring.",
+      "description": "Key ring with a small round NFC tag.",
+      "tag": "04A1B2C3D4E505",
+      "home_spot": 1,
       "is_medication": false,
       "fob_id": "fob_keys"
+    },
+    {
+      "object_id": "wallet",
+      "name": "wallet",
+      "aliases": [
+        "purse",
+        "billfold"
+      ],
+      "notes": "Usually in the bag.",
+      "description": "Brown leather wallet.",
+      "tag": "04A1B2C3D4E506",
+      "home_spot": 5,
+      "is_medication": false,
+      "fob_id": null
     }
   ],
   "medications": [
-    { "object_id": "bp_meds", "schedule_times": ["08:00", "20:00"], "window_minutes": 60 }
+    {
+      "object_id": "bp_meds",
+      "schedule_times": [
+        "08:00",
+        "20:00"
+      ],
+      "window_minutes": 60
+    }
   ]
 }

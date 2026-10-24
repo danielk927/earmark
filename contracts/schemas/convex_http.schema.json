@@ -24,6 +24,17 @@
           "items": {
             "$ref": "object_state.schema.json"
           }
+        },
+        "listener_pose": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "bus_message.schema.json#/$defs/listener_pose"
+            }
+          ],
+          "description": "Latest listener pose, at most about 1 Hz (for the dashboard map). Optional."
         }
       }
     },

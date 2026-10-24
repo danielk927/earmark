@@ -28,5 +28,17 @@
       "source": "nfc",
       "t": 1761350400.12
     }
-  ]
+  ],
+  "listener_pose": {
+    "type": "listener_pose",
+    "position": [
+      0.0,
+      1.05,
+      1.6
+    ],
+    "quality": "ok",
+    "beacons_heard": 5,
+    "source": "beacons",
+    "t": 1792856400.25
+  }
 }

@@ -1,5 +1,7 @@
 # EARMARK — Build Brief for Claude Code
 
+> **Amendment 01 (walking demo) is in effect.** `docs/AMENDMENT_01_walking.md` overrides anything in this brief that conflicts with it. Sections changed by it are marked **[A01]**.
+
 > **For the human:** Put this file in the root of an empty git repo as `BUILD_BRIEF.md`, start Claude Code there, and send:
 > `Read BUILD_BRIEF.md in full. Then execute Phase 0 and stop at its checkpoint.`
 > Fill in the `[BRACKETED]` fields in section 10 as you learn them.
@@ -24,7 +26,7 @@ Earmark is an assistive system that helps blind and low-vision people find every
 
 When an object is picked up, Earmark confirms it ("Got it, that's the sugar") or corrects the user if they grabbed a look-alike ("That's the salt. The sugar is one spot to your right"). Roaming items like keys carry Bluetooth fobs that chirp on command. Caregivers get a live dashboard and medication-adherence tracking. There are no cameras in the home, and the user never needs to touch a phone.
 
-**The hero demo moment:** two identical jars, salt and sugar. A judge wearing AirPods asks for the sugar, follows the sound, and gets corrected out loud if they pick the wrong jar.
+**The hero demo moment [A01]:** the user stands on a mat in a small mock room (about 3.5 x 3.5 m) and walks to items hidden in containers (a cupboard in front, a drawer on the right, a bag on the left, a box behind). The ping gets louder and faster as they approach, stays fixed in the room as they turn, and swings behind them if they walk past. The finale is the wrong-jar correction: salt and sugar side by side on NFC spots inside the cupboard. A seated, fixed listener is a fallback only.
 
 **Judging criteria:** real-world application, functionality, creativity, and technical complexity. The pitch is 2 minutes plus 2 minutes of Q&A.
 
@@ -148,8 +150,9 @@ Write each as a JSON Schema in `contracts/`, with at least two valid example mes
 ### 4.1 Coordinate system (used everywhere)
 
 - Units are **meters**.
-- The origin is the **calibrated listening position**: the center of the user's head while seated in the demo chair, or standing at the counter.
-- **+x = right, +y = forward, +z = up**, from the user's perspective at calibration time.
+- **[A01]** The origin is a fixed room point: the floor directly under the center of the mat. "Forward" is the direction the mat's tape arrow points.
+- **+x = right, +y = forward, +z = up.**
+- **[A01]** The listener is not at the origin: their ear position comes from `listener_pose` (from the iPhone locator, or the simulator). The Mac renderer converts to AVAudio's convention in one function: avaudio = (x, z, -y).
 - Head yaw is measured in degrees from the calibrated forward direction, positive turning right. Recentering sets the current head pose as yaw 0.
 
 ### 4.2 `DetectionEvent` (adapter → hub)
@@ -200,6 +203,11 @@ Write each as a JSON Schema in `contracts/`, with at least two valid example mes
 | `pickup_result` | concierge → bus | `expected`, `actual`, `correct` |
 | `head_pose` | Mac app → bus (debug only, ≤10 Hz) | `yaw`, `pitch` |
 | `status` | any → bus | `component`, `ok`, `detail` |
+| `listener_pose` **[A01]** | locator (iPhone) → bus, ~3 Hz | `position` [x,y,z] (ear), `quality` (`ok`/`degraded`/`lost`), `beacons_heard`, `source` (`beacons`/`steps`/`sim`/`manual`) |
+| `arrived` **[A01]** | Mac app → bus | `object_id` (horizontal distance to the target < 0.45 m) |
+| `ptt` **[A01]** | Mac app → bus | `state` (`start`/`stop`); the locator streams `mic_audio` during PTT |
+
+The full, authoritative message list (including messages added in Phase 0) is `contracts/schemas/bus_message.schema.json`.
 
 ### 4.5 `config/space.json`
 
@@ -218,6 +226,8 @@ Write each as a JSON Schema in `contracts/`, with at least two valid example mes
 ```
 
 These are placeholder positions: 4 spots in an arc about 60 cm from the listener, roughly 30° apart. Real values come from `scripts/calibrate.py` in Phase 4.
+
+**[A01]** Superseded: `config/space.json` now describes the walking room (mat, containers, spots with spoken `detail`, beacons B1-B5 with slot indexes, and a listener fallback position). See `contracts/schemas/space.schema.json`.
 
 ---
 
@@ -330,7 +340,7 @@ Each component gets a `README.md` covering how to run, test, and configure it. "
 
 - **Cue design:**
   - Use a **mono** source for anything spatialized; environment-node spatialization expects mono input. Synthesize the ping procedurally: a short, bright blip around 880–1,200 Hz with a soft attack and short decay. Keep it short so Bluetooth latency doesn't smear it.
-  - **Ping rate** follows the angle between the head direction and the target: about 900 ms between pings when the error is 90° or more, down to about 150 ms when it's under 10°. Play a distinct "locked" tone when the error stays under 8° for more than 300 ms.
+  - **[A01] Walking cue** (replaces the angle-only ping rate): listener position = latest `listener_pose`, predicted forward at 25+ Hz from its velocity (at most 300 ms); orientation = AirPods head tracking. Ping interval = 0.15 + 0.3 x distance s, clamped to 0.18-1.0 s; inverse distance attenuation (reference 0.5 m, max 6 m); "locked" tone when the angle error stays under about 10° for 300 ms; "behind" sound over 100°; a higher ping variant when the target is 0.3 m or more above the ears, lower when 0.6 m or more below. No pose for 1.5 s: hold the last position and show "position lost"; 5 s: fall back to the mat and the concierge gives spoken distances. **Arrival:** horizontal distance under 0.45 m emits `arrived`; the concierge speaks the spot detail and the pickup check takes over. Manual mode: arrow keys move the listener (testing only). Speech input comes from the phone when the locator is connected (AirPods stem press = push-to-talk via `ptt`); the Mac mic is the fallback.
   - **Front versus back confusion is the most common failure** with generic head-related audio filters. When the target is more than 100° away from the head direction, switch to a distinct "behind" sound (lower and muffled), and have the concierge say "It's behind you, turn right" (or left, whichever is the shorter turn).
   - Keep spatialized cues and speech in separate layers. The cue is spatial; speech is centered. Speech ducks the cue.
 
@@ -588,6 +598,7 @@ All of these must pass with the simulator. The first five must also pass with at
 10. Spoken requests work through Cartesia STT, and still work through Apple Speech when Cartesia is blocked.
 11. At least one real trial of each mode (Earmark and baseline) is recorded and shown on the dashboard.
 12. A photo uploaded in the dashboard produces a confirmed label through Bitdeer's multimodal model, and the photo is deleted afterward.
+13. **[A01]** With simulated walking, and later real `listener_pose`, a blindfolded teammate walks from the mat to the cupboard by sound alone, and the sound gets louder and stays fixed in the room as they walk and turn.
 
 ---
 
@@ -595,19 +606,21 @@ All of these must pass with the simulator. The first five must also pass with at
 
 1. Visa + Apify Restock Agent
 2. Creao summary
-3. Azure deployment (keep `docs/PRODUCTION.md` either way)
-4. Dashboard Timeline page
-5. Photo-assisted labeling
-6. Fetch.ai agent polish (keep a minimal working version)
-7. Ping-curve fine-tuning
+3. BLE fobs / `roaming_keys` **[A01: stretch; no fobs on hand]**
+4. Azure deployment (keep `docs/PRODUCTION.md` either way)
+5. Dashboard Timeline page
+6. Photo-assisted labeling
+7. Fetch.ai agent polish (keep a minimal working version)
+8. Trials and medication adherence polish **[A01: below the walking work]**
+9. Ping-curve fine-tuning
 
-**Never cut:** AirPods spatial guidance with head tracking in Earmark's own app, the voice → guide → pickup confirmation loop, the wrong-jar correction, the keyword fallback, `make reset`, and `make demo-sim`.
+**Never cut:** AirPods spatial guidance with head tracking in Earmark's own app, the voice → guide → pickup confirmation loop, the wrong-jar correction, the keyword fallback, `make reset`, and `make demo-sim`. **[A01]** Also never cut: `listener_pose` consumption, the walking cue (distance-based loudness and rate, arrival), and the walking simulator.
 
 ---
 
 ## 10. Facts the human must provide (ask in one batch)
 
-- Detection hardware actually in hand: `[NFC module model]`, `[microcontroller board model]`, `[number of readers]`, `[BLE fob model]`
+- Detection hardware actually in hand: **[A01]** RC522 readers (15), ESP32 boards (6), passive buzzers; **no BLE fobs**; no cameras, ever. The iPhone locator and beacon firmware are built by a teammate in a separate repo.
 - API keys and IDs:
   - Cartesia: key and voice ID
   - Moss

@@ -36,7 +36,7 @@ public enum Precision: String, Codable, Sendable { case exact, area, proximity, 
 public enum DistanceClass: String, Codable, Sendable { case near, mid, far }
 public enum ObjectStatus: String, Codable, Sendable { case onSpot = "on_spot", held, missing, roaming }
 public enum Component: String, Codable, Sendable {
-    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent"
+    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent", locator
 }
 
 // MARK: - Shared payloads
@@ -45,6 +45,27 @@ public struct Spot: Codable, Sendable, Equatable {
     public var spot: Int
     public var label: String
     public var position: Vec3
+    /// containers[].container id, or nil for a free-standing spot (Amendment 01).
+    public var container: String?
+    /// Spoken on arrival, e.g. "Top shelf, front left." (Amendment 01).
+    public var detail: String?
+}
+
+public struct Container: Codable, Sendable, Equatable {
+    public var container: String
+    public var label: String
+    public var position: Vec3
+}
+
+public struct Beacon: Codable, Sendable, Equatable {
+    public var beacon: String
+    public var slot: Int
+    public var position: Vec3
+}
+
+public struct Mat: Codable, Sendable, Equatable {
+    public var position: Vec3
+    public var forward: Vec3
 }
 
 public struct Area: Codable, Sendable, Equatable {
@@ -62,6 +83,8 @@ public struct Receiver: Codable, Sendable, Equatable {
 public struct Listener: Codable, Sendable, Equatable {
     public var label: String
     public var originNote: String
+    /// Ear position used after 5 s without a listener_pose (required on the wire; optional here for older call sites).
+    public var fallbackPosition: Vec3?
 }
 
 public struct Space: Codable, Sendable, Equatable {
@@ -69,6 +92,10 @@ public struct Space: Codable, Sendable, Equatable {
     public var spots: [Spot]
     public var areas: [Area]
     public var receivers: [Receiver]
+    // Amendment 01 (walking room). Required on the wire; optional here for older call sites.
+    public var mat: Mat?
+    public var containers: [Container]?
+    public var beacons: [Beacon]?
 }
 
 public struct RegistryObject: Codable, Sendable, Equatable, Identifiable {
@@ -288,6 +315,37 @@ public struct Reset: Codable, Sendable, Equatable {
     public init(t: Double = BusCoding.now) { self.t = t }
 }
 
+// MARK: - Amendment 01 (walking)
+
+/// Locator -> bus, ~3 Hz. `position` is the user's EAR position in room coordinates.
+public struct ListenerPose: Codable, Sendable, Equatable {
+    public enum Quality: String, Codable, Sendable { case ok, degraded, lost }
+    public enum Source: String, Codable, Sendable { case beacons, steps, sim, manual }
+    public var position: Vec3
+    public var quality: Quality
+    public var beaconsHeard: Int
+    public var source: Source
+    public var t: Double
+    public init(position: Vec3, quality: Quality, beaconsHeard: Int, source: Source, t: Double = BusCoding.now) {
+        self.position = position; self.quality = quality; self.beaconsHeard = beaconsHeard; self.source = source; self.t = t
+    }
+}
+
+/// Mac app -> bus: horizontal distance to the guided target < 0.45 m.
+public struct Arrived: Codable, Sendable, Equatable {
+    public var objectId: String
+    public var t: Double
+    public init(objectId: String, t: Double = BusCoding.now) { self.objectId = objectId; self.t = t }
+}
+
+/// Mac app -> bus: push-to-talk (AirPods stem press or Space).
+public struct Ptt: Codable, Sendable, Equatable {
+    public enum State: String, Codable, Sendable { case start, stop }
+    public var state: State
+    public var t: Double
+    public init(state: State, t: Double = BusCoding.now) { self.state = state; self.t = t }
+}
+
 // MARK: - Messages the Mac app only observes (kept for the map/debug panel)
 
 public struct Pickup: Codable, Sendable, Equatable {
@@ -325,6 +383,9 @@ public enum BusMessage: Sendable {
     case reset(Reset)
     case pickup(Pickup)
     case pickupResult(PickupResult)
+    case listenerPose(ListenerPose)
+    case arrived(Arrived)
+    case ptt(Ptt)
     /// A valid bus type this app does not act on (detection, chirp, trial_*, label, unknown_tag).
     case other(type: String)
 
@@ -349,6 +410,9 @@ public enum BusMessage: Sendable {
         case .reset: "reset"
         case .pickup: "pickup"
         case .pickupResult: "pickup_result"
+        case .listenerPose: "listener_pose"
+        case .arrived: "arrived"
+        case .ptt: "ptt"
         case .other(let type): type
         }
     }
@@ -380,6 +444,9 @@ extension BusMessage: Codable {
         case "reset": self = .reset(try one.decode(Reset.self))
         case "pickup": self = .pickup(try one.decode(Pickup.self))
         case "pickup_result": self = .pickupResult(try one.decode(PickupResult.self))
+        case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
+        case "arrived": self = .arrived(try one.decode(Arrived.self))
+        case "ptt": self = .ptt(try one.decode(Ptt.self))
         default: self = .other(type: type)
         }
     }
@@ -407,6 +474,9 @@ extension BusMessage: Codable {
         case .reset(let m): try m.encode(to: encoder)
         case .pickup(let m): try m.encode(to: encoder)
         case .pickupResult(let m): try m.encode(to: encoder)
+        case .listenerPose(let m): try m.encode(to: encoder)
+        case .arrived(let m): try m.encode(to: encoder)
+        case .ptt(let m): try m.encode(to: encoder)
         case .other: break
         }
     }

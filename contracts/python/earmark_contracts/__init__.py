@@ -20,7 +20,7 @@ Source = Literal["simulator", "nfc", "ble", "camera", "ultrasonic"]
 Precision = Literal["exact", "area", "proximity", "none"]
 DistanceClass = Literal["near", "mid", "far"]
 Status = Literal["on_spot", "held", "missing", "roaming"]
-Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent"]
+Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent", "locator"]
 
 
 class _Model(BaseModel):
@@ -41,11 +41,31 @@ class _Msg(_Model):
 class Listener(_Model):
     label: str
     origin_note: str
+    fallback_position: Vec3
+
+
+class Mat(_Model):
+    position: Vec3
+    forward: Vec3
+
+
+class Container(_Model):
+    container: str = Field(pattern=r"^[a-z0-9_]+$")
+    label: str = Field(min_length=1)
+    position: Vec3
 
 
 class Spot(_Model):
     spot: int = Field(ge=0)
     label: str = Field(min_length=1)
+    container: str | None = None
+    detail: str | None = None
+    position: Vec3
+
+
+class Beacon(_Model):
+    beacon: str = Field(min_length=1)
+    slot: int = Field(ge=0, le=4)
     position: Vec3
 
 
@@ -63,9 +83,12 @@ class Receiver(_Model):
 
 class Space(_Model):
     listener: Listener
+    mat: Mat
+    containers: list[Container]
     spots: list[Spot]
     areas: list[Area]
     receivers: list[Receiver]
+    beacons: list[Beacon]
 
 
 # ---------------------------------------------------------------- registry
@@ -331,11 +354,32 @@ class Reset(_Msg):
     type: Literal["reset"] = "reset"
 
 
+class ListenerPose(_Msg):
+    """Locator -> bus, ~3 Hz. position = the user's EAR position in room coordinates."""
+
+    type: Literal["listener_pose"] = "listener_pose"
+    position: Vec3
+    quality: Literal["ok", "degraded", "lost"]
+    beacons_heard: int = Field(ge=0)
+    source: Literal["beacons", "steps", "sim", "manual"]
+
+
+class Arrived(_Msg):
+    type: Literal["arrived"] = "arrived"
+    object_id: str
+
+
+class Ptt(_Msg):
+    type: Literal["ptt"] = "ptt"
+    state: Literal["start", "stop"]
+
+
 BusMessage = Annotated[
     Union[
         Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
+        ListenerPose, Arrived, Ptt,
     ],
     Field(discriminator="type"),
 ]
@@ -375,6 +419,7 @@ class HubEvent(_Model):
 class IngestRequest(_Model):
     events: list[HubEvent]
     states: list[ObjectState]
+    listener_pose: ListenerPose | None = None
 
 
 class IngestResponse(_Model):

@@ -6,66 +6,198 @@
   },
   "space": {
     "listener": {
-      "label": "demo chair",
-      "origin_note": "center of head, seated"
+      "label": "the mat",
+      "origin_note": "floor directly under the center of the mat; forward = the mat's tape arrow",
+      "fallback_position": [
+        0.0,
+        0.0,
+        1.6
+      ]
     },
+    "mat": {
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "forward": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    "containers": [
+      {
+        "container": "cupboard",
+        "label": "the cupboard",
+        "position": [
+          0.0,
+          1.5,
+          1.0
+        ]
+      },
+      {
+        "container": "drawer",
+        "label": "the drawer",
+        "position": [
+          1.5,
+          0.0,
+          0.4
+        ]
+      },
+      {
+        "container": "bag",
+        "label": "the bag",
+        "position": [
+          -1.5,
+          0.0,
+          0.5
+        ]
+      },
+      {
+        "container": "box",
+        "label": "the box behind you",
+        "position": [
+          0.0,
+          -1.5,
+          0.8
+        ]
+      }
+    ],
     "spots": [
       {
         "spot": 1,
-        "label": "far left",
+        "label": "the drawer",
+        "container": "drawer",
+        "detail": "In the drawer, at the front.",
         "position": [
-          -0.42,
-          0.42,
-          0.0
+          1.5,
+          0.0,
+          0.4
         ]
       },
       {
         "spot": 2,
-        "label": "center left",
+        "label": "the cupboard, top shelf, left",
+        "container": "cupboard",
+        "detail": "Top shelf, front left.",
         "position": [
-          -0.16,
-          0.58,
-          0.0
+          -0.08,
+          1.5,
+          1.0
         ]
       },
       {
         "spot": 3,
-        "label": "center right",
+        "label": "the cupboard, top shelf, right",
+        "container": "cupboard",
+        "detail": "Top shelf, front right.",
         "position": [
-          0.16,
-          0.58,
-          0.0
+          0.08,
+          1.5,
+          1.0
         ]
       },
       {
         "spot": 4,
-        "label": "far right",
+        "label": "the box",
+        "container": "box",
+        "detail": "In the box, on top.",
         "position": [
-          0.42,
-          0.42,
-          0.0
+          0.0,
+          -1.5,
+          0.8
+        ]
+      },
+      {
+        "spot": 5,
+        "label": "the bag",
+        "container": "bag",
+        "detail": "In the bag, in the front pocket.",
+        "position": [
+          -1.5,
+          0.0,
+          0.5
+        ]
+      },
+      {
+        "spot": 6,
+        "label": "the setup spot",
+        "container": null,
+        "detail": "On the setup pad next to the laptop.",
+        "position": [
+          0.6,
+          -0.6,
+          0.8
         ]
       }
     ],
     "areas": [
       {
-        "area": "kitchen_counter",
-        "label": "the counter",
+        "area": "cupboard",
+        "label": "the cupboard",
         "position": [
-          0,
-          0.6,
-          0
+          0.0,
+          1.5,
+          1.0
         ]
       }
     ],
     "receivers": [
       {
         "receiver": "hub",
-        "label": "the counter",
+        "label": "the laptop",
         "position": [
-          0,
           0.6,
-          0
+          -0.6,
+          0.8
+        ]
+      }
+    ],
+    "beacons": [
+      {
+        "beacon": "B1",
+        "slot": 0,
+        "position": [
+          -1.5,
+          1.5,
+          1.8
+        ]
+      },
+      {
+        "beacon": "B2",
+        "slot": 1,
+        "position": [
+          1.5,
+          1.5,
+          0.3
+        ]
+      },
+      {
+        "beacon": "B3",
+        "slot": 2,
+        "position": [
+          1.5,
+          -1.5,
+          1.8
+        ]
+      },
+      {
+        "beacon": "B4",
+        "slot": 3,
+        "position": [
+          -1.5,
+          -1.5,
+          0.3
+        ]
+      },
+      {
+        "beacon": "B5",
+        "slot": 4,
+        "position": [
+          -1.8,
+          0.0,
+          1.0
         ]
       }
     ]

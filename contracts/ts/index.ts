@@ -11,13 +11,27 @@
  */
 export type Vec3 = [number, number, number];
 /**
+ * Ear position used when no listener_pose has arrived for 5 s (the mat origin at standing ear height).
+ *
+ * @minItems 3
+ * @maxItems 3
+ */
+export type Vec31 = [number, number, number];
+/**
  * @minItems 3
  * @maxItems 3
  *
  * This interface was referenced by `Space`'s JSON-Schema
  * via the `definition` "vec3".
  */
-export type Vec31 = [number, number, number];
+export type Vec32 = [number, number, number];
+/**
+ * Unit vector of the mat's tape arrow; always [0, 1, 0] by definition of the axes.
+ *
+ * @minItems 3
+ * @maxItems 3
+ */
+export type Vec33 = [number, number, number];
 /**
  * Every JSON message on the local WebSocket bus ws://127.0.0.1:8765. Discriminated by `type`. All times are unix seconds (float).
  *
@@ -49,12 +63,15 @@ export type BusMessage =
   | PickupResult
   | HeadPose
   | Status
-  | Reset;
+  | Reset
+  | ListenerPose
+  | Arrived
+  | Ptt;
 /**
  * @minItems 3
  * @maxItems 3
  */
-export type Vec32 = [number, number, number];
+export type Vec34 = [number, number, number];
 
 export interface EarmarkContracts {}
 /**
@@ -160,7 +177,7 @@ export interface Location {
   distance_class?: "near" | "mid" | "far" | null;
 }
 /**
- * config/space.json. Physical layout relative to the calibrated listening position. Meters; +x right, +y forward, +z up.
+ * config/space.json. Physical layout of the room. Meters; +x right, +y forward, +z up. Origin: the floor directly under the center of the mat; forward = the mat's tape arrow (Amendment 01).
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "Space".
@@ -169,14 +186,38 @@ export interface Space {
   listener: {
     label: string;
     origin_note: string;
+    fallback_position: Vec31;
   };
+  mat: {
+    position: Vec32;
+    forward: Vec33;
+  };
+  /**
+   * Furniture that holds spots (cupboard, drawer, bag, box). Spoken in directions.
+   */
+  containers: {
+    container: string;
+    /**
+     * Spoken name, e.g. "the cupboard".
+     */
+    label: string;
+    position: Vec32;
+  }[];
   spots: {
     spot: number;
     /**
-     * Spoken name, e.g. "far left".
+     * Short spoken name, e.g. "cupboard top shelf, left".
      */
     label: string;
-    position: Vec31;
+    position: Vec32;
+    /**
+     * containers[].container id, or null for a free-standing spot.
+     */
+    container?: string | null;
+    /**
+     * Spoken on arrival, e.g. "Top shelf, front left".
+     */
+    detail?: string;
   }[];
   areas: {
     area: string;
@@ -184,7 +225,7 @@ export interface Space {
      * Spoken name, e.g. "the counter". Defaults to area id.
      */
     label?: string;
-    position: Vec31;
+    position: Vec32;
   }[];
   /**
    * Proximity receivers (BLE scanners). An object seen `near` a receiver resolves to the receiver position with precision=proximity.
@@ -195,7 +236,15 @@ export interface Space {
      * Spoken name, e.g. "the counter".
      */
     label: string;
-    position?: null | Vec31;
+    position?: null | Vec32;
+  }[];
+  /**
+   * Acoustic beacons the iPhone locator listens to (built in a separate repo).
+   */
+  beacons: {
+    beacon: string;
+    slot: number;
+    position: Vec32;
   }[];
 }
 /**
@@ -285,7 +334,8 @@ export interface Phrases {
  */
 export interface Hello {
   type: "hello";
-  component: "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent";
+  component:
+    "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent" | "locator";
   /**
    * Message types to receive, or ["*"] for all including audio.
    */
@@ -364,7 +414,7 @@ export interface Label {
   t: number;
 }
 /**
- * Mac app -> concierge. Streamed microphone audio for Cartesia STT.
+ * Locator (during PTT) or Mac app (fallback) -> concierge. Streamed microphone audio for Cartesia STT.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "MicAudio".
@@ -469,7 +519,7 @@ export interface GuideStart {
    * Display name for the UI.
    */
   name: string;
-  target_position: Vec32;
+  target_position: Vec34;
   precision: "exact" | "area" | "proximity" | "none";
   utterance_id: string;
   /**
@@ -648,7 +698,8 @@ export interface HeadPose {
  */
 export interface Status {
   type: "status";
-  component: "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent";
+  component:
+    "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent" | "locator";
   ok: boolean;
   detail: string;
   info?: {
@@ -673,6 +724,51 @@ export interface Reset {
   t: number;
 }
 /**
+ * Locator (iPhone, separate repo) -> bus, about 3 Hz. `position` is the user's EAR position in room coordinates; the locator applies the phone-to-ear offset. Consumers predict forward from the velocity of recent poses (at most 300 ms). No pose for 1.5 s = position lost (hold last); 5 s = fall back to space.listener.fallback_position.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "ListenerPose".
+ */
+export interface ListenerPose {
+  type: "listener_pose";
+  position: Vec34;
+  quality: "ok" | "degraded" | "lost";
+  beacons_heard: number;
+  source: "beacons" | "steps" | "sim" | "manual";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Mac app -> bus while guiding: the listener's horizontal distance to the target dropped below 0.45 m. The concierge speaks the spot detail; pickup confirmation takes over. Sent once per guidance (again only after leaving and re-entering).
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "Arrived".
+ */
+export interface Arrived {
+  type: "arrived";
+  object_id: string;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Mac app -> bus: push-to-talk from the AirPods stem press (or Space). The locator streams mic_audio between start and stop; without a locator the Mac's own mic is used.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "Ptt".
+ */
+export interface Ptt {
+  type: "ptt";
+  state: "start" | "stop";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
  * POST /ingest (hub). Idempotent by event_id.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
@@ -681,6 +777,10 @@ export interface Reset {
 export interface IngestRequest {
   events: HubEvent[];
   states: ObjectState[];
+  /**
+   * Latest listener pose, at most about 1 Hz (for the dashboard map). Optional.
+   */
+  listener_pose?: null | ListenerPose;
 }
 /**
  * Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}.

@@ -1,0 +1,10 @@
+{
+  "type": "hello",
+  "component": "locator",
+  "subscribe": [
+    "ptt",
+    "snapshot",
+    "status"
+  ],
+  "t": 1792856400.25
+}

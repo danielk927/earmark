@@ -1,0 +1,12 @@
+{
+  "type": "listener_pose",
+  "position": [
+    0.0,
+    0.0,
+    1.6
+  ],
+  "quality": "lost",
+  "beacons_heard": 0,
+  "source": "sim",
+  "t": 1792856400.91
+}

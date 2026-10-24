@@ -2,34 +2,142 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://earmark.local/schemas/space.schema.json",
   "title": "Space",
-  "description": "config/space.json. Physical layout relative to the calibrated listening position. Meters; +x right, +y forward, +z up.",
+  "description": "config/space.json. Physical layout of the room. Meters; +x right, +y forward, +z up. Origin: the floor directly under the center of the mat; forward = the mat's tape arrow (Amendment 01).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["listener", "spots", "areas", "receivers"],
+  "required": [
+    "listener",
+    "mat",
+    "containers",
+    "spots",
+    "areas",
+    "receivers",
+    "beacons"
+  ],
   "properties": {
     "listener": {
-      "type": "object", "additionalProperties": false, "required": ["label", "origin_note"],
-      "properties": { "label": { "type": "string" }, "origin_note": { "type": "string" } }
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "origin_note",
+        "fallback_position"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "origin_note": {
+          "type": "string"
+        },
+        "fallback_position": {
+          "$ref": "#/$defs/vec3",
+          "description": "Ear position used when no listener_pose has arrived for 5 s (the mat origin at standing ear height)."
+        }
+      }
+    },
+    "mat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "forward"
+      ],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "forward": {
+          "$ref": "#/$defs/vec3",
+          "description": "Unit vector of the mat's tape arrow; always [0, 1, 0] by definition of the axes."
+        }
+      }
+    },
+    "containers": {
+      "type": "array",
+      "description": "Furniture that holds spots (cupboard, drawer, bag, box). Spoken in directions.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "container",
+          "label",
+          "position"
+        ],
+        "properties": {
+          "container": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Spoken name, e.g. \"the cupboard\"."
+          },
+          "position": {
+            "$ref": "#/$defs/vec3"
+          }
+        }
+      }
     },
     "spots": {
       "type": "array",
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["spot", "label", "position"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "spot",
+          "label",
+          "position"
+        ],
         "properties": {
-          "spot": { "type": "integer", "minimum": 0 },
-          "label": { "type": "string", "minLength": 1, "description": "Spoken name, e.g. \"far left\"." },
-          "position": { "$ref": "#/$defs/vec3" }
+          "spot": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Short spoken name, e.g. \"cupboard top shelf, left\"."
+          },
+          "position": {
+            "$ref": "#/$defs/vec3"
+          },
+          "container": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "containers[].container id, or null for a free-standing spot."
+          },
+          "detail": {
+            "type": "string",
+            "description": "Spoken on arrival, e.g. \"Top shelf, front left\"."
+          }
         }
       }
     },
     "areas": {
       "type": "array",
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["area", "position"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "area",
+          "position"
+        ],
         "properties": {
-          "area": { "type": "string", "minLength": 1 },
-          "label": { "type": "string", "description": "Spoken name, e.g. \"the counter\". Defaults to area id." },
-          "position": { "$ref": "#/$defs/vec3" }
+          "area": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "description": "Spoken name, e.g. \"the counter\". Defaults to area id."
+          },
+          "position": {
+            "$ref": "#/$defs/vec3"
+          }
         }
       }
     },
@@ -37,16 +145,70 @@
       "type": "array",
       "description": "Proximity receivers (BLE scanners). An object seen `near` a receiver resolves to the receiver position with precision=proximity.",
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["receiver", "label"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "receiver",
+          "label"
+        ],
         "properties": {
-          "receiver": { "type": "string", "minLength": 1 },
-          "label": { "type": "string", "description": "Spoken name, e.g. \"the counter\"." },
-          "position": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }] }
+          "receiver": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string",
+            "description": "Spoken name, e.g. \"the counter\"."
+          },
+          "position": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/$defs/vec3"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "beacons": {
+      "type": "array",
+      "description": "Acoustic beacons the iPhone locator listens to (built in a separate repo).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "beacon",
+          "slot",
+          "position"
+        ],
+        "properties": {
+          "beacon": {
+            "type": "string",
+            "minLength": 1
+          },
+          "slot": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "position": {
+            "$ref": "#/$defs/vec3"
+          }
         }
       }
     }
   },
   "$defs": {
-    "vec3": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 }
+    "vec3": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+    }
   }
 }
