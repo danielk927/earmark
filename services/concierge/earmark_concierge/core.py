@@ -405,6 +405,13 @@ class Concierge:
 
     async def _on_feedback(self, msg: GuideFeedback) -> None:
         g = self.guiding
+        if msg.event == "arrived":
+            target = self.world.objects.get(msg.object_id)
+            if g is not None and g.object_id == msg.object_id and target is not None:
+                await self._stop_guidance("found")
+                if self.silent_trial is None:
+                    self.spawn(self.speaker.say(self._id("u"), policy.arrived(self.world, target, g.position)))
+            return
         if (g is None or msg.object_id != g.object_id or msg.event != "behind" or msg.turn is None
                 or self.silent_trial is not None):
             return

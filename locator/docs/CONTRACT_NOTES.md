@@ -1,3 +1,5 @@
+> **Update (merged into the main repo):** the hub described below is Aidan's old hub. The main hub (`services/hub`, bus on `ws://<mac>:8765`) now accepts the locator's `hello` (component `locator`, optional `token`, ignored), `listener_pose`, `ptt`, `status` and `mic_audio` directly, with no `pose` bridge. Use the "hello" auth mode in the iPhone app. See `docs/ARCHITECTURE.md`, "Walking: the locator".
+
 # CONTRACT_NOTES.md — locator ↔ hub interface notes
 
 For the other repo's session (the Mac hub, spatial audio, voice) and for the human

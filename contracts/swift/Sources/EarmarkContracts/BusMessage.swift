@@ -36,7 +36,7 @@ public enum Precision: String, Codable, Sendable { case exact, area, proximity, 
 public enum DistanceClass: String, Codable, Sendable { case near, mid, far }
 public enum ObjectStatus: String, Codable, Sendable { case onSpot = "on_spot", held, missing, roaming }
 public enum Component: String, Codable, Sendable {
-    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent"
+    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent", locator
 }
 
 // MARK: - Shared payloads
@@ -231,7 +231,7 @@ public struct Transcript: Codable, Sendable, Equatable {
 }
 
 public struct GuideFeedback: Codable, Sendable, Equatable {
-    public enum Event: String, Codable, Sendable { case behind, front, locked }
+    public enum Event: String, Codable, Sendable { case behind, front, locked, arrived }
     public enum Turn: String, Codable, Sendable { case left, right }
     public var objectId: String
     public var event: Event
@@ -270,6 +270,25 @@ public struct HeadPose: Codable, Sendable, Equatable {
     public init(yaw: Double, pitch: Double, t: Double = BusCoding.now) {
         self.yaw = yaw; self.pitch = pitch; self.t = t
     }
+}
+
+public struct ListenerPose: Codable, Sendable, Equatable {
+    public enum Quality: String, Codable, Sendable { case ok, degraded, lost }
+    public var position: [Double]
+    public var quality: Quality
+    public var beaconsHeard: Int
+    public var source: String
+    public var t: Double
+    public init(position: [Double], quality: Quality, beaconsHeard: Int, source: String, t: Double = BusCoding.now) {
+        self.position = position; self.quality = quality; self.beaconsHeard = beaconsHeard; self.source = source; self.t = t
+    }
+}
+
+public struct Ptt: Codable, Sendable, Equatable {
+    public enum State: String, Codable, Sendable { case start, stop }
+    public var state: State
+    public var t: Double
+    public init(state: State, t: Double = BusCoding.now) { self.state = state; self.t = t }
 }
 
 public struct Status: Codable, Sendable, Equatable {
@@ -321,6 +340,8 @@ public enum BusMessage: Sendable {
     case transcript(Transcript)
     case playback(Playback)
     case headPose(HeadPose)
+    case listenerPose(ListenerPose)
+    case ptt(Ptt)
     case status(Status)
     case reset(Reset)
     case pickup(Pickup)
@@ -345,6 +366,8 @@ public enum BusMessage: Sendable {
         case .transcript: "transcript"
         case .playback: "playback"
         case .headPose: "head_pose"
+        case .listenerPose: "listener_pose"
+        case .ptt: "ptt"
         case .status: "status"
         case .reset: "reset"
         case .pickup: "pickup"
@@ -376,6 +399,8 @@ extension BusMessage: Codable {
         case "transcript": self = .transcript(try one.decode(Transcript.self))
         case "playback": self = .playback(try one.decode(Playback.self))
         case "head_pose": self = .headPose(try one.decode(HeadPose.self))
+        case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
+        case "ptt": self = .ptt(try one.decode(Ptt.self))
         case "status": self = .status(try one.decode(Status.self))
         case "reset": self = .reset(try one.decode(Reset.self))
         case "pickup": self = .pickup(try one.decode(Pickup.self))
@@ -403,6 +428,8 @@ extension BusMessage: Codable {
         case .transcript(let m): try m.encode(to: encoder)
         case .playback(let m): try m.encode(to: encoder)
         case .headPose(let m): try m.encode(to: encoder)
+        case .listenerPose(let m): try m.encode(to: encoder)
+        case .ptt(let m): try m.encode(to: encoder)
         case .status(let m): try m.encode(to: encoder)
         case .reset(let m): try m.encode(to: encoder)
         case .pickup(let m): try m.encode(to: encoder)

@@ -307,3 +307,24 @@ async def test_a_saved_spot_is_guided_to_from_where_the_user_stands(h):
     await h.feed(HeadPose(yaw=90, pitch=0))  # the user turns right: the keys are now on their left
     out = await h.say("Where are my keys?")
     assert h.spoken(out)[0].startswith("The keys are at your nine o'clock")
+
+
+async def test_arriving_stops_the_ping_and_says_where_to_reach(h):
+    from earmark_contracts import GuideFeedback, ListenerPose, Location, ObjectState
+    await h.feed(ObjectState(object_id="keys", location=Location(position=[0.0, 3.0, 1.6]), precision="exact",
+                             status="roaming", home_spot=None, last_seen_t=time.time(), source="none"),
+                 ListenerPose(position=[0.0, 2.7, 1.5], quality="ok", beacons_heard=5, source="beacons"))
+    await h.say("Where are my keys?")
+    h.clear()
+    await h.feed(GuideFeedback(object_id="keys", event="arrived", turn=None, error_deg=0.0))
+    [stop] = h.of("guide_stop")
+    assert (stop["object_id"], stop["reason"]) == ("keys", "found")
+    assert h.spoken(h.out) == ["You're here. The keys are up high, at your twelve o'clock."]
+
+
+async def test_arrival_for_something_else_is_ignored(h):
+    from earmark_contracts import GuideFeedback
+    await h.say("Where's the sugar?")
+    h.clear()
+    await h.feed(GuideFeedback(object_id="keys", event="arrived", turn=None, error_deg=0.0))
+    assert not h.of("guide_stop") and not h.spoken(h.out)

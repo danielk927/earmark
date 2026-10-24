@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from earmark_contracts import RegistryObject
 
 from .phrasing import (
-    Grammar, cap, clock_time, direction_phrase, join_and, join_or, number_word,
+    Grammar, cap, clock_phrase, clock_time, direction_phrase, join_and, join_or, number_word,
     relative_spot_phrase, the, time_phrase,
 )
 from .world import Sighting, World
@@ -252,6 +252,14 @@ def place_history(world: World, obj: RegistryObject, now: float) -> Plan:
         text += (f" Before that, {subject} {g.was} {where_phrase(world, prev)}, "
                  f"noted {time_phrase(prev.t, now, tz)}.")
     return Plan(text=text, object_id=obj.object_id)
+
+
+def arrived(world: World, obj: RegistryObject, pos: list[float]) -> str:
+    """The user is within half a meter: say where to reach (height, then side), from where they stand."""
+    g = Grammar(obj.name)
+    rel = world.relative(pos)
+    height = "up high" if pos[2] >= 1.3 else "down low" if pos[2] <= 0.5 else "at chest height"
+    return f"You're here. {cap(the(obj.name))} {g.is_} {height}, {clock_phrase(rel[0], rel[1])}."
 
 
 def stop() -> Plan:

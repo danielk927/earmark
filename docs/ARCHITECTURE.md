@@ -78,6 +78,21 @@ The app does not know where the user is standing, so "I'm leaving my keys here" 
 
 Rules: every answer says when; Earmark records only what it was told or saw (for example "went to the pill box"), never that someone took a pill.
 
+## Walking: the locator
+
+The locator (`locator/`) tells the system where the user is standing, so the ping can lead them across the room.
+
+1. Five sound beacons chirp in turn; the iPhone's microphone hears them and works out the user's ear position.
+2. The phone sends `listener_pose` (about 3 per second) to the bus. The hub passes it on; it needs no special handling.
+3. The Mac app subtracts the user's position from the item's position, then turns it by the AirPods head angle. The ping gets faster and louder as the user gets closer.
+4. Within half a meter the Mac app stops the ping, plays a short tone and sends `guide_feedback arrived`. The concierge then says "You're here. The keys are up high, at your twelve o'clock."
+5. The concierge also uses the position for spoken directions ("at your four o'clock, a step away") and to save "I'm leaving my keys here" (`place_item` with a `position`).
+6. With no fix for 5 seconds, everything falls back to the old behavior: the user is assumed to be on the mat.
+
+When the locator is used, positions in `config/space.json` must be measured in the locator's frame: origin on the floor under the mat center, `z` up from the floor (a shelf at 1 m is `z = 1.0`). The older seated setup measured `z` from head height.
+
+The Mac app sends `ptt start/stop` while the user speaks, so the phone can stream its microphone. Using the AirPods stem as the push-to-talk button and switching speech input to the phone microphone are not built yet.
+
 ## Coordinate system
 
 Meters, +x right, +y forward, +z up, origin at the calibrated head position.
@@ -100,4 +115,4 @@ Sign constants (`yawSign`, `pitchSign`) live in one Swift file so they can be fl
 
 - Xcode is not installed on the demo Mac, so the Mac app is a SwiftPM package built into a signed `.app` bundle by `mac/build_app.sh` (Command Line Tools only).
   Xcode can still open the package directly.
-- Bus messages added beyond the brief's table, all needed for the flows it describes: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`, and `place_item` (memory).
+- Bus messages added beyond the brief's table, all needed for the flows it describes: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`, `place_item` (memory), and from the locator `listener_pose` and `ptt`.

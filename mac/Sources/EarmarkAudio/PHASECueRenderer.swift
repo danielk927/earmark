@@ -24,6 +24,7 @@ public final class PHASECueRenderer: SpatialRenderer {
     private var pitchDeg = 0.0
     private var ducked = false
     private var masterGain: Float = 1
+    private var proximityGain: Float = 1
     private var running = false
 
     private static let gainParameter = "earmark.cue.gain"
@@ -153,6 +154,7 @@ public final class PHASECueRenderer: SpatialRenderer {
     public func setDucked(_ ducked: Bool) { lock.withLock { self.ducked = ducked } }
     public func setTimbre(_ timbre: PingTimbre) { lock.withLock { self.timbre = timbre } }
     public func setMasterGain(_ gain: Float) { lock.withLock { masterGain = min(max(gain, 0), 1) } }
+    public func setProximityGain(_ gain: Float) { lock.withLock { proximityGain = min(max(gain, 0), 1) } }
 
     // MARK: Playback
 
@@ -167,7 +169,7 @@ public final class PHASECueRenderer: SpatialRenderer {
             params.addSpatialMixerParameters(identifier: mixerID, source: source, listener: listener)
             do {
                 let ev = try PHASESoundEvent(engine: engine, assetIdentifier: id + ".event", mixerParameters: params)
-                let gain = Double(masterGain * (ducked ? AVAudioCueRenderer.duckGain : 1))
+                let gain = Double(masterGain * proximityGain * (ducked ? AVAudioCueRenderer.duckGain : 1))
                 ev.metaParameters[Self.gainParameter + "." + id]?.value = NSNumber(value: gain)
                 let key = ObjectIdentifier(ev)
                 active[key] = ev

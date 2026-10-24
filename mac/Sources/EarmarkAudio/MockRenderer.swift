@@ -16,6 +16,7 @@ public final class MockRenderer: SpatialRenderer {
     public private(set) var ducked = false
     public private(set) var timbre: PingTimbre = .tone
     public private(set) var masterGain: Float = 1
+    public private(set) var proximityGain: Float = 1
     public private(set) var restarts = 0
 
     public init() {}
@@ -39,4 +40,5 @@ public final class MockRenderer: SpatialRenderer {
     public func setDucked(_ ducked: Bool) { lock.withLock { self.ducked = ducked } }
     public func setTimbre(_ timbre: PingTimbre) { lock.withLock { self.timbre = timbre } }
     public func setMasterGain(_ gain: Float) { lock.withLock { masterGain = gain } }
+    public func setProximityGain(_ gain: Float) { lock.withLock { proximityGain = gain } }
 }

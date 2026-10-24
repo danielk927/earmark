@@ -286,7 +286,7 @@ class GuideStop(_Msg):
 class GuideFeedback(_Msg):
     type: Literal["guide_feedback"] = "guide_feedback"
     object_id: str
-    event: Literal["behind", "front", "locked"]
+    event: Literal["behind", "front", "locked", "arrived"]
     turn: Literal["left", "right"] | None
     error_deg: float
 

@@ -25,7 +25,8 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 - Judge reaches. If they lift the salt: "That's the salt. The sugar is one spot to your right." (This is the hero moment; it is fine to nudge the judge toward the wrong jar first.)
 - Judge lifts the sugar: "Got it, that's the sugar." The dashboard's live map updates at the same instant (point at it).
 - Judge: "Where are my keys?" Earmark: proximity phrase, and the fob beeps.
-- Memory beat: Judge: "I put my keys in the drawer." Earmark: "Got it, the keys are in the drawer." Later: "Where are my keys?" -> "The keys are near the drawer. I noted that at [time]." Then "Where did I put my keys before?" -> the earlier place, with its time. The timeline on the dashboard shows each move. (Earmark does not know where the judge stands, so "leaving my keys here" gets "tell me the place" instead.)
+- Walking beat (needs the locator running): "Where are my keys?" The ping comes from the drawer; as the judge walks toward it, it gets faster and louder; within half a meter it stops, a tone plays, and Earmark says "You're here. The keys are up high, at your twelve o'clock."
+- Memory beat: Judge: "I put my keys in the drawer." Earmark: "Got it, the keys are in the drawer." Later: "Where are my keys?" -> "The keys are near the drawer. I noted that at [time]." Then "Where did I put my keys before?" -> the earlier place, with its time. The timeline on the dashboard shows each move. "I'm leaving my keys here" saves the spot the locator says the judge is standing at; without a locator fix Earmark says "tell me the place" instead.
 
 **1:10 - 1:40 How it works (Presenter, over the architecture slide)**
 - Each item sits on an NFC "home spot" or carries a Bluetooth fob; detection is pluggable, and everything downstream only sees one event format.

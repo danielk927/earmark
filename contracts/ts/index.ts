@@ -557,7 +557,10 @@ export interface GuideStop {
 export interface GuideFeedback {
   type: "guide_feedback";
   object_id: string;
-  event: "behind" | "front" | "locked";
+  /**
+   * behind/front/locked come from the head angle; arrived means the locator put the user within about half a meter of the target.
+   */
+  event: "behind" | "front" | "locked" | "arrived";
   turn: "left" | "right" | null;
   /**
    * Signed angle from head direction to target, degrees, positive = target is to the right.

@@ -61,9 +61,12 @@ public protocol SpatialRenderer: AnyObject {
     func setTimbre(_ timbre: PingTimbre)
     /// Master gain for the cue layer, 0...1 (`--silent` sets 0 for unattended runs).
     func setMasterGain(_ gain: Float)
+    /// Extra gain from how far the target is (louder when closer), 0...1; 1 when the distance is unknown.
+    func setProximityGain(_ gain: Float)
 }
 
 public extension SpatialRenderer {
+    func setProximityGain(_ gain: Float) {}
     var name: String { kind.rawValue }
     func playLockedTone() { play(.locked) }
     func playBehindCue() { play(.behind) }

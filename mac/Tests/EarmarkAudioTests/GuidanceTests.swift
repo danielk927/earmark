@@ -140,3 +140,26 @@ import Testing
         #expect(Guidance.turn(forErrorDeg: -180) == .right)   // -180 wraps to +180
     }
 }
+
+@Suite struct GuidanceProximityTests {
+    @Test func louderAndFasterAsTheUserWalksCloser() {
+        #expect(Guidance.proximityGain(distanceM: nil) == 1)
+        #expect(Guidance.proximityGain(distanceM: 0.3) == 1)
+        #expect(abs(Guidance.proximityGain(distanceM: 4) - 0.25) < 1e-6)
+        #expect(Guidance.proximityGain(distanceM: 1) > Guidance.proximityGain(distanceM: 2))
+        #expect(Guidance.proximityScale(distanceM: nil) == 1)
+        #expect(abs(Guidance.proximityScale(distanceM: 0) - 0.4) < 1e-9)
+        #expect(Guidance.proximityScale(distanceM: 3) == 1)
+        #expect(Guidance.proximityScale(distanceM: 9) == 1)
+    }
+
+    @Test func retargetKeepsTheLock() {
+        var g = Guidance(target: EarmarkPoint(0, 2, 0))
+        _ = g.update(headYawDeg: 0, now: 0)
+        _ = g.update(headYawDeg: 0, now: 0.5)
+        #expect(g.locked)
+        g.retarget(EarmarkPoint(0, 1, 0))
+        #expect(g.locked)
+        #expect(g.target == EarmarkPoint(0, 1, 0))
+    }
+}

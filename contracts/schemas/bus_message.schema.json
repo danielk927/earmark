@@ -594,8 +594,10 @@
           "enum": [
             "behind",
             "front",
-            "locked"
-          ]
+            "locked",
+            "arrived"
+          ],
+          "description": "behind/front/locked come from the head angle; arrived means the locator put the user within about half a meter of the target."
         },
         "turn": {
           "enum": [

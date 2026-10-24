@@ -229,4 +229,48 @@ import Testing
         #expect(GuidanceMode.resolve(renderer: .stereoPan, headTracking: true) == .stereoPan)
         #expect(GuidanceMode.resolve(renderer: nil, headTracking: true) == .speechOnly)
     }
+
+    // MARK: Locator (listener_pose)
+
+    func pose(_ x: Double, _ y: Double, quality: String = "ok") {
+        core.handle(bus("""
+        {"type":"listener_pose","position":[\(x),\(y),0],"quality":"\(quality)","beacons_heard":5,"source":"beacons","t":1}
+        """))
+    }
+
+    func guideKeys() {
+        core.handle(bus("""
+        {"type":"guide_start","object_id":"keys","name":"keys","target_position":[0,3,1],"precision":"exact","utterance_id":"u1","t":1}
+        """))
+    }
+
+    @Test func targetIsRelativeToWhereTheUserStands() throws {
+        guideKeys()
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))   // no fix: the user is on the mat
+        pose(0, 1)
+        #expect(renderer.target == EarmarkPoint(0, 2, 1))
+        pose(0, 1.5, quality: "lost")                        // a lost fix changes nothing
+        #expect(renderer.target == EarmarkPoint(0, 2, 1))
+    }
+
+    @Test func pingsGetFasterAndLouderOnTheWayAndStopOnArrival() throws {
+        guideKeys()
+        pose(0, 1); run(0.1)
+        let farInterval = try #require(renderer.pingInterval), farGain = renderer.proximityGain
+        pose(0, 2); run(0.1)
+        #expect(try #require(renderer.pingInterval) < farInterval)
+        #expect(renderer.proximityGain > farGain)
+        #expect(core.guide != nil)
+        pose(0, 2.8); run(0.1)                               // 0.2 m away: arrived
+        #expect(core.guide == nil)
+        #expect(busSink.feedback.contains { $0.event == .arrived && $0.objectId == "keys" })
+        #expect(renderer.played.contains(.locked))
+    }
+
+    @Test func noFixForFiveSecondsMeansBackOnTheMat() throws {
+        pose(0, 1)
+        guideKeys()
+        run(5.5)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
+    }
 }
