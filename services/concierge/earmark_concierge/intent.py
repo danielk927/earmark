@@ -83,7 +83,9 @@ class IntentRouter:
         if self._prefetch and self._prefetch[0] == key:
             return
         self.cancel_prefetch()
-        self._prefetch = (key, time.perf_counter(), asyncio.create_task(self.chooser.choose(text, world)))
+        task = asyncio.create_task(self.chooser.choose(text, world))
+        task.add_done_callback(lambda t: t.cancelled() or t.exception())  # never "unretrieved"
+        self._prefetch = (key, time.perf_counter(), task)
 
     def cancel_prefetch(self) -> None:
         if self._prefetch:

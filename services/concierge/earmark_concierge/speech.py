@@ -24,6 +24,7 @@ from .tts import SonicTts
 
 log = logging.getLogger(__name__)
 SAY_TIMEOUT_S = 20.0
+TTS_RETRY_S = 30.0
 
 
 def load_phrases(path: Path) -> dict[str, str]:
@@ -49,6 +50,7 @@ class Speaker:
         self.say_cmd = say_cmd
         self.mode = "cartesia" if tts else "system"
         self.on_mode_change: Callable[[], object] | None = None
+        self._tts_down_until = 0.0
         self._lock = asyncio.Lock()
 
     def _set_mode(self, mode: str) -> None:
@@ -72,7 +74,7 @@ class Speaker:
             elif pid:
                 await self.emit(SpeakCached(phrase_id=pid, utterance_id=utterance_id, text=text))
                 kind = "speak_cached"
-            elif self.tts is None:
+            elif self.tts is None or time.monotonic() < self._tts_down_until:
                 await self.emit(SpeakText(utterance_id=utterance_id, text=text))
                 kind = "speak_text"
             else:
@@ -91,7 +93,10 @@ class Speaker:
         except (asyncio.TimeoutError, StopAsyncIteration, Exception) as e:
             await agen.aclose()
             await self.tts.cancel(uid)
-            log.warning("tts failed before first chunk (%s); speak_text", type(e).__name__ or "timeout")
+            log.warning("tts failed before first chunk (%s); speak_text for %.0f s",
+                        type(e).__name__, TTS_RETRY_S)
+            # Circuit breaker: while Sonic is down, don't make every utterance wait for the timeout.
+            self._tts_down_until = time.monotonic() + TTS_RETRY_S
             self._set_mode("system")
             await self.emit(SpeakText(utterance_id=uid, text=text))
             return "speak_text"

@@ -62,6 +62,18 @@ async def test_tts_failure_falls_back_to_speak_text(tmp_path, sonic, mode):
     assert h.of("status")[-1]["info"]["tts"] == "system"  # mode change announced
 
 
+async def test_tts_breaker_skips_sonic_after_a_failure(tmp_path, sonic):
+    sonic.mode = "error"
+    h = await ready(tts_settings(tmp_path, sonic.url))
+    await h.say("Where's the sugar?")
+    out = await h.say("Where's the salt?")
+    assert len(sonic.requests) == 1 and h.of("speak_text", out)
+    h.core.speaker._tts_down_until = 0.0  # breaker window over: Sonic is tried again
+    sonic.mode = "good"
+    out = await h.say("Where's the sugar?")
+    assert h.of("speak", out) and h.core.speaker.mode == "cartesia"
+
+
 async def test_unreachable_tts_falls_back(tmp_path):
     h = await ready(tts_settings(tmp_path, "ws://127.0.0.1:9"))
     out = await h.say("Where's the sugar?")

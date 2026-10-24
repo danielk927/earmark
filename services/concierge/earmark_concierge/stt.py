@@ -149,8 +149,9 @@ class CartesiaStt:
         await ws.close()
 
     async def _watchdog(self, b: _Burst) -> None:
+        connect_left = self.s.stt_connect_timeout_s - (time.monotonic() - b.first_audio)
         try:
-            await asyncio.wait_for(b.connected.wait(), self.s.stt_connect_timeout_s)
+            await asyncio.wait_for(b.connected.wait(), max(0.0, connect_left))
         except asyncio.TimeoutError:
             raise SttFailure("cartesia stt not connected within "
                              f"{self.s.stt_connect_timeout_s:g} s") from None
