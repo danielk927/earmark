@@ -119,11 +119,21 @@ def scenarios():
 
     # The user says where the keys went, asks for them, moves them, then asks where they were before.
     s["put_in_place"] = [
-        say(2.0, "I put my keys in the drawer."),
-        say(8.0, "Where are my keys?"),
-        say(14.0, "I put my keys in the bag."),
-        say(20.0, "Where did I put my keys before?"),
+        {"type": "ptt", "state": "stop", "t": 0.0},  # a harmless first line: the clock starts at the first message
+        say(8.0, "I put my keys in the drawer."),
+        say(11.0, "Where are my keys?"),
+        say(17.0, "I put my keys in the bag."),
+        say(23.0, "Where did I put my keys before?"),
     ]
+
+    # The locator says where the user stands; "leaving it here" saves that spot, and the ping leads back to it.
+    s["put_here"] = [
+        {"type": "listener_pose", "position": [0.8, -0.4, 1.5], "quality": "ok", "beacons_heard": 5,
+         "source": "beacons", "t": float(k) / 3} for k in range(3, 27)  # the locator reports about 3 times a second
+    ] + [say(8.0, "I'm leaving my keys here.")] + [
+        {"type": "listener_pose", "position": [0.0, 0.0, 1.5], "quality": "ok", "beacons_heard": 5,
+         "source": "beacons", "t": float(k) / 3} for k in range(30, 54)
+    ] + [say(15.0, "Where are my keys?")]
 
     s["label_new_item"] = spot_reads(15, [(3.0, 1, "unknown")]) + [
         say(7.0, "This is honey."),

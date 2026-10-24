@@ -43,7 +43,8 @@ class LabelAction:
 @dataclass
 class PlaceAction:
     object_id: str
-    area: str
+    area: str | None = None
+    position: list[float] | None = None
 
 
 @dataclass
@@ -68,6 +69,8 @@ def where_phrase(world: World, s: Sighting) -> str | None:
         return f"near {world.area_label(s.area)}"
     if s.near is not None:
         return f"near {world.receiver_label(s.near)}"
+    if s.position is not None:
+        return "at the spot you saved"
     return None
 
 
@@ -99,7 +102,7 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
     if st is not None and st.precision == "exact" and st.location.position:
         pos = list(st.location.position)
         return Plan(
-            text=f"{cap(name)} {g.is_} {direction_phrase(pos)}.",
+            text=f"{cap(name)} {g.is_} {direction_phrase(world.relative(pos))}.",
             guide=GuideTarget(obj.object_id, obj.name, pos, "exact"),
             object_id=obj.object_id,
         )
@@ -206,8 +209,19 @@ def put_in_place(world: World, obj: RegistryObject, area: str) -> Plan:
                 place=PlaceAction(obj.object_id, area), object_id=obj.object_id)
 
 
+# The phone is held at chest height, but the item is down where the hand put it.
+HAND_HEIGHT_M = 1.0
+
+
+def put_here(obj: RegistryObject, listener: list[float]) -> Plan:
+    """'I'm leaving my keys here': keep the spot the locator says the user is standing at."""
+    spot = [round(listener[0], 2), round(listener[1], 2), HAND_HEIGHT_M]
+    return Plan(text=f"Got it, I'll remember where you left {the(obj.name)}.",
+                place=PlaceAction(obj.object_id, position=spot), object_id=obj.object_id)
+
+
 def ask_place(world: World, obj: RegistryObject) -> Plan:
-    """'Here' can't be saved: the app doesn't know where the user is standing."""
+    """'Here' can't be saved without a fresh position from the locator."""
     labels = [world.area_label(a) for a in world.area_ids()]
     hint = f" I know {join_and(labels)}." if labels else ""
     return Plan(text=f"I can't tell where you are, so tell me the place. For example, I put {the(obj.name)} in "
@@ -275,7 +289,7 @@ def pickup_wrong(world: World, target: RegistryObject, actual: RegistryObject | 
             if rel:
                 return f"{first} {tname} {g.is_} {rel}."
     if st is not None and st.precision == "exact" and st.location.position:
-        return f"{first} {tname} {g.is_} {direction_phrase(list(st.location.position))}."
+        return f"{first} {tname} {g.is_} {direction_phrase(world.relative(list(st.location.position)))}."
     return f"{first} I'm not sure where {the(target.name)} {g.is_} right now."
 
 

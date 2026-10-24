@@ -289,3 +289,12 @@ def test_place_in_area_ignores_unknown_item_or_place(engine):
     assert engine.place_in_area("nope", "drawer", T0) == []
     assert engine.place_in_area("sugar", "attic", T0) == []
     assert engine.state("sugar").status == "missing"
+
+
+def test_place_at_position_keeps_the_exact_spot(engine):
+    out = engine.place_at_position("keys", [0.8, -0.4, 1.0], T0 + 3)
+    assert [(s.object_id, s.area, s.position) for s in of(out, Stored)] == [("keys", None, [0.8, -0.4, 1.0])]
+    st = engine.state("keys")
+    assert (st.status, st.precision, st.location.area) == ("roaming", "exact", None)
+    assert st.location.position == [0.8, -0.4, 1.0]
+    assert engine.place_at_position("nope", [0, 0, 0], T0) == []

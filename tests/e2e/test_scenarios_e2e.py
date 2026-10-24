@@ -103,7 +103,7 @@ def _dotenv(name: str) -> str | None:
 
 
 def test_put_in_place(stack):
-    msgs = run(stack, "put_in_place")
+    msgs = run(stack, "put_in_place", speed=1.0)
     assert [(m["object_id"], m["area"]) for m in of(msgs, "place_item")] == [("keys", "drawer"), ("keys", "bag")]
     keys = [m for m in of(msgs, "state_update") if m["object_id"] == "keys"]
     assert [m["location"]["area"] for m in keys] == ["drawer", "bag"]
@@ -112,3 +112,15 @@ def test_put_in_place(stack):
     assert any(t.startswith("The keys are near the drawer.") for t in text)
     assert any(t.startswith("The keys are near the bag, noted at") and "Before that, they were near the drawer" in t
                for t in text)
+
+
+def test_put_here(stack):
+    msgs = run(stack, "put_here", speed=1.0)
+    [placed] = of(msgs, "place_item")
+    assert placed["object_id"] == "keys" and placed["position"] == [0.8, -0.4, 1.0]
+    keys = [m for m in of(msgs, "state_update") if m["object_id"] == "keys"]
+    assert keys[-1]["precision"] == "exact" and keys[-1]["location"]["position"] == [0.8, -0.4, 1.0]
+    [guide] = of(msgs, "guide_start")
+    assert guide["object_id"] == "keys" and guide["target_position"] == [0.8, -0.4, 1.0]
+    assert "Got it, I'll remember where you left the keys." in spoken(msgs)
+    assert any(t.startswith("The keys are at your four o'clock") for t in spoken(msgs))

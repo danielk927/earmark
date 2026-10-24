@@ -269,3 +269,22 @@ async def test_place_item_is_synced_as_a_stored_event_and_state(fake, hub_cfg, h
         await c.close()
     finally:
         await hub.stop()
+
+
+async def test_place_item_with_a_position_is_synced_without_an_area(fake, hub_cfg, hub_root):
+    from earmark_contracts import PlaceItem
+
+    fake.start()
+    hub_cfg.convex = fast_cfg()
+    hub = Hub(hub_cfg, root=hub_root, convex_env=ConvexEnv(fake.url, SECRET))
+    await hub.start()
+    try:
+        c = await BusClient.connect("concierge", subscribe=["state_update"], url=f"ws://127.0.0.1:{hub.bus.port}")
+        await c.send(PlaceItem(object_id="keys", position=[0.8, -0.4, 1.0], t=time.time()))
+        await wait_for(lambda: len(fake.order) == 1)
+        event = fake.events[fake.order[0]]
+        assert (event["kind"], event["object_id"]) == ("stored", "keys")
+        assert event["data"] == {"position": [0.8, -0.4, 1.0], "source": "voice"}
+        await c.close()
+    finally:
+        await hub.stop()

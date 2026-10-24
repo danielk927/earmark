@@ -14,7 +14,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from earmark_contracts import (
-    Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, MicAudio, ObjectState, Pickup,
+    Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, ListenerPose, MicAudio, ObjectState, Pickup,
     PickupResult, PlaceItem, Playback, RegistryObject, RegistryUpdate, Reset, Snapshot, StatusMsg, SttMode,
     Transcript, TrialEnd, TrialStart, UnknownTag,
 )
@@ -161,6 +161,9 @@ class Concierge:
                     await self.emit(SttMode(engine=self.stt.engine, reason=f"resync: {self.stt.reason}"))
         elif isinstance(msg, HeadPose):
             self._saw_mac_app()
+            self.world.apply_head(msg.yaw)
+        elif isinstance(msg, ListenerPose):
+            self.world.apply_listener(msg.position, msg.quality)
         elif isinstance(msg, TrialStart):
             if msg.mode == "baseline":
                 self.silent_trial = msg.trial_id
@@ -296,7 +299,10 @@ class Concierge:
             area = call.args.get("area") or (self.world.resolve_area(place) if place else None)
             if area:
                 return policy.put_in_place(self.world, target, area)
-            return policy.unknown_place(self.world) if place else policy.ask_place(self.world, target)
+            if place:
+                return policy.unknown_place(self.world)
+            here = self.world.listener_position()
+            return policy.put_here(target, here) if here else policy.ask_place(self.world, target)
         if call.name == "place_history":
             return policy.place_history(self.world, target, now)
         if call.name == "last_seen":
@@ -329,7 +335,9 @@ class Concierge:
             lb = plan.label
             await self.emit(Label(tag=lb.tag, name=lb.name, aliases=lb.aliases, spot=lb.spot))
         if plan.place:
-            await self.emit(PlaceItem(object_id=plan.place.object_id, area=plan.place.area, t=time.time()))
+            where = ({"area": plan.place.area} if plan.place.area is not None
+                     else {"position": plan.place.position})
+            await self.emit(PlaceItem(object_id=plan.place.object_id, t=time.time(), **where))
         if plan.text or plan.phrase_id:
             self.spawn(self.speaker.say(uid, plan.text, plan.phrase_id, turn))
         return uid

@@ -115,6 +115,19 @@ describe("POST /ingest", () => {
     expect(h.body.events[0]).toMatchObject({ kind: "stored", spot: null, detail: "Put in the drawer." });
   });
 
+  test("a stored event with only a position reads back as a saved spot", async () => {
+    const stored = {
+      event_id: eventId(),
+      kind: "stored",
+      object_id: "keys",
+      t: NOW - 30,
+      data: { position: [0.8, -0.4, 1.0], source: "voice" },
+    };
+    expect((await post(t, "/ingest", { events: [stored], states: [] })).body).toMatchObject({ accepted_events: 1 });
+    const h = await get(t, "/api/history?objectId=keys");
+    expect(h.body.events[0]).toMatchObject({ kind: "stored", detail: "Put at a spot you saved." });
+  });
+
   test("duplicates inside one batch are counted once", async () => {
     const e = pickupEvent("salt", 2, NOW - 10);
     const r = await post(t, "/ingest", { events: [e, e], states: [] });

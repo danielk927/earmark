@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +21,8 @@ from earmark_contracts import (
 log = logging.getLogger(__name__)
 DEFAULT_TZ = "America/Los_Angeles"
 MAX_HISTORY = 10
+LISTENER_FRESH_S = 3.0  # a locator fix older than this is ignored
+HEAD_FRESH_S = 2.0
 
 
 @dataclass
@@ -58,6 +62,8 @@ class World:
         self.sightings: dict[str, Sighting] = {}
         self.history: dict[str, list[Sighting]] = {}  # every place an object was noted, oldest first
         self.pickups: dict[str, LastPickup] = {}
+        self.listener: tuple[list[float], float] | None = None  # (position, received at)
+        self.head_yaw: tuple[float, float] | None = None  # (degrees, received at)
         self.unknown_tag: UnknownTag | None = None
         self.registry_version: float | None = None
 
@@ -80,7 +86,8 @@ class World:
     def apply_state(self, st: ObjectState) -> None:
         self.states[st.object_id] = st
         loc = st.location
-        if loc.spot is not None or loc.area is not None or loc.near is not None:
+        saved_spot = loc.position is not None and st.precision == "exact" and st.status == "roaming"
+        if loc.spot is not None or loc.area is not None or loc.near is not None or saved_spot:
             sighting = Sighting(
                 spot=loc.spot, area=loc.area, near=loc.near,
                 position=list(loc.position) if loc.position else None,
@@ -103,6 +110,31 @@ class World:
             position=self.spot_position(msg.from_spot) or (prev.position if prev else None),
             t=msg.t,
         )
+
+    def apply_listener(self, position: list[float], quality: str) -> None:
+        if quality != "lost":
+            self.listener = (list(position), time.time())
+
+    def apply_head(self, yaw: float) -> None:
+        self.head_yaw = (yaw, time.time())
+
+    def listener_position(self) -> list[float] | None:
+        """Where the locator last put the user, or None when it is old or missing."""
+        if self.listener is None or time.time() - self.listener[1] > LISTENER_FRESH_S:
+            return None
+        return self.listener[0]
+
+    def relative(self, pos: list[float]) -> list[float]:
+        """A room position as seen by the user: from where they stand, turned to where they face.
+
+        With no fresh locator fix the user is assumed to be at the origin facing forward.
+        """
+        here = self.listener_position() or [0.0, 0.0, 0.0]
+        dx, dy = pos[0] - here[0], pos[1] - here[1]
+        yaw = self.head_yaw[0] if self.head_yaw and time.time() - self.head_yaw[1] <= HEAD_FRESH_S else 0.0
+        r = math.hypot(dx, dy)
+        az = math.atan2(dx, dy) - math.radians(yaw)
+        return [r * math.sin(az), r * math.cos(az), pos[2] - here[2] if len(pos) > 2 else 0.0]
 
     def apply_unknown_tag(self, msg: UnknownTag) -> None:
         self.unknown_tag = msg

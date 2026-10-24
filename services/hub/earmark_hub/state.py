@@ -65,8 +65,9 @@ class Stored:
     """The user said where they put an item (Convex hub_event `stored`; not a bus message)."""
 
     object_id: str
-    area: str
+    area: str | None
     t: float
+    position: list[float] | None = None
 
 
 Output = Union[ObjectState, Pickup, UnknownTag, Placed, Removed, Stored]
@@ -147,6 +148,19 @@ class StateEngine:
         b.status, b.area, b.position, b.precision = "roaming", area, pos, "area"
         b.last_seen_t, b.source = self._now, "none"
         out: list[Output] = [Stored(object_id, area, self._now)]
+        self._sync(out)
+        return out
+
+    def place_at_position(self, object_id: str, position: list[float], t: float) -> list[Output]:
+        """The user left the item where they stand (position from the locator)."""
+        if object_id not in self._registry:
+            return []
+        self._now = max(self._now, t)
+        b = self._beliefs[object_id]
+        b.clear_location()
+        b.status, b.position, b.precision = "roaming", list(position), "exact"
+        b.last_seen_t, b.source = self._now, "none"
+        out: list[Output] = [Stored(object_id, None, self._now, list(position))]
         self._sync(out)
         return out
 

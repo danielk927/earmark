@@ -276,3 +276,34 @@ async def test_history_with_one_place_says_so(h):
     await h.feed(state("keys", area="drawer", position=[1.5, 0, 0.7], last_seen_t=time.time() - 60))
     out = await h.say("Where were my keys earlier?")
     assert "I don't know of an earlier place for them." in h.spoken(out)[0]
+
+
+async def test_leaving_it_here_saves_the_position_when_the_locator_knows_it(h):
+    from earmark_contracts import ListenerPose
+    await h.feed(ListenerPose(position=[0.8, -0.4, 1.5], quality="ok", beacons_heard=5, source="beacons"))
+    out = await h.say("I'm leaving my keys here.")
+    [m] = h.of("place_item", out)
+    assert (m["object_id"], m["position"]) == ("keys", [0.8, -0.4, 1.0]) and "area" not in m
+    assert h.spoken(out) == ["Got it, I'll remember where you left the keys."]
+
+
+async def test_a_lost_locator_fix_is_not_saved(h):
+    from earmark_contracts import ListenerPose
+    await h.feed(ListenerPose(position=[0.8, -0.4, 1.5], quality="lost", beacons_heard=0, source="beacons"))
+    out = await h.say("I'm leaving my keys here.")
+    assert not h.of("place_item", out)
+    assert h.spoken(out)[0].startswith("I can't tell where you are")
+
+
+async def test_a_saved_spot_is_guided_to_from_where_the_user_stands(h):
+    from earmark_contracts import HeadPose, ListenerPose, Location, ObjectState
+    await h.feed(ObjectState(object_id="keys", location=Location(position=[0.0, 3.0, 1.0]), precision="exact",
+                             status="roaming", home_spot=None, last_seen_t=time.time(), source="none"),
+                 ListenerPose(position=[0.0, 1.0, 1.5], quality="ok", beacons_heard=5, source="beacons"))
+    out = await h.say("Where are my keys?")
+    assert h.spoken(out)[0] == "The keys are at your twelve o'clock, about three steps away."
+    [g] = h.of("guide_start", out)
+    assert g["target_position"] == [0.0, 3.0, 1.0]  # the Mac app renders from the room frame
+    await h.feed(HeadPose(yaw=90, pitch=0))  # the user turns right: the keys are now on their left
+    out = await h.say("Where are my keys?")
+    assert h.spoken(out)[0].startswith("The keys are at your nine o'clock")

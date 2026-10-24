@@ -143,7 +143,10 @@ class Hub:
         if isinstance(msg, Label):
             self._label(msg)
         elif isinstance(msg, PlaceItem):
-            self._apply(self.engine.place_in_area(msg.object_id, msg.area, msg.t))
+            if msg.area is not None:
+                self._apply(self.engine.place_in_area(msg.object_id, msg.area, msg.t))
+            else:
+                self._apply(self.engine.place_at_position(msg.object_id, msg.position, msg.t))
         elif isinstance(msg, Reset):
             await self.reset()
         elif isinstance(msg, Chirp):
@@ -166,10 +169,11 @@ class Hub:
                     self.sync.add_event(kind, o.object_id, o.t, {"spot": o.spot, "tag": o.tag, "source": o.source})
                 continue
             if isinstance(o, Stored):
-                log.info("stored", extra={"object_id": o.object_id, "area": o.area})
+                log.info("stored", extra={"object_id": o.object_id, "area": o.area, "position": o.position})
                 if self.sync is not None:
-                    self.sync.add_event("stored", o.object_id, o.t, {
-                        "area": o.area, "label": self.space.area_label(o.area), "source": "voice"})
+                    where = ({"area": o.area, "label": self.space.area_label(o.area)} if o.area is not None
+                             else {"position": o.position})
+                    self.sync.add_event("stored", o.object_id, o.t, {**where, "source": "voice"})
                 continue
             self.bus.broadcast(o)
             if isinstance(o, ObjectState):
