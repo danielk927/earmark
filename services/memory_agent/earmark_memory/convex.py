@@ -4,6 +4,7 @@
 and `fixture.FixtureConvexReader` serves the same contract offline. Every response is parsed
 with the `earmark_contracts` pydantic models, so anything off-contract is rejected here.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -13,8 +14,6 @@ from typing import Literal, Protocol, TypeVar
 from urllib.parse import urlsplit
 
 import httpx
-from pydantic import BaseModel, ValidationError
-
 from earmark_contracts import (
     AdherenceResponse,
     DailySummaryResponse,
@@ -23,6 +22,7 @@ from earmark_contracts import (
     ObjectLookupResponse,
     ObjectsResponse,
 )
+from pydantic import BaseModel, ValidationError
 
 from .config import CONVEX_TIMEOUT_S
 from .household import HouseholdClock

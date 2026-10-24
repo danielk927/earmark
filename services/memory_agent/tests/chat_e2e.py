@@ -4,6 +4,7 @@ Run by test_agent.py in a subprocess (uAgents owns the event loop). Offline: bot
 each other with RulesBasedResolver and Almanac registration is disabled. Prints one JSON line.
 Usage: python -m tests.chat_e2e <memory_port> <client_port> <question>
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -36,11 +37,21 @@ def main() -> None:
     memory_port, client_port, question = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
     rules: dict[str, str] = {}
     settings = load_settings({"MEMORY_AGENT_PORT": str(memory_port)})
-    memory = build_agent(settings, build_pipeline(settings, fixture=True, use_llm=False), mailbox=False,
-                         endpoint=[f"http://127.0.0.1:{memory_port}/submit"], resolve=RulesBasedResolver(rules))
-    client = Agent(name="e2e-client", seed=secrets.token_urlsafe(32), port=client_port,
-                   endpoint=[f"http://127.0.0.1:{client_port}/submit"], resolve=RulesBasedResolver(rules),
-                   enable_agent_inspector=False)
+    memory = build_agent(
+        settings,
+        build_pipeline(settings, fixture=True, use_llm=False),
+        mailbox=False,
+        endpoint=[f"http://127.0.0.1:{memory_port}/submit"],
+        resolve=RulesBasedResolver(rules),
+    )
+    client = Agent(
+        name="e2e-client",
+        seed=secrets.token_urlsafe(32),
+        port=client_port,
+        endpoint=[f"http://127.0.0.1:{client_port}/submit"],
+        resolve=RulesBasedResolver(rules),
+        enable_agent_inspector=False,
+    )
     rules[memory.address] = f"http://127.0.0.1:{memory_port}/submit"
     rules[client.address] = f"http://127.0.0.1:{client_port}/submit"
     for a in (memory, client):
@@ -57,11 +68,13 @@ def main() -> None:
     @proto.on_message(ChatMessage)
     async def on_reply(ctx: Context, sender: str, msg: ChatMessage) -> None:
         await ctx.send(sender, ChatAcknowledgement(acknowledged_msg_id=msg.msg_id))
-        result["replies"].append({
-            "from_memory": sender == memory.address,
-            "text": msg.text(),
-            "ends_session": any(isinstance(c, EndSessionContent) for c in msg.content),
-        })
+        result["replies"].append(
+            {
+                "from_memory": sender == memory.address,
+                "text": msg.text(),
+                "ends_session": any(isinstance(c, EndSessionContent) for c in msg.content),
+            }
+        )
         done.set()
 
     client.include(proto)

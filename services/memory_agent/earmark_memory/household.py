@@ -2,6 +2,7 @@
 
 All date and time math lives here, in code. The LLM only ever sees pre-formatted strings.
 """
+
 from __future__ import annotations
 
 import re
@@ -16,9 +17,20 @@ _WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
 _MONTHS = {
     name: i + 1
     for i, names in enumerate(
-        [("january", "jan"), ("february", "feb"), ("march", "mar"), ("april", "apr"), ("may",),
-         ("june", "jun"), ("july", "jul"), ("august", "aug"), ("september", "sep", "sept"),
-         ("october", "oct"), ("november", "nov"), ("december", "dec")]
+        [
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sep", "sept"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ]
     )
     for name in names
 }
@@ -107,6 +119,7 @@ def part_of_day_for(hhmm: str) -> PartOfDay:
 
 
 # ---------------------------------------------------------------- parsing questions
+
 
 def _words(text: str) -> str:
     return " " + re.sub(r"[^a-z0-9:/\- ]+", " ", text.lower()) + " "

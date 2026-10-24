@@ -1,4 +1,5 @@
 """The tool layer over real HTTP against the fixture server: auth, timeouts, validation, errors."""
+
 from __future__ import annotations
 
 import socket

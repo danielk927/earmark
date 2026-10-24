@@ -1,4 +1,5 @@
 """The Bitdeer tool loop: request shape, multi-step tool use, limits, timeouts, and guards."""
+
 from __future__ import annotations
 
 import asyncio
@@ -42,11 +43,13 @@ def pipeline_with(model) -> MemoryPipeline:
 
 
 async def test_multi_step_tool_use_and_grounded_answer():
-    model = ScriptedModel([
-        call("adherence", {"date": "today"}, "c1"),
-        call("adherence", {"date": "yesterday"}, "c2"),
-        AssistantTurn("Not yet tonight; yesterday's 8:00 PM dose was missed."),
-    ])
+    model = ScriptedModel(
+        [
+            call("adherence", {"date": "today"}, "c1"),
+            call("adherence", {"date": "yesterday"}, "c2"),
+            AssistantTurn("Not yet tonight; yesterday's 8:00 PM dose was missed."),
+        ]
+    )
     a = await pipeline_with(model).answer("Did Mom take her evening pills?")
     assert (a.path, a.model) == ("llm", "scripted")
     assert a.text == "Not yet tonight; yesterday's 8:00 PM dose was missed."
@@ -56,7 +59,10 @@ async def test_multi_step_tool_use_and_grounded_answer():
     tool_msgs = [m for m in final_messages if m["role"] == "tool"]
     assert [m["tool_call_id"] for m in tool_msgs] == ["c1", "c2"]
     yesterday = json.loads(tool_msgs[1]["content"])
-    assert yesterday["doses"][1]["summary"] == "The 8:00 PM dose of blood pressure pills was missed (no pickup of the bottle was recorded for it)."
+    assert (
+        yesterday["doses"][1]["summary"]
+        == "The 8:00 PM dose of blood pressure pills was missed (no pickup of the bottle was recorded for it)."
+    )
     assistant = [m for m in final_messages if m["role"] == "assistant"]
     assert assistant[0]["tool_calls"][0]["function"]["name"] == "adherence"
 
@@ -118,7 +124,9 @@ async def test_greeting_may_be_answered_without_tools():
 
 
 async def test_advice_in_an_llm_answer_is_replaced_by_facts():
-    model = ScriptedModel([call("adherence", {"date": "yesterday"}), AssistantTurn("She missed it, so she should take two pills tonight.")])
+    model = ScriptedModel(
+        [call("adherence", {"date": "yesterday"}), AssistantTurn("She missed it, so she should take two pills tonight.")]
+    )
     a = await pipeline_with(model).answer("Did Mom take her evening pills yesterday?")
     assert a.path == "guard" and "no-medical-advice" in a.reason
     assert "two pills" not in a.text
@@ -149,9 +157,15 @@ def test_advice_detector(text, flag):
 
 # ---------------------------------------------------------------- the real OpenAI-compatible client
 
+
 def _completion(message: dict) -> dict:
-    return {"id": "x", "object": "chat.completion", "created": 0, "model": "m",
-            "choices": [{"index": 0, "message": message, "finish_reason": "stop"}]}
+    return {
+        "id": "x",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "m",
+        "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+    }
 
 
 async def test_bitdeer_request_shape_and_tool_call_parsing():
@@ -159,14 +173,25 @@ async def test_bitdeer_request_shape_and_tool_call_parsing():
 
     def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json=_completion({
-            "role": "assistant", "content": None,
-            "tool_calls": [{"id": "t1", "type": "function", "function": {"name": "find_object", "arguments": "{\"name\": \"keys\"}"}}],
-        }))
+        return httpx.Response(
+            200,
+            json=_completion(
+                {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {"id": "t1", "type": "function", "function": {"name": "find_object", "arguments": '{"name": "keys"}'}}
+                    ],
+                }
+            ),
+        )
 
-    model = BitdeerChatModel(api_key="sk-test", base_url="https://api-inference.bitdeer.ai/v1",
-                             model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
-                             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    model = BitdeerChatModel(
+        api_key="sk-test",
+        base_url="https://api-inference.bitdeer.ai/v1",
+        model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
     turn = await model.complete([{"role": "user", "content": "Where are the keys?"}], allow_tools=True)
     assert turn.tool_calls[0].name == "find_object" and json.loads(turn.tool_calls[0].arguments) == {"name": "keys"}
     req = seen[0]
@@ -176,7 +201,12 @@ async def test_bitdeer_request_shape_and_tool_call_parsing():
     assert body["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
     assert body["reasoning_effort"] == "none"
     assert body["tool_choice"] == "auto" and {t["function"]["name"] for t in body["tools"]} == {
-        "find_object", "list_objects", "history", "adherence", "daily_summary"}
+        "find_object",
+        "list_objects",
+        "history",
+        "adherence",
+        "daily_summary",
+    }
     assert body["max_tokens"] == 500
 
 
@@ -187,8 +217,12 @@ async def test_bitdeer_errors_are_not_retried_and_become_llm_errors():
         seen.append(request)
         return httpx.Response(503, json={"error": {"message": "busy", "type": "x", "param": None, "code": "SERVICE_UNAVAILABLE"}})
 
-    model = BitdeerChatModel(api_key="sk-test", base_url="https://api-inference.bitdeer.ai/v1", model="m",
-                             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    model = BitdeerChatModel(
+        api_key="sk-test",
+        base_url="https://api-inference.bitdeer.ai/v1",
+        model="m",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
     with pytest.raises(LlmError, match="HTTP 503"):
         await model.complete([{"role": "user", "content": "hi"}], allow_tools=False)
     assert len(seen) == 1  # max_retries=0
@@ -198,7 +232,11 @@ async def test_bitdeer_timeout_becomes_llm_error():
     def handler(request):
         raise httpx.ReadTimeout("slow", request=request)
 
-    model = BitdeerChatModel(api_key="sk-test", base_url="https://api-inference.bitdeer.ai/v1", model="m",
-                             http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    model = BitdeerChatModel(
+        api_key="sk-test",
+        base_url="https://api-inference.bitdeer.ai/v1",
+        model="m",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
     with pytest.raises(LlmError, match="timed out"):
         await model.complete([{"role": "user", "content": "hi"}], allow_tools=False)

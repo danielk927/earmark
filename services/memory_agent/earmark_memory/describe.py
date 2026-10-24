@@ -3,6 +3,7 @@
 Used both by the keyword fallback (templated answers) and by the tool views handed to the LLM,
 so every time and place the user hears was formatted in code from Convex's data.
 """
+
 from __future__ import annotations
 
 import logging
@@ -64,6 +65,7 @@ def _dt(clock: HouseholdClock, iso: str | None, t: float | None) -> datetime | N
 
 # ---------------------------------------------------------------- objects
 
+
 def where_phrase(obj: ec.ObjectSummary, labels: SpaceLabels) -> str | None:
     """Where the object is now, as a short phrase ('on the center right spot'), or None if unknown."""
     s = obj.state
@@ -107,7 +109,7 @@ def describe_location(obj: ec.ObjectSummary, clock: HouseholdClock, labels: Spac
         if home:
             text += f" {cap(the(name))}'s home spot is {home}."
         if obj.notes:
-            text += f" Notes on file: \"{obj.notes}\""
+            text += f' Notes on file: "{obj.notes}"'
         return text
 
     if s.status == "on_spot":
@@ -124,7 +126,9 @@ def describe_location(obj: ec.ObjectSummary, clock: HouseholdClock, labels: Spac
         return f"{cap(the(name))} {'were' if is_plural(name) else 'was'} picked up{when} and {'have' if is_plural(name) else 'has'} not been put back on a spot since."
 
     if s.status == "missing":
-        return f"{cap(the(name))} {be} marked missing." + (f" Earmark last saw {'them' if is_plural(name) else 'it'} at {seen}." if seen else "")
+        return f"{cap(the(name))} {be} marked missing." + (
+            f" Earmark last saw {'them' if is_plural(name) else 'it'} at {seen}." if seen else ""
+        )
 
     # roaming: located by a fob's signal
     place = where_phrase(obj, labels)
@@ -140,6 +144,7 @@ def describe_location(obj: ec.ObjectSummary, clock: HouseholdClock, labels: Spac
 
 
 # ---------------------------------------------------------------- doses
+
 
 def dose_clause(dose: ec.Dose, clock: HouseholdClock, *, with_name: bool) -> str:
     """'the 8:00 PM dose of blood pressure pills was missed (no pickup was recorded for it)'."""

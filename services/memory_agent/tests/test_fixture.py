@@ -1,12 +1,13 @@
 """The fixture serves contract-valid responses that tell the brief's seed story."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
+import earmark_contracts as ec
 import pytest
 
-import earmark_contracts as ec
 from earmark_memory.fixture import FIXTURE_NOW_T, FixtureData, compute_doses
 
 from .conftest import convex_validator
@@ -91,8 +92,14 @@ def _t(hhmm: str, day: str = TODAY) -> float:
 
 
 def _status(pickups: list[str], now: str = "23:59") -> dict[str, tuple[str, str | None]]:
-    doses = compute_doses(medication=MED, name="m", pickups=[(f"e{i}", _t(p)) for i, p in enumerate(pickups)],
-                          day=date.fromisoformat(TODAY), tz=TZ, now_t=_t(now))
+    doses = compute_doses(
+        medication=MED,
+        name="m",
+        pickups=[(f"e{i}", _t(p)) for i, p in enumerate(pickups)],
+        day=date.fromisoformat(TODAY),
+        tz=TZ,
+        now_t=_t(now),
+    )
     return {d.scheduled_local_time: (d.status, d.evidence_event_id) for d in doses}
 
 

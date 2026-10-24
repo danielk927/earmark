@@ -1,4 +1,5 @@
 """Settings from the environment (plus a repo-root .env that never overrides real env vars)."""
+
 from __future__ import annotations
 
 import os

@@ -4,6 +4,7 @@
 `ConvexError`; `call_json` (used by the LLM loop) never raises and returns a compact, pre-formatted
 view, or `{"ok": false, "error": ...}` the model can read.
 """
+
 from __future__ import annotations
 
 import json
@@ -51,7 +52,9 @@ TOOL_SPECS: list[dict[str, Any]] = [
             "description": "Look up a household object by name or alias (for example 'keys', 'sugar', 'pills') and get where it is now, when it was last seen, and when it was last picked up or put down.",
             "parameters": {
                 "type": "object",
-                "properties": {"name": {"type": "string", "description": "The object's name or alias, without words like 'my' or 'his'."}},
+                "properties": {
+                    "name": {"type": "string", "description": "The object's name or alias, without words like 'my' or 'his'."}
+                },
                 "required": ["name"],
                 "additionalProperties": False,
             },
@@ -74,7 +77,10 @@ TOOL_SPECS: list[dict[str, Any]] = [
                 "type": "object",
                 "properties": {
                     "object_id": {"type": "string"},
-                    "since": {"type": "string", "description": "How far back: 'today', 'yesterday', a date YYYY-MM-DD, or a duration like '2d' or '12h'. Default: 7 days."},
+                    "since": {
+                        "type": "string",
+                        "description": "How far back: 'today', 'yesterday', a date YYYY-MM-DD, or a duration like '2d' or '12h'. Default: 7 days.",
+                    },
                 },
                 "required": ["object_id"],
                 "additionalProperties": False,
@@ -223,14 +229,20 @@ class Toolbox:
             "where_now": where_phrase(o, self.labels),
             "home_spot": o.home_spot_label,
             "last_touched": last_touched_phrase(o, self.clock),
-            "last_touched_days_ago": None if o.last_touched_t is None else round((self.clock.now_t - o.last_touched_t) / 86400, 1),
+            "last_touched_days_ago": None
+            if o.last_touched_t is None
+            else round((self.clock.now_t - o.last_touched_t) / 86400, 1),
             "answer_hint": describe_location(o, self.clock, self.labels),
             "notes": o.notes or None,
         }
 
     def lookup_view(self, r: ec.ObjectLookupResponse) -> dict[str, Any]:
-        return {"ok": True, "query": r.query, "matches": [self.object_view(o) for o in r.matches[:3]],
-                "note": None if r.matches else "No object with that name or alias."}
+        return {
+            "ok": True,
+            "query": r.query,
+            "matches": [self.object_view(o) for o in r.matches[:3]],
+            "note": None if r.matches else "No object with that name or alias.",
+        }
 
     def objects_view(self, r: ec.ObjectsResponse) -> dict[str, Any]:
         return {"ok": True, "now": self.clock.now_phrase(), "objects": [self.object_view(o) for o in r.objects]}
@@ -240,20 +252,38 @@ class Toolbox:
             {"when": self.clock.when(self.clock.parse_local(e.at_local, e.t)), "kind": e.kind, "detail": e.detail}
             for e in r.events[:HISTORY_VIEW_LIMIT]
         ]
-        return {"ok": True, "object_id": r.object_id, "name": r.name,
-                "since": self.clock.when(self.clock.local(r.since_t)), "event_count": len(r.events),
-                "events": events, "note": None if r.events else "No events recorded in this period."}
+        return {
+            "ok": True,
+            "object_id": r.object_id,
+            "name": r.name,
+            "since": self.clock.when(self.clock.local(r.since_t)),
+            "event_count": len(r.events),
+            "events": events,
+            "note": None if r.events else "No events recorded in this period.",
+        }
 
     def _day(self, iso_date: str) -> str:
         return cap(self.clock.day_phrase(date.fromisoformat(iso_date)))
 
     def adherence_view(self, r: ec.AdherenceResponse) -> dict[str, Any]:
-        return {"ok": True, "date": r.date, "day": self._day(r.date), "timezone": r.timezone,
-                "now": self.clock.now_phrase(), "doses": [dose_view(d, self.clock) for d in r.doses],
-                "note": None if r.doses else "No medication doses were scheduled on this date."}
+        return {
+            "ok": True,
+            "date": r.date,
+            "day": self._day(r.date),
+            "timezone": r.timezone,
+            "now": self.clock.now_phrase(),
+            "doses": [dose_view(d, self.clock) for d in r.doses],
+            "note": None if r.doses else "No medication doses were scheduled on this date.",
+        }
 
     def summary_view(self, r: ec.DailySummaryResponse) -> dict[str, Any]:
-        return {"ok": True, "date": r.date, "day": self._day(r.date), "summary_text": r.text,
-                "pickup_count": r.pickup_count, "untouched_7d": r.untouched_7d, "missing": r.missing,
-                "doses": [dose_view(d, self.clock) for d in r.doses]}
-
+        return {
+            "ok": True,
+            "date": r.date,
+            "day": self._day(r.date),
+            "summary_text": r.text,
+            "pickup_count": r.pickup_count,
+            "untouched_7d": r.untouched_7d,
+            "missing": r.missing,
+            "doses": [dose_view(d, self.clock) for d in r.doses],
+        }

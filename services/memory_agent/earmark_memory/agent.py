@@ -1,4 +1,5 @@
 """The Fetch.ai uAgent: Agent Chat Protocol over an Agentverse mailbox (docs/vendor-notes/fetchai.md)."""
+
 from __future__ import annotations
 
 import logging
@@ -82,8 +83,10 @@ def build_agent(
         raise ConfigError(SEED_HELP)
     seed = settings.agent_seed
     if seed is None:
-        log.warning("MEMORY_AGENT_SEED is not set: local-only agent with a throwaway identity "
-                    "(not reachable from Agentverse or ASI:One; the address changes every run)")
+        log.warning(
+            "MEMORY_AGENT_SEED is not set: local-only agent with a throwaway identity "
+            "(not reachable from Agentverse or ASI:One; the address changes every run)"
+        )
         seed = secrets.token_urlsafe(32)  # never printed or stored
 
     agent = Agent(
@@ -105,9 +108,11 @@ def build_agent(
 
     @agent.on_event("startup")
     async def announce(ctx: Context) -> None:
-        ctx.logger.info(f"Earmark memory agent ready: data={pipeline.reader.source}, "
-                        f"llm={pipeline.chat_model.model if pipeline.chat_model else 'off (keyword router)'}, "
-                        f"mailbox={'on' if mailbox else 'off'}")
+        ctx.logger.info(
+            f"Earmark memory agent ready: data={pipeline.reader.source}, "
+            f"llm={pipeline.chat_model.model if pipeline.chat_model else 'off (keyword router)'}, "
+            f"mailbox={'on' if mailbox else 'off'}"
+        )
 
     @agent.on_event("shutdown")
     async def close(ctx: Context) -> None:

@@ -1,4 +1,5 @@
 """`earmark-memory`: ask a question locally, run the uAgent, print the address, or serve the fixture."""
+
 from __future__ import annotations
 
 import argparse
@@ -12,8 +13,11 @@ log = logging.getLogger("earmark.memory")
 
 
 def _setup_logging(verbose: bool) -> None:
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, stream=sys.stderr,
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        stream=sys.stderr,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     for noisy in ("httpx", "httpcore", "openai"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
@@ -40,8 +44,13 @@ def _run(fixture: bool, no_mailbox: bool) -> int:
     mailbox = bool(settings.agent_seed) and not no_mailbox
     pipeline = build_pipeline(settings, fixture=fixture)
     agent = build_agent(settings, pipeline, mailbox=mailbox)
-    log.info("agent %s address %s (port %d, mailbox %s)", settings.agent_name, agent.address,
-             settings.agent_port, "on" if mailbox else "off")
+    log.info(
+        "agent %s address %s (port %d, mailbox %s)",
+        settings.agent_name,
+        agent.address,
+        settings.agent_port,
+        "on" if mailbox else "off",
+    )
     agent.run()
     return 0
 
@@ -84,7 +93,9 @@ def main(argv: list[str] | None = None) -> int:
     ask.add_argument("--no-llm", action="store_true", help="skip Bitdeer and use the keyword router")
 
     run = sub.add_parser("run", help="start the uAgent (mailbox on when MEMORY_AGENT_SEED is set)")
-    run.add_argument("--fixture", action="store_true", help="answer from the offline fixture (implies --no-mailbox without a seed)")
+    run.add_argument(
+        "--fixture", action="store_true", help="answer from the offline fixture (implies --no-mailbox without a seed)"
+    )
     run.add_argument("--no-mailbox", action="store_true", help="local only: no Agentverse mailbox")
 
     sub.add_parser("address", help="print the agent address derived from MEMORY_AGENT_SEED")

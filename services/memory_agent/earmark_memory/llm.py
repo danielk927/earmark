@@ -3,6 +3,7 @@
 The model only chooses tools and phrases the answer; every fact it sees was fetched and
 formatted by code (tools.py). Any failure raises `LlmError` and the pipeline falls back.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -56,8 +57,7 @@ class AssistantTurn:
         msg: dict[str, Any] = {"role": "assistant", "content": self.content or ""}
         if self.tool_calls:
             msg["tool_calls"] = [
-                {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}
-                for c in self.tool_calls
+                {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}} for c in self.tool_calls
             ]
         return msg
 
@@ -71,11 +71,17 @@ class ChatModel(Protocol):
 class BitdeerChatModel:
     """OpenAI-compatible client for Bitdeer: bounded timeout, no SDK retries, reasoning off."""
 
-    def __init__(self, *, api_key: str, base_url: str, model: str,
-                 timeout_s: float = LLM_REQUEST_TIMEOUT_S, http_client: httpx.AsyncClient | None = None):
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str,
+        model: str,
+        timeout_s: float = LLM_REQUEST_TIMEOUT_S,
+        http_client: httpx.AsyncClient | None = None,
+    ):
         self.model = model
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=0,
-                                   http_client=http_client)
+        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=0, http_client=http_client)
 
     async def complete(self, messages: list[dict[str, Any]], *, allow_tools: bool) -> AssistantTurn:
         try:
@@ -97,8 +103,11 @@ class BitdeerChatModel:
         if not resp.choices:
             raise LlmError("Bitdeer returned no choices")
         msg = resp.choices[0].message
-        calls = [ToolRequest(c.id, c.function.name, c.function.arguments or "{}")
-                 for c in (msg.tool_calls or []) if getattr(c, "function", None) is not None]
+        calls = [
+            ToolRequest(c.id, c.function.name, c.function.arguments or "{}")
+            for c in (msg.tool_calls or [])
+            if getattr(c, "function", None) is not None
+        ]
         return AssistantTurn(content=msg.content, tool_calls=calls)
 
 
@@ -111,12 +120,20 @@ class LlmResult:
 
 def household_context(clock: HouseholdClock) -> str:
     yesterday = clock.today - timedelta(days=1)
-    return (f"Household time now: {clock.now_phrase()} ({clock.timezone}). "
-            f"Today is {clock.today.isoformat()}; yesterday was {yesterday.isoformat()}.")
+    return (
+        f"Household time now: {clock.now_phrase()} ({clock.timezone}). "
+        f"Today is {clock.today.isoformat()}; yesterday was {yesterday.isoformat()}."
+    )
 
 
-async def run_tool_loop(model: ChatModel, toolbox: Toolbox, question: str, *,
-                        max_tool_calls: int = MAX_TOOL_CALLS, budget_s: float = LLM_TOTAL_BUDGET_S) -> LlmResult:
+async def run_tool_loop(
+    model: ChatModel,
+    toolbox: Toolbox,
+    question: str,
+    *,
+    max_tool_calls: int = MAX_TOOL_CALLS,
+    budget_s: float = LLM_TOTAL_BUDGET_S,
+) -> LlmResult:
     try:
         async with asyncio.timeout(budget_s):
             return await _loop(model, toolbox, question, max_tool_calls)
@@ -136,8 +153,13 @@ async def _loop(model: ChatModel, toolbox: Toolbox, question: str, max_tool_call
         started = time.perf_counter()
         turn = await model.complete(messages, allow_tools=allow_tools)
         ms = (time.perf_counter() - started) * 1000
-        log.info("llm round %d model=%s %.0f ms -> %s", round_no, model.model, ms,
-                 ", ".join(f"{c.name}({c.arguments})" for c in turn.tool_calls) or "final answer")
+        log.info(
+            "llm round %d model=%s %.0f ms -> %s",
+            round_no,
+            model.model,
+            ms,
+            ", ".join(f"{c.name}({c.arguments})" for c in turn.tool_calls) or "final answer",
+        )
         if not turn.tool_calls:
             text = (turn.content or "").strip()
             if not text:

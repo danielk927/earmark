@@ -16,6 +16,7 @@ Adherence follows contracts/README.md:
   pending - neither, and now <= S + 2W
   each pickup is evidence for at most one dose (the nearest scheduled time).
 """
+
 from __future__ import annotations
 
 import json
@@ -31,9 +32,8 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 from zoneinfo import ZoneInfo
 
-from pydantic import BaseModel
-
 import earmark_contracts as ec
+from pydantic import BaseModel
 
 from .config import CONFIG_DIR
 from .convex import SECRET_HEADER, ConvexError
@@ -49,17 +49,27 @@ HISTORY_MAX_EVENTS = 200
 # (day offset from "now"'s date, local HH:MM, object_id, kind, spot)
 HISTORY_SCRIPT: list[tuple[int, str, str, str, int]] = [
     # Yesterday: morning dose taken at 08:05, evening dose missed (no pickup between 19:00 and 22:00).
-    (-1, "07:32", "sugar", "pickup", 3), (-1, "07:34", "sugar", "placed", 3),
-    (-1, "08:05", "bp_meds", "pickup", 4), (-1, "08:07", "bp_meds", "placed", 4),
-    (-1, "08:20", "salt", "pickup", 2), (-1, "08:21", "salt", "placed", 2),
-    (-1, "12:10", "salt", "pickup", 2), (-1, "12:12", "salt", "placed", 2),
-    (-1, "15:30", "sugar", "pickup", 3), (-1, "15:31", "sugar", "placed", 3),
-    (-1, "18:40", "salt", "pickup", 2), (-1, "18:43", "salt", "placed", 2),
+    (-1, "07:32", "sugar", "pickup", 3),
+    (-1, "07:34", "sugar", "placed", 3),
+    (-1, "08:05", "bp_meds", "pickup", 4),
+    (-1, "08:07", "bp_meds", "placed", 4),
+    (-1, "08:20", "salt", "pickup", 2),
+    (-1, "08:21", "salt", "placed", 2),
+    (-1, "12:10", "salt", "pickup", 2),
+    (-1, "12:12", "salt", "placed", 2),
+    (-1, "15:30", "sugar", "pickup", 3),
+    (-1, "15:31", "sugar", "placed", 3),
+    (-1, "18:40", "salt", "pickup", 2),
+    (-1, "18:43", "salt", "placed", 2),
     # Today: morning dose taken at 08:15; the 20:00 dose is still ahead at 17:00.
-    (0, "07:50", "sugar", "pickup", 3), (0, "07:52", "sugar", "placed", 3),
-    (0, "08:15", "bp_meds", "pickup", 4), (0, "08:16", "bp_meds", "placed", 4),
-    (0, "12:30", "salt", "pickup", 2), (0, "12:33", "salt", "placed", 2),
-    (0, "16:00", "sugar", "pickup", 3), (0, "16:02", "sugar", "placed", 3),
+    (0, "07:50", "sugar", "pickup", 3),
+    (0, "07:52", "sugar", "placed", 3),
+    (0, "08:15", "bp_meds", "pickup", 4),
+    (0, "08:16", "bp_meds", "placed", 4),
+    (0, "12:30", "salt", "pickup", 2),
+    (0, "12:33", "salt", "placed", 2),
+    (0, "16:00", "sugar", "pickup", 3),
+    (0, "16:02", "sugar", "placed", 3),
 ]
 # Fob-tracked objects: (object_id, receiver, distance class, minutes before now last detected).
 FOB_SIGHTINGS: list[tuple[str, str, str, int]] = [("keys", "hub", "near", 8)]
@@ -202,9 +212,15 @@ class FixtureData:
             if fob_object == object_id:
                 seen = self.now_t - minutes * 60
                 return ec.SummaryState(
-                    status="roaming", spot=None, spot_label=None, area=None, near=receiver,
-                    distance_class=distance, precision="proximity",
-                    last_seen_t=seen, last_seen_local=local_iso(seen, self.tz),
+                    status="roaming",
+                    spot=None,
+                    spot_label=None,
+                    area=None,
+                    near=receiver,
+                    distance_class=distance,
+                    precision="proximity",
+                    last_seen_t=seen,
+                    last_seen_local=local_iso(seen, self.tz),
                 )
         mine = [e for e in self.events if e.object_id == object_id]
         if not mine:
@@ -212,23 +228,43 @@ class FixtureData:
         last = mine[-1]
         if last.kind == "pickup":
             return ec.SummaryState(
-                status="held", spot=None, spot_label=None, area=None, near=None, distance_class=None,
-                precision="none", last_seen_t=last.t, last_seen_local=local_iso(last.t, self.tz),
+                status="held",
+                spot=None,
+                spot_label=None,
+                area=None,
+                near=None,
+                distance_class=None,
+                precision="none",
+                last_seen_t=last.t,
+                last_seen_local=local_iso(last.t, self.tz),
             )
         return ec.SummaryState(
-            status="on_spot", spot=last.spot, spot_label=self._spot_label(last.spot), area=None, near=None,
-            distance_class=None, precision="exact",
-            last_seen_t=self.now_t, last_seen_local=local_iso(self.now_t, self.tz),
+            status="on_spot",
+            spot=last.spot,
+            spot_label=self._spot_label(last.spot),
+            area=None,
+            near=None,
+            distance_class=None,
+            precision="exact",
+            last_seen_t=self.now_t,
+            last_seen_local=local_iso(self.now_t, self.tz),
         )
 
     def _summary(self, obj: ec.RegistryObject) -> ec.ObjectSummary:
         touches = [e for e in self.events if e.object_id == obj.object_id]
         last_touched = touches[-1].t if touches else None
         return ec.ObjectSummary(
-            object_id=obj.object_id, name=obj.name, aliases=obj.aliases, notes=obj.notes,
-            description=obj.description, home_spot=obj.home_spot,
-            home_spot_label=self._spot_label(obj.home_spot), is_medication=obj.is_medication,
-            fob_id=obj.fob_id, state=self._state(obj.object_id), last_touched_t=last_touched,
+            object_id=obj.object_id,
+            name=obj.name,
+            aliases=obj.aliases,
+            notes=obj.notes,
+            description=obj.description,
+            home_spot=obj.home_spot,
+            home_spot_label=self._spot_label(obj.home_spot),
+            is_medication=obj.is_medication,
+            fob_id=obj.fob_id,
+            state=self._state(obj.object_id),
+            last_touched_t=last_touched,
             last_touched_local=local_iso(last_touched, self.tz) if last_touched is not None else None,
         )
 
@@ -237,8 +273,12 @@ class FixtureData:
         for med in self.registry.medications:
             pickups = [(e.event_id, e.t) for e in self.events if e.object_id == med.object_id and e.kind == "pickup"]
             doses += compute_doses(
-                medication=med, name=self.objects[med.object_id].name, pickups=pickups,
-                day=day, tz=self.tz, now_t=self.now_t,
+                medication=med,
+                name=self.objects[med.object_id].name,
+                pickups=pickups,
+                day=day,
+                tz=self.tz,
+                now_t=self.now_t,
             )
         return sorted((d for d in doses if d.scheduled_for_t >= self.active_since_t), key=lambda d: d.scheduled_for_t)
 
@@ -250,18 +290,23 @@ class FixtureData:
         by_name = [o for o in objs if o.name.lower() == q]
         by_alias = [o for o in objs if o not in by_name and q in (a.lower() for a in o.aliases)]
         by_substring = [
-            o for o in objs
-            if q and o not in by_name and o not in by_alias
-            and (q in o.name.lower() or any(q in a.lower() for a in o.aliases))
+            o
+            for o in objs
+            if q and o not in by_name and o not in by_alias and (q in o.name.lower() or any(q in a.lower() for a in o.aliases))
         ]
         matches = [self._summary(o) for o in by_name + by_alias + by_substring]
-        return _validated(ec.ObjectLookupResponse(
-            query=name, matches=matches, now_t=self.now_t, now_local=local_iso(self.now_t, self.tz)))
+        return _validated(
+            ec.ObjectLookupResponse(query=name, matches=matches, now_t=self.now_t, now_local=local_iso(self.now_t, self.tz))
+        )
 
     def objects_response(self) -> ec.ObjectsResponse:
-        return _validated(ec.ObjectsResponse(
-            objects=[self._summary(o) for o in self.registry.objects],
-            now_t=self.now_t, now_local=local_iso(self.now_t, self.tz)))
+        return _validated(
+            ec.ObjectsResponse(
+                objects=[self._summary(o) for o in self.registry.objects],
+                now_t=self.now_t,
+                now_local=local_iso(self.now_t, self.tz),
+            )
+        )
 
     def history(self, object_id: str, since_t: float | None = None) -> ec.HistoryResponse:
         obj = self.objects.get(object_id)
@@ -271,10 +316,17 @@ class FixtureData:
         mine = [e for e in self.events if e.object_id == object_id and e.t >= since]
         events = [
             ec.HistoryEvent(
-                event_id=e.event_id, kind=e.kind, t=e.t, at_local=local_iso(e.t, self.tz), spot=e.spot,
+                event_id=e.event_id,
+                kind=e.kind,
+                t=e.t,
+                at_local=local_iso(e.t, self.tz),
+                spot=e.spot,
                 spot_label=self._spot_label(e.spot),
-                detail=(f"Picked up from the {self._spot_label(e.spot)} spot." if e.kind == "pickup"
-                        else f"Put down on the {self._spot_label(e.spot)} spot."),
+                detail=(
+                    f"Picked up from the {self._spot_label(e.spot)} spot."
+                    if e.kind == "pickup"
+                    else f"Put down on the {self._spot_label(e.spot)} spot."
+                ),
             )
             for e in sorted(mine, key=lambda e: e.t, reverse=True)[:HISTORY_MAX_EVENTS]
         ]
@@ -282,8 +334,9 @@ class FixtureData:
 
     def adherence(self, date_str: str | None = None) -> ec.AdherenceResponse:
         day = self._parse_date(date_str)
-        return _validated(ec.AdherenceResponse(
-            date=day.isoformat(), timezone=self.timezone, doses=self._doses(day), now_t=self.now_t))
+        return _validated(
+            ec.AdherenceResponse(date=day.isoformat(), timezone=self.timezone, doses=self._doses(day), now_t=self.now_t)
+        )
 
     def daily_summary(self, date_str: str | None = None) -> ec.DailySummaryResponse:
         day = self._parse_date(date_str)
@@ -294,20 +347,27 @@ class FixtureData:
         window_start = day_end - UNTOUCHED_DAYS * 86400
         # Like convex/: only NFC-tagged objects; fob-only objects never produce pickups or placements.
         untouched = [
-            o.object_id for o in self.registry.objects
-            if o.tag is not None and not any(
-                e.object_id == o.object_id and window_start <= e.t < day_end for e in self.events)
+            o.object_id
+            for o in self.registry.objects
+            if o.tag is not None and not any(e.object_id == o.object_id and window_start <= e.t < day_end for e in self.events)
         ]
-        missing = [o.object_id for o in self.registry.objects
-                   if (s := self._state(o.object_id)) is not None and s.status == "missing"]
-        return _validated(ec.DailySummaryResponse(
-            date=day.isoformat(), timezone=self.timezone, generated_t=self.now_t, doses=doses,
-            pickup_count=len(pickups), untouched_7d=untouched, missing=missing,
-            text=self._summary_text(day, doses, len(pickups), untouched, missing),
-        ))
+        missing = [
+            o.object_id for o in self.registry.objects if (s := self._state(o.object_id)) is not None and s.status == "missing"
+        ]
+        return _validated(
+            ec.DailySummaryResponse(
+                date=day.isoformat(),
+                timezone=self.timezone,
+                generated_t=self.now_t,
+                doses=doses,
+                pickup_count=len(pickups),
+                untouched_7d=untouched,
+                missing=missing,
+                text=self._summary_text(day, doses, len(pickups), untouched, missing),
+            )
+        )
 
-    def _summary_text(self, day: date, doses: list[ec.Dose], pickups: int,
-                      untouched: list[str], missing: list[str]) -> str:
+    def _summary_text(self, day: date, doses: list[ec.Dose], pickups: int, untouched: list[str], missing: list[str]) -> str:
         parts = []
         windows = {m.object_id: m.window_minutes for m in self.registry.medications}
         for i, d in enumerate(doses):
@@ -325,7 +385,8 @@ class FixtureData:
         dose_text = ". ".join(p[0].upper() + p[1:] for p in parts)
         names = {o.object_id: o.name for o in self.registry.objects}
         text = f"On {day.strftime('%A')}, {day.strftime('%B')} {day.day}: " + (
-            dose_text[0].lower() + dose_text[1:] + "." if dose_text else "no doses scheduled.")
+            dose_text[0].lower() + dose_text[1:] + "." if dose_text else "no doses scheduled."
+        )
         text += f" {pickups} pickup{'s' if pickups != 1 else ''} recorded."
         if untouched:
             text += " Not touched in 7 days: " + ", ".join(names[o] for o in untouched) + "."
@@ -373,6 +434,7 @@ class FixtureConvexReader:
 
 # ---------------------------------------------------------------- HTTP server
 
+
 class FixtureServer:
     """Serves `FixtureData` over HTTP with the real routes, auth header, and error bodies.
 
@@ -380,8 +442,7 @@ class FixtureServer:
     (timeout tests); `overrides[path] = (status, body)` replaces a route's response.
     """
 
-    def __init__(self, data: FixtureData, secret: str, *, host: str = "127.0.0.1", port: int = 0,
-                 delay_s: float = 0.0):
+    def __init__(self, data: FixtureData, secret: str, *, host: str = "127.0.0.1", port: int = 0, delay_s: float = 0.0):
         self.data = data
         self.secret = secret
         self.delay_s = delay_s
@@ -457,8 +518,7 @@ class FixtureServer:
                     return self._send(exc.status, {"ok": False, "error": exc.error})
 
             def _send(self, status: int, body: Any) -> None:
-                raw = body if isinstance(body, bytes) else (
-                    body.encode() if isinstance(body, str) else json.dumps(body).encode())
+                raw = body if isinstance(body, bytes) else (body.encode() if isinstance(body, str) else json.dumps(body).encode())
                 try:
                     self.send_response(status)
                     self.send_header("Content-Type", "application/json")

@@ -1,4 +1,5 @@
 """Acceptance: the example questions, LLM disabled, against the fixture (now = Fri 2025-10-24 17:00)."""
+
 from __future__ import annotations
 
 import pytest
@@ -27,15 +28,27 @@ async def test_evening_pills_reports_tonight_pending_and_yesterdays_miss(pipelin
 @pytest.mark.parametrize(
     "q,expected",
     [
-        ("Did Mom take her evening pills yesterday?", "Not according to Earmark's records. Yesterday (Thursday, October 23): the 8:00 PM dose of blood pressure pills was missed"),
+        (
+            "Did Mom take her evening pills yesterday?",
+            "Not according to Earmark's records. Yesterday (Thursday, October 23): the 8:00 PM dose of blood pressure pills was missed",
+        ),
         ("Did she take her pills last night?", "the 8:00 PM dose of blood pressure pills was missed"),
         ("Did Mom take her evening pills on 2025-10-23?", "was missed"),
-        ("Did Dad take his morning pills?", "Yes. Today (Friday, October 24): the 8:00 AM dose of blood pressure pills was marked taken (the bottle was picked up at 8:15 AM)."),
+        (
+            "Did Dad take his morning pills?",
+            "Yes. Today (Friday, October 24): the 8:00 AM dose of blood pressure pills was marked taken (the bottle was picked up at 8:15 AM).",
+        ),
         ("Did Grandma take her morning medication yesterday?", "was marked taken (the bottle was picked up at 8:05 AM)"),
-        ("Did Mom take her pills on Thursday?", "the 8:00 AM dose of blood pressure pills was marked taken (the bottle was picked up at 8:05 AM), and the 8:00 PM dose was missed"),
+        (
+            "Did Mom take her pills on Thursday?",
+            "the 8:00 AM dose of blood pressure pills was marked taken (the bottle was picked up at 8:05 AM), and the 8:00 PM dose was missed",
+        ),
         ("Did Mom take her 8 pm dose yesterday?", "the 8:00 PM dose of blood pressure pills was missed"),
         ("Did Mom take her afternoon pills?", "There's no afternoon dose on the schedule today"),
-        ("Did she take her pills tonight?", "Not yet tonight. Today (Friday, October 24): the 8:00 PM dose of blood pressure pills isn't due yet. Yesterday (Thursday, October 23): the 8:00 PM dose"),
+        (
+            "Did she take her pills tonight?",
+            "Not yet tonight. Today (Friday, October 24): the 8:00 PM dose of blood pressure pills isn't due yet. Yesterday (Thursday, October 23): the 8:00 PM dose",
+        ),
         ("Did Mom take her pills on October 1?", "Earmark has no medication doses on record for Wednesday, October 1."),
     ],
 )
@@ -59,7 +72,10 @@ async def test_keys_answer_comes_from_the_keys_state(pipeline):
         ("Where's the sugar?", "The sugar is on the center right spot, where it belongs. Last confirmed there at 5:00 PM today."),
         ("Where is Mom's salt?", "The salt is on the center left spot"),
         ("Where is the pepper?", "Earmark has never detected the pepper"),
-        ("Where did she put the unicorn?", "I couldn't find \"unicorn\" in Earmark's records. Earmark tracks: salt, sugar, pepper, blood pressure pills, keys."),
+        (
+            "Where did she put the unicorn?",
+            "I couldn't find \"unicorn\" in Earmark's records. Earmark tracks: salt, sugar, pepper, blood pressure pills, keys.",
+        ),
         ("Where are the house keys?", "The keys' fob was last detected close to the counter"),
     ],
 )
@@ -128,7 +144,10 @@ async def test_records_unreachable_is_said_plainly():
             raise ConvexError("timeout", "Earmark's records did not answer within 5 s")
 
     a = await MemoryPipeline(Down(), None, SpaceLabels.load()).answer("Did Mom take her evening pills?")
-    assert a.text == "I can't reach Earmark's records right now (Earmark's records did not answer within 5 s). Please try again in a minute."
+    assert (
+        a.text
+        == "I can't reach Earmark's records right now (Earmark's records did not answer within 5 s). Please try again in a minute."
+    )
 
 
 def test_router_keywords():

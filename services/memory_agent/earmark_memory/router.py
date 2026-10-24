@@ -3,6 +3,7 @@
 This is the fallback when the LLM is unavailable, and the only path for medical-advice-style
 questions. Every sentence is built in code from Convex's data.
 """
+
 from __future__ import annotations
 
 import re
@@ -21,32 +22,55 @@ Intent = Literal["medication", "untouched", "where", "history", "summary", "help
 
 HELP_TEXT = (
     "I answer questions from this household's Earmark records: where something is "
-    "(\"Where did Dad leave his keys?\"), medication pickups (\"Did Mom take her evening pills?\"), "
+    '("Where did Dad leave his keys?"), medication pickups ("Did Mom take her evening pills?"), '
     "what hasn't been touched lately (\"What hasn't been touched in a week?\"), when something was last used "
-    "(\"When was the salt last used?\"), and daily summaries (\"Give me today's summary\"). "
+    '("When was the salt last used?"), and daily summaries ("Give me today\'s summary"). '
     "I can't give medical advice."
 )
 
 _MED = r"\b(pills?|medications?|medicines?|meds|doses?|dosage|tablets?|prescriptions?|blood pressure)\b"
 _TAKE = r"\b(take|took|taken|taking)\b"
 _ADVICE = [
-    r"\bshould\b", r"\bsafe\b", r"\b(ok|okay|alright) to\b", r"\bis (it|that) (ok|okay|bad|safe|fine|dangerous|a problem)\b",
-    r"\bdouble\b", r"\bextra\b", r"\bskip\b", r"\bmake up\b", r"\bcatch up\b", r"\bhow (much|many)\b(?!.*\btimes\b)",
-    r"\bmg\b", r"\bside effects?\b", r"\boverdose\b", r"\binteract", r"\bwhat (do|should|can) (i|we)\b",
-    r"\bdo (i|we|they) need\b", r"\bcan (she|he|they|mom|dad|mum|i|we) (take|have|skip|stop)\b",
+    r"\bshould\b",
+    r"\bsafe\b",
+    r"\b(ok|okay|alright) to\b",
+    r"\bis (it|that) (ok|okay|bad|safe|fine|dangerous|a problem)\b",
+    r"\bdouble\b",
+    r"\bextra\b",
+    r"\bskip\b",
+    r"\bmake up\b",
+    r"\bcatch up\b",
+    r"\bhow (much|many)\b(?!.*\btimes\b)",
+    r"\bmg\b",
+    r"\bside effects?\b",
+    r"\boverdose\b",
+    r"\binteract",
+    r"\bwhat (do|should|can) (i|we)\b",
+    r"\bdo (i|we|they) need\b",
+    r"\bcan (she|he|they|mom|dad|mum|i|we) (take|have|skip|stop)\b",
 ]
 _HEALTH = [
-    r"\bunder control\b", r"\bhealthy\b", r"\bhealth\b", r"\bsick\b", r"\bsymptoms?\b", r"\bdizzy\b",
-    r"\bworr(y|ied)\b", r"\bblood pressure (is|was|looks?|seems?|high|low|normal|reading|okay|ok)\b",
+    r"\bunder control\b",
+    r"\bhealthy\b",
+    r"\bhealth\b",
+    r"\bsick\b",
+    r"\bsymptoms?\b",
+    r"\bdizzy\b",
+    r"\bworr(y|ied)\b",
+    r"\bblood pressure (is|was|looks?|seems?|high|low|normal|reading|okay|ok)\b",
     r"\bis (she|he|mom|mum|dad|they) (ok|okay|alright|fine|doing|well)\b",
 ]
 _UNTOUCHED = [
     r"\b(hasn ?t|haven ?t|has not|have not|not been|never been|wasn ?t|weren ?t|nobody|no one)\b.*\b(touched|used|moved|picked up|handled|opened)\b",
-    r"\buntouched\b", r"\bunused\b", r"\bnot (touched|used)\b",
+    r"\buntouched\b",
+    r"\bunused\b",
+    r"\bnot (touched|used)\b",
 ]
 _WHERE = r"\b(where|find|leave|left|put|locate|location|lost|misplaced)\b"
 _HISTORY = r"\b(when|last time|last used|how many times|how often|history)\b"
-_SUMMARY = r"\b(summary|summarize|summarise|recap|overview|how was|what happened|anything (unusual|new)|today|yesterday|this week)\b"
+_SUMMARY = (
+    r"\b(summary|summarize|summarise|recap|overview|how was|what happened|anything (unusual|new)|today|yesterday|this week)\b"
+)
 
 _STOPWORDS = set(
     """where whereabouts did does do is are was were the a an my his her their our your its mom mum mother dad father
@@ -145,6 +169,7 @@ def match_object_in_text(question: str, objects: list[ec.ObjectSummary]) -> ec.O
 
 # ---------------------------------------------------------------- answers
 
+
 async def answer(question: str, tb: Toolbox, a: Analysis | None = None) -> str:
     a = a or analyze(question)
     try:
@@ -236,7 +261,7 @@ async def _resolve_object(question: str, tb: Toolbox) -> tuple[ec.ObjectSummary 
 
 
 def _not_found(phrase: str, known: list[ec.ObjectSummary]) -> str:
-    what = f"\"{phrase}\"" if phrase else "that"
+    what = f'"{phrase}"' if phrase else "that"
     names = ", ".join(o.name for o in known)
     return f"I couldn't find {what} in Earmark's records." + (f" Earmark tracks: {names}." if names else "")
 
@@ -274,8 +299,11 @@ async def _history(question: str, tb: Toolbox) -> str:
     after = [e for e in touches if e.t > latest.t and e.kind == "placed"]
     if latest.kind == "pickup" and after:
         back = after[-1]
-        text += f" {'They were' if is_plural(name) else 'It was'} put back" + (
-            f" on the {back.spot_label} spot" if back.spot_label else "") + f" at {clock.when(clock.parse_local(back.at_local, back.t))}."
+        text += (
+            f" {'They were' if is_plural(name) else 'It was'} put back"
+            + (f" on the {back.spot_label} spot" if back.spot_label else "")
+            + f" at {clock.when(clock.parse_local(back.at_local, back.t))}."
+        )
     n = len(pickups)
     text += f" In the last 7 days, Earmark recorded {n} pickup{'s' if n != 1 else ''}."
     return text
@@ -295,13 +323,17 @@ async def _untouched(a: Analysis, tb: Toolbox) -> str:
         items = []
         for o in stale:
             dt = clock.parse_local(o.last_touched_local, o.last_touched_t)
-            items.append(f"{the(o.name)} ({'last picked up or put down at ' + clock.when(dt) if dt else 'no pickup or put-down on record'})")
+            items.append(
+                f"{the(o.name)} ({'last picked up or put down at ' + clock.when(dt) if dt else 'no pickup or put-down on record'})"
+            )
         text = f"Not picked up or put down in {window}: " + "; ".join(items) + "."
     else:
         text = f"Everything on a spot reader was picked up or put down in {window}."
     for o in (o for o in objects if fob_only(o)):
         seen, place = last_seen_phrase(o, clock), where_phrase(o, tb.labels)
-        text += f" {cap(the(o.name))} {'are' if is_plural(o.name) else 'is'} tracked by a Bluetooth fob, which doesn't record pickups"
+        text += (
+            f" {cap(the(o.name))} {'are' if is_plural(o.name) else 'is'} tracked by a Bluetooth fob, which doesn't record pickups"
+        )
         text += f"; the fob was last detected {place} at {seen}." if seen and place else "."
     return text
 

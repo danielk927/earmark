@@ -6,6 +6,7 @@ Paths, in order:
              and its text passes the no-medical-advice check.
   fallback - the deterministic keyword router, whenever the LLM is off, slow, or rejected.
 """
+
 from __future__ import annotations
 
 import logging
@@ -21,7 +22,7 @@ from .fixture import FixtureConvexReader
 from .llm import BitdeerChatModel, ChatModel, LlmError, run_tool_loop
 from .router import HELP_TEXT, analyze, unreachable_text
 from .router import answer as route_answer
-from .tools import ToolCallRecord, Toolbox
+from .tools import Toolbox, ToolCallRecord
 
 log = logging.getLogger("earmark.memory")
 
@@ -67,14 +68,20 @@ class MemoryPipeline:
         started = time.perf_counter()
         result = await self._answer(question.strip()[:MAX_QUESTION_CHARS])
         result.ms = (time.perf_counter() - started) * 1000
-        log.info("answered path=%s model=%s reason=%s tools=[%s] total=%.0f ms",
-                 result.path, result.model or "-", result.reason or "-",
-                 "; ".join(r.short() for r in result.tool_calls), result.ms)
+        log.info(
+            "answered path=%s model=%s reason=%s tools=[%s] total=%.0f ms",
+            result.path,
+            result.model or "-",
+            result.reason or "-",
+            "; ".join(r.short() for r in result.tool_calls),
+            result.ms,
+        )
         return result
 
     async def _answer(self, question: str) -> Answer:
-        log.info("question: %r (data: %s, llm: %s)", question, self.reader.source,
-                 self.chat_model.model if self.chat_model else "off")
+        log.info(
+            "question: %r (data: %s, llm: %s)", question, self.reader.source, self.chat_model.model if self.chat_model else "off"
+        )
         analysis = analyze(question)
         if not question:
             return Answer(HELP_TEXT, "fallback", reason="empty question")
@@ -121,13 +128,16 @@ def build_pipeline(settings: Settings, *, fixture: bool = False, use_llm: bool =
         reader: ConvexReader = FixtureConvexReader()
     else:
         if not settings.read_secret:
-            raise ConfigError("CONVEX_SITE_URL is set but EARMARK_READ_SECRET is not; set both (see services/memory_agent/README.md)")
+            raise ConfigError(
+                "CONVEX_SITE_URL is set but EARMARK_READ_SECRET is not; set both (see services/memory_agent/README.md)"
+            )
         reader = HttpConvexReader(settings.convex_site_url, settings.read_secret)
 
     chat_model: ChatModel | None = None
     if use_llm and settings.llm_enabled:
-        chat_model = BitdeerChatModel(api_key=settings.bitdeer_api_key, base_url=settings.bitdeer_base_url,
-                                      model=settings.bitdeer_model)
+        chat_model = BitdeerChatModel(
+            api_key=settings.bitdeer_api_key, base_url=settings.bitdeer_base_url, model=settings.bitdeer_model
+        )
     elif use_llm:
         log.warning("BITDEER_API_KEY is not set: answering with the deterministic keyword router")
     return MemoryPipeline(reader, chat_model)

@@ -1,4 +1,5 @@
 """Chat Protocol: the handler with a fake context, agent construction, and a real two-agent exchange."""
+
 from __future__ import annotations
 
 import asyncio
@@ -100,11 +101,17 @@ def test_mailbox_requires_a_seed(pipeline, loop):
 
 def test_agent_speaks_the_chat_protocol(pipeline, tmp_path, monkeypatch, loop):
     monkeypatch.chdir(tmp_path)  # anything uAgents writes to the cwd lands here
-    seeded = build_agent(load_settings({"MEMORY_AGENT_SEED": "test seed phrase for earmark memory unit tests"}), pipeline, mailbox=False)
+    seeded = build_agent(
+        load_settings({"MEMORY_AGENT_SEED": "test seed phrase for earmark memory unit tests"}), pipeline, mailbox=False
+    )
     assert seeded.name == "earmark-memory"
     assert seeded.address.startswith("agent1q")
-    assert seeded.address == build_agent(
-        load_settings({"MEMORY_AGENT_SEED": "test seed phrase for earmark memory unit tests"}), pipeline, mailbox=False).address
+    assert (
+        seeded.address
+        == build_agent(
+            load_settings({"MEMORY_AGENT_SEED": "test seed phrase for earmark memory unit tests"}), pipeline, mailbox=False
+        ).address
+    )
     assert chat_protocol_spec.digest in seeded.protocols
     local = build_agent(load_settings({}), pipeline, mailbox=False)
     assert local.address != seeded.address
@@ -121,9 +128,13 @@ def test_two_agent_chat_exchange_end_to_end():
     question = "Did Mom take her evening pills?"
     proc = subprocess.run(
         [sys.executable, "-m", "tests.chat_e2e", str(_free_port()), str(_free_port()), question],
-        cwd=SERVICE_DIR, capture_output=True, text=True, timeout=60, env={"PATH": "/usr/bin:/bin", "HOME": str(Path.home())},
+        cwd=SERVICE_DIR,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(Path.home())},
     )
-    line = next((l for l in proc.stdout.splitlines() if l.startswith("E2E_RESULT ")), None)
+    line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("E2E_RESULT ")), None)
     assert line, proc.stdout[-2000:] + proc.stderr[-4000:]
     result = json.loads(line.removeprefix("E2E_RESULT "))
     assert result["acks"] == [{"from_memory": True, "id": result["sent_id"]}]
