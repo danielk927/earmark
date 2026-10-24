@@ -25,7 +25,7 @@ Every answer comes from Earmark's logged events, with times in the household's t
 - Give a day's summary: doses, number of pickups, untouched and missing objects.
 
 It plans its own lookups: for "Did Mom take her evening pills?" it checks today's doses, and if tonight's dose isn't due yet it also checks yesterday's.
-It uses a Bitdeer-hosted language model to choose lookups and phrase answers, and it falls back to a deterministic keyword router if the model is slow or unavailable.
+It uses Claude to choose lookups and phrase answers, and it falls back to a deterministic keyword router if the model is slow or unavailable.
 
 ## Interaction
 

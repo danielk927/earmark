@@ -23,7 +23,7 @@ Objects are tracked by pluggable detection adapters, a local hub turns raw reads
                       mic -> STT --------+          |                  |
                          |                          v                  v
                          v                  dashboard (React)   memory_agent (Fetch.ai
-                      AirPods               caregiver + family  uAgent, Bitdeer LLM)
+                      AirPods               caregiver + family  uAgent, Claude)
                                             labeling                <-- ASI:One
 ```
 
@@ -40,11 +40,11 @@ Objects are tracked by pluggable detection adapters, a local hub turns raw reads
 | Component | Language | Owns | Talks to |
 |---|---|---|---|
 | hub | Python | `services/hub/` | adapters (in-process), bus server, Convex HTTP |
-| concierge | Python | `services/concierge/` | bus client, Moss, Bitdeer, Cartesia |
+| concierge | Python | `services/concierge/` | bus client, Moss, Claude, Cartesia |
 | Mac app | Swift | `mac/` | bus client, CoreMotion (AirPods), AVAudioEngine, Speech |
 | Convex | TypeScript | `convex/` | hub (HTTP), dashboard (client), memory agent (HTTP) |
 | dashboard | TypeScript (React + Vite) | `dashboard/` | Convex client |
-| memory agent | Python | `services/memory_agent/` | Agentverse mailbox, Convex HTTP read endpoints, Bitdeer |
+| memory agent | Python | `services/memory_agent/` | Agentverse mailbox, Convex HTTP read endpoints, Claude |
 
 ## The local bus
 
@@ -57,13 +57,26 @@ The hub routes by each client's `subscribe` list, so high-rate audio (`mic_audio
 
 1. The Mac app streams built-in-mic audio as `mic_audio` to the concierge, which streams it to Cartesia Ink STT.
 2. Ink's turn detection ends the utterance; the concierge publishes a final `transcript`.
-3. The concierge asks the Bitdeer LLM to choose one tool (with a 1.5 s timeout and a keyword-grammar fallback); Moss resolves "sugar" to `object_id: sugar`.
+3. The concierge asks Claude (Haiku) to choose one tool (with a 1.5 s timeout and a keyword-grammar fallback); Moss resolves "sugar" to `object_id: sugar`.
 4. Deterministic code reads the sugar's `ObjectState` (spot 3, precision `exact`), computes "at your one o'clock, about an arm's length", and sends `guide_start` with the spot's position.
 5. Cartesia Sonic streams the phrase as `speak` chunks; the Mac app plays them centered and ducks the ping.
 6. The Mac app renders a mono ping at the target through `AVAudioEnvironmentNode` (HRTF), rotating the listener by AirPods head yaw and pitch every frame, so the sound stays fixed in the room.
 7. The user lifts a jar; the hub's debounce emits `pickup`.
    If it is the sugar: `guide_stop(found)` and "Got it, that's the sugar."
    If it is the salt: "That's the salt. The sugar is one spot to your right."
+
+## Memory: "I put my keys in the drawer"
+
+Earmark remembers where the user said they put things, using the saved places in `config/space.json` (`areas`: the counter, cupboard, drawer, bag, box).
+The app does not know where the user is standing, so "I'm leaving my keys here" is not saved; Earmark asks for a place instead.
+
+1. The concierge hears "I put my keys in the drawer", matches "drawer" to a saved place, and sends a `place_item` bus message.
+2. The hub moves the keys' state to that place (precision `area`) and logs a `stored` event to Convex.
+3. "Where are my keys?" now answers "near the drawer. I noted that at 4:50 PM."
+4. "Where did I put my keys before?" lists the current place and the one before it, each with when it was noted.
+5. The family can see every move on the dashboard timeline, and the memory agent answers "where did Dad put his keys?" from the same events.
+
+Rules: every answer says when; Earmark records only what it was told or saw (for example "went to the pill box"), never that someone took a pill.
 
 ## Coordinate system
 
@@ -77,7 +90,7 @@ Sign constants (`yawSign`, `pitchSign`) live in one Swift file so they can be fl
 | Failure | Behavior |
 |---|---|
 | Convex unreachable | Hub keeps working from `config/objects.cache.json`; events queue on disk and flush on reconnect. |
-| Bitdeer slow (> 1.5 s) or down | Keyword grammar handles where/find, stop/cancel, "this is X", "make X beep". |
+| Claude slow (> 1.5 s) or down | Keyword grammar handles where/find, stop/cancel, "this is X", "make X beep", "I put X in the drawer". |
 | Moss unavailable | Exact name/alias match, then fuzzy string match, in code. |
 | Cartesia STT silent for 1 s after speech starts | Concierge sends `stt_mode: apple`; the Mac app switches to on-device `SFSpeechRecognizer`. |
 | Cartesia TTS down | Pre-synthesized `speak_cached` phrases, then `speak_text` (system voice in the Mac app), then macOS `say`. |
@@ -87,4 +100,4 @@ Sign constants (`yawSign`, `pitchSign`) live in one Swift file so they can be fl
 
 - Xcode is not installed on the demo Mac, so the Mac app is a SwiftPM package built into a signed `.app` bundle by `mac/build_app.sh` (Command Line Tools only).
   Xcode can still open the package directly.
-- Bus messages added beyond the brief's table, all needed for the flows it describes: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`.
+- Bus messages added beyond the brief's table, all needed for the flows it describes: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`, and `place_item` (memory).

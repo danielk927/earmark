@@ -190,7 +190,7 @@ Source: https://docs.google.com/document/d/1_Tb76j7zlzodhTiofHX_uPuEIfrDuQ3QAyk7
 "I would recommend you all to do this basic thing today and once you do this, you can keep iterating on your agent logic and testing it out from ASI1"
 
 Note: the ASI:One API key in step 3 is only there because the example agent uses the ASI:One LLM.
-The mandatory requirements do not require the ASI:One LLM, so Earmark can reason with Bitdeer instead.
+The mandatory requirements do not require the ASI:One LLM, so Earmark reasons with Claude instead.
 
 ## 4. Full copy of the submission process Google Doc
 
@@ -284,7 +284,7 @@ Human-only steps are marked **[HUMAN]**.
       Example: "Did Mom take her evening pills?" answered from Convex data, with timestamps.
 - [ ] Tool execution is visible: the agent calls Convex read endpoints (mandatory: "meaningful tool execution").
       Multi-step reasoning, such as looking up objects, then events, then the adherence result, helps with "multi-step planning, reasoning, or orchestration."
-- [ ] Repo README lists the agent name and `agent1q...` address, both badges, run instructions, and links to extra resources (Convex, Bitdeer).
+- [ ] Repo README lists the agent name and `agent1q...` address, both badges, run instructions, and links to extra resources (Convex, Anthropic).
 - [ ] The agent's own Agentverse README (`readme_path`) contains both badges (`innovationlab`, `hackathon`).
 - [ ] Demo video of 3-5 minutes showing the agent (Fetch.ai deliverable; separate from the 2-minute Cal Hacks pitch).
 - [ ] **[HUMAN]** Make an ASI:One shared chat URL and copy the Agentverse agent profile URL (bonus fields in the submission form).

@@ -25,11 +25,12 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 - Judge reaches. If they lift the salt: "That's the salt. The sugar is one spot to your right." (This is the hero moment; it is fine to nudge the judge toward the wrong jar first.)
 - Judge lifts the sugar: "Got it, that's the sugar." The dashboard's live map updates at the same instant (point at it).
 - Judge: "Where are my keys?" Earmark: proximity phrase, and the fob beeps.
+- Memory beat: Judge: "I put my keys in the drawer." Earmark: "Got it, the keys are in the drawer." Later: "Where are my keys?" -> "The keys are near the drawer. I noted that at [time]." Then "Where did I put my keys before?" -> the earlier place, with its time. The timeline on the dashboard shows each move. (Earmark does not know where the judge stands, so "leaving my keys here" gets "tell me the place" instead.)
 
 **1:10 - 1:40 How it works (Presenter, over the architecture slide)**
 - Each item sits on an NFC "home spot" or carries a Bluetooth fob; detection is pluggable, and everything downstream only sees one event format.
 - Directions, distances, debouncing, and medication adherence are deterministic code; the LLM only chooses an action and phrases it.
-- Cartesia Ink and Sonic for both directions of speech; Moss resolves fuzzy requests ("something for my eggs"); Convex is the real-time backend for the dashboard, adherence, and trials; Bitdeer models choose tools, label items from one caregiver photo, and reason for a Fetch.ai agent that caregivers reach through ASI:One.
+- Cartesia Ink and Sonic for both directions of speech; Moss resolves fuzzy requests ("something for my eggs"); Convex is the real-time backend for the dashboard, adherence, and trials; Claude chooses the action, labels items from one caregiver photo, and reasons for a Fetch.ai agent that caregivers reach through ASI:One.
 
 **1:40 - 2:00 Impact (Presenter)**
 - Measurable: "[TRIAL RESULTS: n trials with m blindfolded testers; median time to find with Earmark vs touch only; wrong picks]." Say "pilot" if there are only a handful of trials.
@@ -44,6 +45,7 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 - **What if the internet is down?** The local loop keeps working; speech falls back to cached phrases, then the system voice; intent falls back to a keyword grammar (`docs/ARCHITECTURE.md`, failure table).
 - **Cost per home?** About $147-$559 in parts, an estimate (`docs/PRODUCTION.md`).
 - **Privacy?** `docs/RESPONSIBLE_DESIGN.md`.
+- **Can it save "leaving my keys here"?** Not yet: the app does not know where the user is standing, so it asks for a named place (cupboard, drawer, bag, box). Tracking the user is the next step (`docs/PRODUCTION.md`).
 
 ## If something fails (Operator)
 

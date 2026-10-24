@@ -1,5 +1,7 @@
 # Bitdeer AI - sponsor pack summary (Cal Hacks 13.0)
 
+> **No longer used.** Earmark moved to Claude and is not entering the Bitdeer track (see `docs/TRACKS.md`). Kept as research history.
+
 Compiled 2026-10-24 by a read-only research agent.
 The human has the starter pack as a PDF; this agent could not read it.
 This file summarizes the PDF's contents as described in BUILD_BRIEF.md section 2.5, checked against Bitdeer's public version of the same starter pack and the Cal Hacks Devpost page.

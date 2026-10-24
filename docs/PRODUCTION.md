@@ -11,7 +11,7 @@ Anything marked **estimate** or **proposal** is our planning number, not a measu
 |---|---|---|
 | Detection | Simulator plus `nfc_serial` and `ble_fobs` adapters, tested against fake serial ports and fake Bluetooth; no real reader or fob has run yet | Reader boards installed in the home, fobs on roaming items |
 | Hub | Python on the demo Mac: debounce, state engine, local WebSocket bus, durable offline queue to Convex (`services/hub/README.md`) | Same code on a small always-on box in the home (section 2) |
-| Voice concierge | Python on the demo Mac: Cartesia speech, Bitdeer tool choice with a keyword fallback, Moss retrieval with fuzzy fallback (`services/concierge/README.md`) | Same, on the home box |
+| Voice concierge | Python on the demo Mac: Cartesia speech, Claude tool choice with a keyword fallback, spoken memory of where items were put, Moss retrieval with fuzzy fallback (`services/concierge/README.md`) | Same, on the home box |
 | Spatial audio app | macOS app with AirPods head tracking (in progress) | iPhone app (section 3) |
 | Backend | Convex: tables, HTTP actions with shared secrets, adherence rules with tests, crons, photo labeling (`convex/README.md`) | Convex with user auth, household scoping, and roles (section 5) |
 | Caregiver dashboard and memory agent | In progress | Azure Static Web Apps and Azure Container Apps (section 4) |
@@ -170,10 +170,10 @@ Caregiver access needs the user's consent and can be withdrawn by the user at an
 Data that leaves the home, and to whom:
 - Convex: the registry, events, doses, trials, and briefly a labeling photo.
 - Cartesia: microphone audio during a request, and the text of each spoken reply.
-- Bitdeer: the transcript plus item names, aliases, and notes for tool choice, and the labeling photo.
+- Anthropic (Claude): the transcript plus item names, aliases, notes, and saved place names for tool choice, and the labeling photo.
 - Moss: the concierge uses an in-process session index, so item names are embedded and searched on the hub (`docs/vendor-notes/moss.md` 3).
 
-We have not yet reviewed Cartesia's or Bitdeer's data retention terms.
+We have not yet reviewed Cartesia's or Anthropic's data retention terms.
 Signing data processing agreements with every vendor, or replacing a vendor, is a gate before the first home pilot.
 
 ### 6.2 Deletion

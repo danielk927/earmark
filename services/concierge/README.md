@@ -1,7 +1,7 @@
 # Earmark concierge (voice agent)
 
 The concierge turns speech into guidance.
-It listens to the bus, transcribes `mic_audio` with Cartesia Ink, picks one tool with the Bitdeer LLM (raced against a keyword grammar), resolves the object with Moss, computes every direction and sentence in code, and speaks through Cartesia Sonic.
+It listens to the bus, transcribes `mic_audio` with Cartesia Ink, picks one tool with Claude (raced against a keyword grammar), resolves the object with Moss, computes every direction and sentence in code, and speaks through Cartesia Sonic.
 Spec: BUILD_BRIEF 5.D; contracts in `contracts/schemas/bus_message.schema.json` are authoritative.
 
 ## Run
@@ -54,9 +54,8 @@ Vendor defaults are the values verified in `docs/vendor-notes/` on 2026-10-24.
 | `CARTESIA_TTS_SAMPLE_RATE` | `48000` | `cartesia.md` 4.5 |
 | `MOSS_PROJECT_ID`, `MOSS_PROJECT_KEY` | unset: local fallback resolver | `moss.md` 2 |
 | `MOSS_INDEX_NAME` | `earmark-objects` (no personal data: it is sent in telemetry) | `moss.md` 5 |
-| `BITDEER_API_KEY` | unset: keyword grammar only | `bitdeer.md` 1 |
-| `BITDEER_BASE_URL` | `https://api-inference.bitdeer.ai/v1` | `bitdeer.md` 1 |
-| `BITDEER_CHAT_MODEL` | `nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B` | `bitdeer.md` 3.1 |
+| `ANTHROPIC_API_KEY` | unset: keyword grammar only | console.anthropic.com |
+| `ANTHROPIC_CHAT_MODEL` | `claude-haiku-5-5` | picks the tool; thinking off, effort low |
 | `LLM_TIMEOUT_S` | `1.5` | BUILD_BRIEF 5.D |
 
 Concierge tuning knobs (defaults in `earmark_concierge/config.py`):
@@ -91,8 +90,8 @@ Secrets are only sent as `Authorization` headers and are never logged.
    Object names and aliases go in as `keyterm`s.
    `turn.update` and `turn.eager_end` -> `transcript` is_final=false; `turn.end` -> is_final=true (source `cartesia`).
    `turn.eager_end` starts the LLM call early; `turn.resume` cancels it; only `turn.end` acts.
-2. Intent: the grammar result is computed at once, and the Bitdeer call (`tool_choice` required, `parallel_tool_calls` false, `reasoning_effort: "none"`, `timeout=1.5`, `max_retries=0`) wins if it returns exactly one valid tool call in time.
-   Every decision is logged with the path, the LLM status, and the LLM latency attributed to Bitdeer.
+2. Intent: the grammar result is computed at once, and the Claude call (`tool_choice` any with parallel tool use disabled, thinking off, effort `low`, `timeout=1.5`, `max_retries=0`) wins if it returns exactly one valid tool call in time.
+   Every decision is logged with the path, the LLM status, and the LLM latency attributed to Claude.
 3. Resolution: exact name or alias, then Moss (when ready), then fuzzy names (rapidfuzz), then a lexical scorer over notes and description.
    Ambiguity is decided in code; the answer to "Do you mean the salt or the pepper?" is resolved against just those candidates (names, typos, and "the first one").
 4. Tools run deterministic code (`policy.py`, `phrasing.py`): clock face from `atan2(x, y)` against calibrated forward, distance bands, relative spots ordered by azimuth, household-local times.
@@ -103,7 +102,7 @@ Secrets are only sent as `Authorization` headers and are never logged.
 | Stage | Normal | Fallback, in order |
 | - | - | - |
 | Speech in | Cartesia Ink | no key, connect failure, no `connected` within 1 s, no `turn.*` within 1.5 s, or a server error -> `stt_mode apple` and "Switching to backup listening."; Apple and typed transcripts are always accepted; Cartesia is probed every 60 s (socket open plus `connected`, no audio) and restored with `stt_mode cartesia` |
-| Intent | Bitdeer tool call | timeout, error, invalid or multiple calls, or "declined" (empty name) -> keyword grammar -> "Sorry, I didn't catch that." |
+| Intent | Claude tool call | timeout, error, invalid or multiple calls, or "declined" (empty name) -> keyword grammar -> "Sorry, I didn't catch that." |
 | Resolution | exact name, then Moss session index | Moss error or no key -> fuzzy names -> lexical notes/description -> "I don't know that item yet..." |
 | Speech out | `speak` chunks from Sonic | static phrase text -> `speak_cached`; no TTS key, Sonic error, or first chunk later than 1 s -> `speak_text` (and skip Sonic for 30 s); no Mac app on the bus -> local `say` |
 
@@ -128,9 +127,9 @@ Secrets are only sent as `Authorization` headers and are never logged.
 
 ## What is mocked tonight
 
-No Cartesia, Moss, or Bitdeer key exists, so none of the three has been exercised against the live service.
+No Cartesia, Moss, or Anthropic key exists, so none of the three has been exercised against the live service.
 - Cartesia Ink and Sonic: tested against local fake servers that follow the event shapes in `cartesia.md`.
-- Bitdeer: tested with fake choosers and an HTTP mock that checks the exact request body the `openai` SDK sends.
+- Claude: tested with fake choosers and an HTTP mock that checks the exact request body the `anthropic` SDK sends.
 - Moss: tested with a fake index; the real SDK was run with bad credentials and fails fast with `MossError: UNAUTHORIZED`, which triggers the fallback.
 - The hub: tested with an in-test bus server; scenario states are hand-written equivalents of the hub's output.
 - `config/phrases/*.wav` are not generated yet (`synth-phrases` needs a key); until then the Mac app speaks `speak_cached` text with the system voice, per the contract.
@@ -138,5 +137,5 @@ No Cartesia, Moss, or Bitdeer key exists, so none of the three has been exercise
 ## Open items
 
 - Moss thresholds (`CONCIERGE_MOSS_MIN_SCORE`, `CONCIERGE_MOSS_MARGIN`) need tuning on the seed queries once a key exists.
-- Benchmark Bitdeer p50/p95 for the tool call (`bitdeer.md` 3.1); if it is regularly above 1.5 s, the grammar answers most turns and the LLM only adds latency.
+- Benchmark Haiku p50/p95 for the tool call; if it is regularly above 1.5 s, the grammar answers most turns and the LLM only adds latency.
 - UNVERIFIED: that an Ink socket opened for a probe without audio costs no credits.

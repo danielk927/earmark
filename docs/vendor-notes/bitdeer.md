@@ -1,5 +1,7 @@
 # Bitdeer AI (Model Studio) - vendor notes for Earmark
 
+> **No longer used.** Earmark moved to Claude and is not entering the Bitdeer track (see `docs/TRACKS.md`). Kept as research history.
+
 Researched 2026-10-24 by a read-only research agent.
 Every claim has a source URL.
 Anything not confirmed against an official page is marked UNVERIFIED.

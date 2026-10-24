@@ -35,27 +35,27 @@ A family member can photograph an item once to get a suggested name and descript
 Built in `convex/labeling.ts` (`convex/README.md`, "Photo-assisted labeling"):
 
 1. The dashboard uploads the photo to Convex file storage through a one-time upload URL.
-2. The `labeling:suggestFromPhoto` action sends it inline (base64) to the Bitdeer multimodal model, so the photo never needs a public URL.
+2. The `labeling:suggestFromPhoto` action sends it inline (base64) to Claude, so the photo never needs a public URL.
 3. The photo is deleted in a `finally` block on success and on every failure, including a missing API key and a timeout.
 4. The action returns `{ name, aliases, description, model, latencyMs, photoDeleted: true }` and saves nothing.
    The family member confirms or edits the text before it is saved as a label.
 5. A cron deletes any stored file older than 10 minutes, so an upload that is never sent for a suggestion does not persist.
 
 Tested: `convex/labeling.test.ts` checks photo deletion on every path, the timeout, and the sweeper, with a mocked model.
-Not yet tested: the live Bitdeer model (no key yet).
+Not yet tested: the live Claude model (no key yet).
 Planned: the dashboard states, before upload, that the photo is deleted after the suggestion (HAX G16).
-Residual exposure: the photo is processed by Bitdeer, whose retention terms we have not reviewed yet (`docs/PRODUCTION.md` 6.1).
+Residual exposure: the photo is processed by Anthropic, whose retention terms we have not reviewed yet (`docs/PRODUCTION.md` 6.1).
 
 ## 4. Data minimization
 
-What Earmark stores: item names, aliases, family-written notes and descriptions, NFC tag IDs, home spot numbers, and timestamps of placements, removals, pickups, labels, and chirps.
+What Earmark stores: item names, aliases, family-written notes and descriptions, NFC tag IDs, home spot numbers, which saved place (drawer, bag, box) the user said an item is in, and timestamps of placements, removals, pickups, labels, chirps, and those spoken placements.
 What it does not store: images, audio, video, the person's location, or any health data beyond the medication item's schedule and its pickup times.
 Family members choose item names, so a medication can be called "evening pills" instead of a drug name.
 
 Two gaps we know about:
 - The concierge writes each final transcript, with timings, to `logs/latency.jsonl` on the hub machine for the latency report.
   It is never sent to Convex; production keeps timings only (`docs/PRODUCTION.md` 6.1).
-- The concierge sends the transcript plus item names, aliases, and notes to Bitdeer to choose a tool.
+- The concierge sends the transcript plus item names, aliases, notes, and saved place names to Claude to choose a tool.
 
 The full storage and retention table is in `docs/PRODUCTION.md` 6.1.
 
@@ -110,7 +110,7 @@ From `docs/ARCHITECTURE.md` ("Failure handling") and the concierge fallback ladd
 | Failure | Behavior | What the user notices |
 |---|---|---|
 | Convex unreachable | Hub keeps working from `config/objects.cache.json`; events queue on disk and replay in order on reconnect | Nothing; the caregiver dashboard lags until reconnect |
-| Bitdeer slow (more than 1.5 s) or down | Keyword grammar handles where/find, stop/cancel, "this is X", and "make X beep" | Nothing for common requests |
+| Claude slow (more than 1.5 s) or down | Keyword grammar handles where/find, stop/cancel, "this is X", "make X beep", and "I put X in the drawer" | Nothing for common requests |
 | Moss unavailable | Exact name or alias match, then fuzzy match, then notes and descriptions, in code | Nothing for known names |
 | Cartesia speech-to-text silent or down | Switch to on-device Apple speech recognition; Cartesia is retried every 60 s | "Switching to backup listening." |
 | Cartesia speech output down | Pre-recorded phrases, then the system voice, then macOS `say` | A different voice |

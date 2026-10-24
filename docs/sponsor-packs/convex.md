@@ -113,7 +113,7 @@ It shows the same "Copy the setup prompt for your agent" button as the home page
 > **Does AI Gateway need an API key?**
 > No. Convex holds the provider credentials, so there’s no key to get, store, or rotate. Your action signs in with a short-lived token scoped to your deployment. You need a paid plan (your hackathon coupon covers this) and Convex 1.45+. [Read the setup guide](https://docs.convex.dev/ai-gateway/overview).
 
-AI Gateway is not part of Earmark's plan (Bitdeer owns the LLM calls), and it needs a logged-in, paid team, so it is out of scope tonight.
+AI Gateway is not part of Earmark's plan (Claude owns the LLM calls), and it needs a logged-in, paid team, so it is out of scope tonight.
 
 ### More resources
 
