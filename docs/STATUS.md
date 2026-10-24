@@ -117,6 +117,16 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 - 2026-10-24: not installed: Convex's optional user-scope Claude plugin (it would change the human's global setup).
 - 2026-10-24: the simulator gets an interactive Wizard-of-Oz mode (keys lift/place jars) so `make demo-sim` works live with no detection hardware.
 
+## Keys and accounts (checked 2026-10-24)
+
+| Service | State |
+|---|---|
+| Anthropic | Key in `.env`; real calls verified: tool choice with Haiku (0.9 to 1.4 s each), family questions with Sonnet (4 to 8 s), both against the real Convex data |
+| Convex | Dev deployment `diligent-ptarmigan-12`: functions deployed, demo data seeded, `EARMARK_HUB_SECRET`, `EARMARK_READ_SECRET` and `ANTHROPIC_API_KEY` set. The photo-naming action has not been run against a real photo yet |
+| Moss | Project ID and key in `.env` (see the Moss line in the next-steps list for the live check) |
+| Cartesia | No key yet: signup failed, a teammate needs to try |
+| Fetch.ai | Not started |
+
 ## Blockers needing the human (batched)
 
 1. **AirPods spatial gate** (most important): wear the demo AirPods and run the spike per `mac/README.md`; set system Spatial Audio to Off for Earmark from the AirPods menu-bar icon.
