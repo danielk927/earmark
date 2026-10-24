@@ -242,7 +242,7 @@ class Concierge:
         self.latency.log("resolve", turn=turn["id"], engine=res.engine, kind=res.kind,
                          ids=res.object_ids, clarification=True)
         if res.kind == "one":
-            self.latency.log("intent", turn=turn["id"], path="clarification", tool=p.tool)
+            self.latency.log("intent", turn=turn["id"], path="clarification", llm_status="skipped", tool=p.tool)
             return await self._execute(ToolCall(p.tool, {"object_id": res.object_ids[0]}), text, turn)
         if res.kind == "ambiguous":
             return policy.clarify(self.world, res.object_ids, p.tool)

@@ -38,8 +38,8 @@ def main(argv: list[str] | None = None) -> int:
     from .app import run
     try:
         asyncio.run(run(settings, text=args.text, repl=args.repl))
-    except KeyboardInterrupt:
-        pass
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        logging.getLogger("earmark_concierge").info("concierge stopped")
     return 0
 
 

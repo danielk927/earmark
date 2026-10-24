@@ -87,3 +87,4 @@ async def test_concierge_process_over_the_bus(tmp_path):
         log = out.decode()
     assert "Traceback" not in log, log
     assert "sk_" not in log
+    assert proc.returncode == 0 and "concierge stopped" in log  # SIGTERM shuts down cleanly

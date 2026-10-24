@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import signal
 import sys
 
 from .bus import BusClient
@@ -72,6 +73,8 @@ async def run(settings: Settings, text: str | None = None, repl: bool = False) -
     core_box["core"] = core
     log.info("concierge starting: %s", describe(settings))
 
+    main = asyncio.current_task()
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown
     tasks = [asyncio.create_task(bus.run_forever()), asyncio.create_task(core.status_loop())]
     if text:
         tasks.append(asyncio.create_task(_inject_once(core, text)))
