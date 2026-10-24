@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from earmark_contracts import (
     Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, MicAudio, ObjectState, Pickup,
-    PickupResult, Playback, RegistryObject, RegistryUpdate, Reset, Snapshot, StatusMsg, SttMode,
+    PickupResult, PlaceItem, Playback, RegistryObject, RegistryUpdate, Reset, Snapshot, StatusMsg, SttMode,
     Transcript, TrialEnd, TrialStart, UnknownTag,
 )
 
@@ -291,6 +291,14 @@ class Concierge:
             return target
         if call.name == "chirp_fob":
             return policy.chirp(self.world, target, now, self.s.stale_s)
+        if call.name == "put_in_place":
+            place = call.args.get("place", "")
+            area = call.args.get("area") or (self.world.resolve_area(place) if place else None)
+            if area:
+                return policy.put_in_place(self.world, target, area)
+            return policy.unknown_place(self.world) if place else policy.ask_place(self.world, target)
+        if call.name == "place_history":
+            return policy.place_history(self.world, target, now)
         if call.name == "last_seen":
             advice = target.is_medication and bool(ADVICE.search(grammar.normalize(text)))
             return policy.last_seen(self.world, target, now, self.started_t, medical_question=advice)
@@ -320,6 +328,8 @@ class Concierge:
         if plan.label:
             lb = plan.label
             await self.emit(Label(tag=lb.tag, name=lb.name, aliases=lb.aliases, spot=lb.spot))
+        if plan.place:
+            await self.emit(PlaceItem(object_id=plan.place.object_id, area=plan.place.area, t=time.time()))
         if plan.text or plan.phrase_id:
             self.spawn(self.speaker.say(uid, plan.text, plan.phrase_id, turn))
         return uid
@@ -400,12 +410,12 @@ class Concierge:
 
     def status_msg(self) -> StatusMsg:
         d = self.last_decision
-        intent = "bitdeer" if self.router.chooser is not None else "grammar"
+        intent = "claude" if self.router.chooser is not None else "grammar"
         info: dict = {
             "stt_engine": self.stt.engine,
             "stt_reason": self.stt.reason,
             "intent_engine": intent,
-            "llm_model": self.s.bitdeer_chat_model if self.router.chooser is not None else None,
+            "llm_model": self.s.anthropic_chat_model if self.router.chooser is not None else None,
             "last_intent_path": d.path if d else None,
             "last_llm_status": d.llm_status if d else None,
             "last_llm_ms": round(d.llm_ms, 1) if d and d.llm_ms is not None else None,

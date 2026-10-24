@@ -14,6 +14,7 @@ from earmark_contracts import (
     ObjectState,
     Pickup,
     PickupResult,
+    PlaceItem,
     RegistryObject,
     RegistryUpdate,
     Reset,
@@ -32,7 +33,7 @@ from .config import ROOT, ConvexEnv, HubConfig
 from .convex import ConvexClient, ConvexSync
 from .registry import RegistryStore
 from .space import SpaceIndex
-from .state import Placed, Removed, StateEngine
+from .state import Placed, Removed, StateEngine, Stored
 
 log = logging.getLogger("earmark.hub")
 
@@ -141,6 +142,8 @@ class Hub:
         self.bus.broadcast(msg, exclude=client)
         if isinstance(msg, Label):
             self._label(msg)
+        elif isinstance(msg, PlaceItem):
+            self._apply(self.engine.place_in_area(msg.object_id, msg.area, msg.t))
         elif isinstance(msg, Reset):
             await self.reset()
         elif isinstance(msg, Chirp):
@@ -161,6 +164,12 @@ class Hub:
                 log.info(kind, extra={"object_id": o.object_id, "spot": o.spot, "tag": o.tag})
                 if self.sync is not None:
                     self.sync.add_event(kind, o.object_id, o.t, {"spot": o.spot, "tag": o.tag, "source": o.source})
+                continue
+            if isinstance(o, Stored):
+                log.info("stored", extra={"object_id": o.object_id, "area": o.area})
+                if self.sync is not None:
+                    self.sync.add_event("stored", o.object_id, o.t, {
+                        "area": o.area, "label": self.space.area_label(o.area), "source": "voice"})
                 continue
             self.bus.broadcast(o)
             if isinstance(o, ObjectState):

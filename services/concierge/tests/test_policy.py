@@ -26,7 +26,8 @@ async def test_proximity_with_fob_chirps(h):
 async def test_area_without_fob(h):
     await h.feed(state("salt", area="kitchen_counter"))
     out = await h.say("where is the salt")
-    assert h.spoken(out) == ["The salt is near the counter."]
+    [text] = h.spoken(out)
+    assert text.startswith("The salt is near the counter. I noted that at ")
     assert not h.of("chirp", out)
 
 

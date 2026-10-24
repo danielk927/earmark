@@ -242,3 +242,37 @@ async def test_mac_app_reporting_wrong_stt_engine_gets_stt_mode_resent(h):
     h.clear()
     await h.feed(StatusMsg(component="mac_app", ok=True, detail="x", info={"stt_engine": engine}))
     assert not h.of("stt_mode")
+
+
+async def test_put_in_place_tells_the_hub_and_confirms(h):
+    out = await h.say("I put my keys in the drawer.")
+    assert [(m["object_id"], m["area"]) for m in h.of("place_item", out)] == [("keys", "drawer")]
+    assert h.spoken(out) == ["Got it, the keys are in the drawer."]
+
+
+async def test_put_in_unknown_place_changes_nothing(h):
+    out = await h.say("I put my keys in the attic.")
+    assert not h.of("place_item", out)
+    assert h.spoken(out)[0].startswith("I don't know that place. I know ")
+
+
+async def test_leaving_it_here_asks_for_a_place(h):
+    out = await h.say("I'm leaving my keys here.")
+    assert not h.of("place_item", out)
+    assert h.spoken(out)[0].startswith("I can't tell where you are, so tell me the place.")
+
+
+async def test_where_did_i_put_it_before_gives_both_places_with_times(h):
+    now = time.time()
+    await h.feed(state("keys", area="drawer", position=[1.5, 0, 0.7], last_seen_t=now - 1200),
+                 state("keys", area="bag", position=[-1.5, 0, 0.3], last_seen_t=now - 60))
+    out = await h.say("Where did I put my keys before?")
+    [text] = h.spoken(out)
+    assert text.startswith("The keys are near the bag, noted at ")
+    assert "Before that, they were near the drawer, noted at " in text
+
+
+async def test_history_with_one_place_says_so(h):
+    await h.feed(state("keys", area="drawer", position=[1.5, 0, 0.7], last_seen_t=time.time() - 60))
+    out = await h.say("Where were my keys earlier?")
+    assert "I don't know of an earlier place for them." in h.spoken(out)[0]

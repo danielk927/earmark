@@ -41,12 +41,19 @@ class LabelAction:
 
 
 @dataclass
+class PlaceAction:
+    object_id: str
+    area: str
+
+
+@dataclass
 class Plan:
     text: str | None = None
     phrase_id: str | None = None
     guide: GuideTarget | None = None
     chirp: str | None = None
     label: LabelAction | None = None
+    place: PlaceAction | None = None
     stop: bool = False
     clarify: list[str] = field(default_factory=list)
     clarify_tool: str | None = None
@@ -107,8 +114,9 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
             where = f"farther away from {label}" if loc.distance_class == "far" else f"near {label}"
         else:
             where = "nearby"
+        noted = f" I noted that {time_phrase(st.last_seen_t, now, tz)}." if loc.area and st.last_seen_t else ""
         return Plan(
-            text=f"{cap(name)} {g.is_} {where}.{_chirp_suffix(obj, g)}",
+            text=f"{cap(name)} {g.is_} {where}.{noted}{_chirp_suffix(obj, g)}",
             chirp=obj.fob_id, object_id=obj.object_id,
         )
 
@@ -190,6 +198,46 @@ def label(tag: str, name: str, aliases: list[str], spot: int | None) -> Plan:
         text=f"Okay, I'll remember this as {name}.",
         label=LabelAction(tag=tag, name=name, aliases=aliases, spot=spot),
     )
+
+
+def put_in_place(world: World, obj: RegistryObject, area: str) -> Plan:
+    g = Grammar(obj.name)
+    return Plan(text=f"Got it, {the(obj.name)} {g.is_} in {world.area_label(area)}.",
+                place=PlaceAction(obj.object_id, area), object_id=obj.object_id)
+
+
+def ask_place(world: World, obj: RegistryObject) -> Plan:
+    """'Here' can't be saved: the app doesn't know where the user is standing."""
+    labels = [world.area_label(a) for a in world.area_ids()]
+    hint = f" I know {join_and(labels)}." if labels else ""
+    return Plan(text=f"I can't tell where you are, so tell me the place. For example, I put {the(obj.name)} in "
+                     f"{labels[0] if labels else 'the drawer'}.{hint}", object_id=obj.object_id)
+
+
+def unknown_place(world: World) -> Plan:
+    labels = [world.area_label(a) for a in world.area_ids()]
+    return Plan(text=f"I don't know that place. I know {join_and(labels)}." if labels
+                else "I don't know any places yet.")
+
+
+def place_history(world: World, obj: RegistryObject, now: float) -> Plan:
+    """Earlier places, newest first, each with when it was noted."""
+    g = Grammar(obj.name)
+    name = the(obj.name)
+    tz = world.timezone
+    trail = [s for s in world.history.get(obj.object_id, []) if where_phrase(world, s) and s.t is not None]
+    if not trail:
+        return Plan(text=f"I haven't noted a place for {name} yet.", object_id=obj.object_id)
+    cur = trail[-1]
+    text = f"{cap(name)} {g.is_} {where_phrase(world, cur)}, noted {time_phrase(cur.t, now, tz)}."
+    if len(trail) == 1:
+        text += f" I don't know of an earlier place for {g.it}."
+    else:
+        prev = trail[-2]
+        subject = "they" if g.plural else "it"
+        text += (f" Before that, {subject} {g.was} {where_phrase(world, prev)}, "
+                 f"noted {time_phrase(prev.t, now, tz)}.")
+    return Plan(text=text, object_id=obj.object_id)
 
 
 def stop() -> Plan:

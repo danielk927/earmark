@@ -1,4 +1,4 @@
-"""The seven concierge tools (BUILD_BRIEF 5.D), their LLM schemas, and validation.
+"""The nine concierge tools (BUILD_BRIEF 5.D), their LLM schemas, and validation.
 
 A ToolCall's args hold either an `object_id` (validated against the registry)
 or a free-text `query` that the resolver turns into an object. The LLM gives
@@ -13,7 +13,7 @@ from .world import World
 
 TOOL_NAMES = (
     "locate_object", "guide_to_object", "chirp_fob", "label_object",
-    "last_seen", "stop_guidance", "list_objects",
+    "last_seen", "stop_guidance", "list_objects", "put_in_place", "place_history",
 )
 MAX_NAME_LEN = 60
 MAX_QUERY_LEN = 120
@@ -74,6 +74,14 @@ def tool_schemas(world: World) -> list[dict]:
         fn("last_seen", "When an object was last seen or picked up, including medication questions "
            "('did I take my pills').",
            {"object_id": oid}, ["object_id"]),
+        fn("put_in_place", "The user says where they put an item ('I put my keys in the drawer', "
+           "'I'm leaving my keys here'). Pass the saved place id, or an empty place if they said 'here'.",
+           {"object_id": oid,
+            "place": {"type": "string", "description": "One of: " + (", ".join(world.area_ids()) or "(none)")
+                      + ". Empty if the user did not name a place."}},
+           ["object_id", "place"]),
+        fn("place_history", "Where an item was before, or its earlier places ('where did I put my keys before').",
+           {"object_id": oid}, ["object_id"]),
         fn("stop_guidance", "Stop guidance and beeping ('stop', 'cancel', 'never mind').", {}, []),
         fn("list_objects", "List the items Earmark knows about ('what do you know').", {}, []),
     ]
@@ -85,6 +93,7 @@ def system_prompt(world: World) -> str:
         "find household objects. Call exactly one tool for the user's utterance. Never reply with text.",
         "Rules: never give medical advice; medication questions use last_seen. "
         "If the utterance is unclear or not a request about items, call locate_object with an empty name.",
+        f"Saved places: {', '.join(world.area_ids()) or '-'}.",
         "Known objects (object_id: name; aliases; notes):",
     ]
     for o in world.objects.values():
@@ -132,7 +141,18 @@ def validate_llm_call(name: str, arguments: str | dict | None, world: World) -> 
         if len(q) > MAX_QUERY_LEN:
             raise InvalidToolCall("name too long")
         return ToolCall(name, {"query": q})
-    if name in ("guide_to_object", "chirp_fob", "last_seen"):
+    if name == "put_in_place":
+        _only_keys(args, {"object_id", "place"})
+        place = args.get("place", "")
+        if place is None:
+            place = ""
+        if not isinstance(place, str):
+            raise InvalidToolCall("place must be a string")
+        area = world.resolve_area(place) if place.strip() else ""
+        if area is None:
+            raise InvalidToolCall(f"unknown place {place!r}")
+        return ToolCall(name, {"object_id": _object_id(args, world), "area": area})
+    if name in ("guide_to_object", "chirp_fob", "last_seen", "place_history"):
         _only_keys(args, {"object_id"})
         return ToolCall(name, {"object_id": _object_id(args, world)})
     if name == "label_object":

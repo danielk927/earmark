@@ -4,7 +4,7 @@ from __future__ import annotations
 from earmark_contracts import DetectionEvent, ObjectState, Pickup, RegistryObject, UnknownTag
 
 from conftest import SALT, SUGAR, T0, UNKNOWN, fob, read
-from earmark_hub.state import Placed, Removed, StateEngine
+from earmark_hub.state import Placed, Removed, StateEngine, Stored
 
 
 def feed(engine: StateEngine, *events):
@@ -265,3 +265,27 @@ def test_reset_returns_to_startup_state(engine):
     assert all(s.status == "missing" for s in engine.states())
     out = place_sugar(engine, t=5.0)
     assert engine.state("sugar").status == "on_spot" and of(out, Pickup) == []
+
+
+# ---------------------------------------------------------------- named places (said by the user)
+
+
+def test_place_in_area_moves_the_item_there(engine):
+    place_sugar(engine)
+    out = engine.place_in_area("sugar", "drawer", T0 + 5)
+    assert [(s.object_id, s.area) for s in of(out, Stored)] == [("sugar", "drawer")]
+    st = engine.state("sugar")
+    assert (st.status, st.precision, st.location.area, st.location.spot) == ("roaming", "area", "drawer", None)
+    assert st.location.position == engine.space.area_position("drawer")
+
+
+def test_place_in_area_twice_still_logs_both(engine):
+    engine.place_in_area("salt", "bag", T0 + 1)
+    out = engine.place_in_area("salt", "bag", T0 + 2)
+    assert len(of(out, Stored)) == 1 and of(out, ObjectState) == []
+
+
+def test_place_in_area_ignores_unknown_item_or_place(engine):
+    assert engine.place_in_area("nope", "drawer", T0) == []
+    assert engine.place_in_area("sugar", "attic", T0) == []
+    assert engine.state("sugar").status == "missing"

@@ -26,6 +26,9 @@
       "$ref": "#/$defs/label"
     },
     {
+      "$ref": "#/$defs/place_item"
+    },
+    {
       "$ref": "#/$defs/mic_audio"
     },
     {
@@ -892,6 +895,32 @@
       "properties": {
         "type": {
           "const": "reset"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "place_item": {
+      "description": "Concierge -> hub. The user said where they put an item (\"I put my keys in the drawer\"). `area` is an id from space.areas. The hub records the item at that area and logs a `stored` event.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "object_id",
+        "area",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "place_item"
+        },
+        "object_id": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1
         },
         "t": {
           "$ref": "#/$defs/t"

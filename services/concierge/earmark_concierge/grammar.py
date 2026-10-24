@@ -25,6 +25,17 @@ _CHIRP = (
     re.compile(r"\bmake\s+" + _DET + r"(?P<x>.+?)\s+(?:beep|chirp|ring|buzz|make a sound|make noise|sound)\b"),
     re.compile(r"\b(?:beep|chirp|ring|buzz|ping)\s+" + _DET + r"(?P<x>.+)$"),
 )
+_SAY = r"^(?:(?:ok|okay|so|and|now|hey earmark)\s+)*(?:i(?:'m| am| just)?\s+)?"
+_PUT_VERB = r"(?:put|placed|left|leaving|stored|putting|placing|set|stuck)\s+"
+_PUT_IN = re.compile(
+    _SAY + _PUT_VERB + _DET + r"(?P<x>.+?)\s+(?:in|into|on|at|inside|under|behind|by|near)\s+"
+    r"(?:the |my |a |an )?(?P<p>.+)$"
+)
+_PUT_HERE = re.compile(_SAY + _PUT_VERB + _DET + r"(?P<x>.+?)\s+here$")
+_PLACE_HISTORY = re.compile(
+    r"\bwhere (?:did i (?:put|leave|have)|was|were|had i (?:put|left))\s+" + _DET +
+    r"(?P<x>.+?)\s+(?:before|earlier|previously|last time|the time before)\b"
+)
 _LAST_SEEN = (
     re.compile(r"\b(?:when did i(?: last)?|did i(?: already)?|have i(?: already)?)\s+"
                r"(?:take|taken|use|used|have|had|touch|touched|pick up|picked up|move|moved)\s+"
@@ -74,6 +85,16 @@ def parse(text: str, known_terms: set[str] | None = None) -> ToolCall | None:
         m = rx.search(s)
         if m and _clean_x(m["x"]):
             return ToolCall("chirp_fob", {"query": _clean_x(m["x"])})
+    m = _PUT_IN.search(s)
+    if m and _clean_x(m["x"]):
+        place = _FILLER_TAIL.sub("", m["p"].strip())
+        return ToolCall("put_in_place", {"query": _clean_x(m["x"]), "place": place})
+    m = _PUT_HERE.search(s)
+    if m and _clean_x(m["x"]):
+        return ToolCall("put_in_place", {"query": _clean_x(m["x"]), "place": ""})
+    m = _PLACE_HISTORY.search(s)
+    if m and _clean_x(m["x"]):
+        return ToolCall("place_history", {"query": _clean_x(m["x"])})
     for rx in _LAST_SEEN:
         m = rx.search(s)
         if m and _clean_x(m["x"]):

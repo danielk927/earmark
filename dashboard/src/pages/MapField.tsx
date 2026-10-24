@@ -169,7 +169,9 @@ export function MapField({ map }: { map: LiveMap }) {
         st.status === "roaming"
           ? st.distanceClass
             ? distanceWords[st.distanceClass]
-            : "nearby"
+            : st.area
+              ? `in ${map.areas.find((a) => a.area === st.area)?.label ?? "a saved place"}`
+              : "nearby"
           : `somewhere on ${map.areas.find((a) => a.area === st.area)?.label ?? "the counter"}`,
       strong: false,
     });

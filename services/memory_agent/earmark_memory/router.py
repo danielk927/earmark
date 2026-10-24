@@ -283,6 +283,9 @@ async def _history(question: str, tb: Toolbox) -> str:
     clock, name = tb.clock, obj.name
     h = await tb.history(obj.object_id)
     touches = [e for e in h.events if e.kind in ("pickup", "placed")]
+    told = _told_where(h.events, name, clock)
+    if not touches and told:
+        return told
     if not touches:
         text = f"Earmark recorded no pickups or put-downs of {the(name)} in the last 7 days."
         if obj.state is not None:
@@ -306,6 +309,24 @@ async def _history(question: str, tb: Toolbox) -> str:
         )
     n = len(pickups)
     text += f" In the last 7 days, Earmark recorded {n} pickup{'s' if n != 1 else ''}."
+    return f"{text} {told}" if told else text
+
+
+def _told_where(events: list[ec.HistoryEvent], name: str, clock) -> str:
+    """What the user said about where they put it ('stored' events, newest first), and when."""
+    stored = [e for e in events if e.kind == "stored"]
+    if not stored:
+        return ""
+
+    def sentence(e: ec.HistoryEvent, lead: str) -> str:
+        where = e.detail.removeprefix("Put ").rstrip(".")
+        return f"{lead} {the(name)} {'were' if is_plural(name) else 'was'} put {where}"
+
+    when = clock.when(clock.parse_local(stored[0].at_local, stored[0].t))
+    text = sentence(stored[0], f"Earmark was told at {when} that") + "."
+    if len(stored) > 1:
+        before = clock.when(clock.parse_local(stored[1].at_local, stored[1].t))
+        text += " " + sentence(stored[1], f"Before that, at {before},") + "."
     return text
 
 

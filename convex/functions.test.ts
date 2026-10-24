@@ -40,7 +40,12 @@ describe("dashboard:liveMap", () => {
       [3, "center right"],
       [4, "far right"],
     ]);
-    expect(map.areas).toEqual([{ area: "kitchen_counter", label: "the counter", position: [0, 0.6, 0] }]);
+    expect(map.areas.map((a) => a.area).sort()).toEqual(["bag", "box", "cupboard", "drawer", "kitchen_counter"]);
+    expect(map.areas.find((a) => a.area === "kitchen_counter")).toEqual({
+      area: "kitchen_counter",
+      label: "the counter",
+      position: [0, 0.6, 0],
+    });
     expect(map.objects.map((o) => o.objectId).sort()).toEqual(["bp_meds", "keys", "pepper", "salt", "sugar"]);
     expect(map.states.map((s) => s.objectId).sort()).toEqual(["bp_meds", "keys", "salt", "sugar"]);
     expect(map.states.find((s) => s.objectId === "sugar")).toEqual({

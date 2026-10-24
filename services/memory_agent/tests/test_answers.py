@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import earmark_contracts as ec
 import pytest
 
 from earmark_memory.convex import ConvexError
 from earmark_memory.describe import SpaceLabels
-from earmark_memory.fixture import FixtureConvexReader
+from earmark_memory.fixture import FixtureConvexReader, local_iso
 from earmark_memory.pipeline import MemoryPipeline
 from earmark_memory.router import analyze, object_phrase
 
@@ -161,3 +162,20 @@ def test_router_keywords():
     assert analyze("Should she take an extra pill?").medical
     assert object_phrase("Where did Dad leave his keys?") == "keys"
     assert object_phrase("Where's Mom's blood pressure medicine?") == "blood pressure medicine"
+
+
+async def test_history_reports_what_the_user_said_about_where_it_went():
+    class Told(FixtureConvexReader):
+        async def history(self, object_id, since_t=None):
+            now = self.data.now_t
+            events = [
+                ec.HistoryEvent(event_id=f"e-told-{i:04d}", kind="stored", t=now - ago,
+                                at_local=local_iso(now - ago, self.data.tz), spot=None, spot_label=None,
+                                detail=f"Put in {label}.")
+                for i, (ago, label) in enumerate([(600, "the bag"), (4000, "the drawer")])
+            ]
+            return ec.HistoryResponse(object_id=object_id, name="keys", since_t=now - 7 * 86400, events=events)
+
+    a = await MemoryPipeline(Told(), None, SpaceLabels.load()).answer("When were the keys last used?")
+    assert a.text.startswith("Earmark was told at 4:50 PM today that the keys were put in the bag.")
+    assert "Before that, at 3:53 PM today, the keys were put in the drawer." in a.text

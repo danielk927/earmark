@@ -249,3 +249,23 @@ def _read(tag, t):
 
     kind = "removed" if tag == "EMPTY" else "seen"
     return DetectionEvent(source="simulator", tag=tag, kind=kind, where={"spot": 3}, precision="exact", rssi=None, t=t)
+
+
+async def test_place_item_is_synced_as_a_stored_event_and_state(fake, hub_cfg, hub_root):
+    from earmark_contracts import PlaceItem
+
+    fake.start()
+    hub_cfg.convex = fast_cfg()
+    hub = Hub(hub_cfg, root=hub_root, convex_env=ConvexEnv(fake.url, SECRET))
+    await hub.start()
+    try:
+        c = await BusClient.connect("concierge", subscribe=["state_update"], url=f"ws://127.0.0.1:{hub.bus.port}")
+        await c.send(PlaceItem(object_id="sugar", area="drawer", t=time.time()))
+        await wait_for(lambda: len(fake.order) == 1)
+        event = fake.events[fake.order[0]]
+        assert (event["kind"], event["object_id"]) == ("stored", "sugar")
+        assert event["data"] == {"area": "drawer", "label": "the drawer", "source": "voice"}
+        await wait_for(lambda: any(s["location"]["area"] == "drawer" for s in fake.states))
+        await c.close()
+    finally:
+        await hub.stop()

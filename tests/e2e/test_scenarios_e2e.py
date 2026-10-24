@@ -29,7 +29,7 @@ def test_wrong_jar(stack):
     results = of(msgs, "pickup_result")
     assert results and results[0] == {**results[0], "expected": "sugar", "actual": "salt", "correct": False}
     text = " ".join(spoken(msgs))
-    assert "one o'clock" in text
+    assert "one spot to your right" in text
     assert "That's the salt. The sugar is one spot to your right." in text
     assert not of(msgs, "guide_stop"), "a wrong pick must not end guidance"
 
@@ -100,3 +100,15 @@ def _dotenv(name: str) -> str | None:
         if line.startswith(f"{name}="):
             return line.split("=", 1)[1].strip() or None
     return None
+
+
+def test_put_in_place(stack):
+    msgs = run(stack, "put_in_place")
+    assert [(m["object_id"], m["area"]) for m in of(msgs, "place_item")] == [("keys", "drawer"), ("keys", "bag")]
+    keys = [m for m in of(msgs, "state_update") if m["object_id"] == "keys"]
+    assert [m["location"]["area"] for m in keys] == ["drawer", "bag"]
+    text = spoken(msgs)
+    assert "Got it, the keys are in the drawer." in text
+    assert any(t.startswith("The keys are near the drawer.") for t in text)
+    assert any(t.startswith("The keys are near the bag, noted at") and "Before that, they were near the drawer" in t
+               for t in text)

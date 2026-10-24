@@ -117,6 +117,14 @@ def scenarios():
     # The fob is first heard at t=2 (far), so the question at t=8 gets the proximity answer.
     s["roaming_keys"] = [fob_lost(0.0), say(8.0, "Where are my keys?")] + keys_far_to_near(2.0, 20.0)
 
+    # The user says where the keys went, asks for them, moves them, then asks where they were before.
+    s["put_in_place"] = [
+        say(2.0, "I put my keys in the drawer."),
+        say(8.0, "Where are my keys?"),
+        say(14.0, "I put my keys in the bag."),
+        say(20.0, "Where did I put my keys before?"),
+    ]
+
     s["label_new_item"] = spot_reads(15, [(3.0, 1, "unknown")]) + [
         say(7.0, "This is honey."),
     ]

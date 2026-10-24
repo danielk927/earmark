@@ -113,6 +113,7 @@ export const EVENT_KINDS = [
   "pickup_result",
   "unknown_tag",
   "label",
+  "stored",
   "chirp",
   "trial_start",
   "trial_end",

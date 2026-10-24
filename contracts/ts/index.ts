@@ -32,6 +32,7 @@ export type BusMessage =
   | ObjectState
   | UnknownTag
   | Label
+  | PlaceItem
   | MicAudio
   | Transcript
   | SttMode
@@ -358,6 +359,21 @@ export interface Label {
    * Spot the tag is on; becomes home_spot for a new object.
    */
   spot?: number | null;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Concierge -> hub. The user said where they put an item ("I put my keys in the drawer"). `area` is an id from space.areas. The hub records the item at that area and logs a `stored` event.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "PlaceItem".
+ */
+export interface PlaceItem {
+  type: "place_item";
+  object_id: string;
+  area: string;
   /**
    * Unix seconds.
    */
@@ -694,7 +710,16 @@ export interface HubEvent {
    */
   event_id: string;
   kind:
-    "placed" | "removed" | "pickup" | "pickup_result" | "unknown_tag" | "label" | "chirp" | "trial_start" | "trial_end";
+    | "placed"
+    | "removed"
+    | "pickup"
+    | "pickup_result"
+    | "unknown_tag"
+    | "label"
+    | "stored"
+    | "chirp"
+    | "trial_start"
+    | "trial_end";
   object_id: string | null;
   t: number;
   data: {};

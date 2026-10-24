@@ -94,6 +94,8 @@ describe("Timeline", () => {
     expect(items[0]).toHaveTextContent("Salt picked up from the center left spot.");
     const yesterday = screen.getByRole("heading", { name: "Yesterday, Thursday, October 22" }).closest("section")!;
     expect(yesterday).toHaveTextContent("Blood pressure pills picked up from the far right spot.");
+    expect(today).toHaveTextContent("Put in a place");
+    expect(today).toHaveTextContent("Keys put in the drawer.");
   });
 
   it("has an empty state", () => {

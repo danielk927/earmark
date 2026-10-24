@@ -197,6 +197,12 @@ class Label(_Msg):
     spot: int | None = None
 
 
+class PlaceItem(_Msg):
+    type: Literal["place_item"] = "place_item"
+    object_id: str
+    area: str = Field(min_length=1)
+
+
 class MicAudio(_Msg):
     type: Literal["mic_audio"] = "mic_audio"
     seq: int = Field(ge=0)
@@ -333,7 +339,7 @@ class Reset(_Msg):
 
 BusMessage = Annotated[
     Union[
-        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, MicAudio,
+        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, PlaceItem, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
     ],
@@ -366,7 +372,7 @@ def dump(model: BaseModel) -> str:
 
 class HubEvent(_Model):
     event_id: str = Field(min_length=8)
-    kind: Literal["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "chirp", "trial_start", "trial_end"]
+    kind: Literal["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "stored", "chirp", "trial_start", "trial_end"]
     object_id: str | None
     t: float
     data: dict[str, Any]

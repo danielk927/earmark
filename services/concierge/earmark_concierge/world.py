@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from earmark_contracts import (
 
 log = logging.getLogger(__name__)
 DEFAULT_TZ = "America/Los_Angeles"
+MAX_HISTORY = 10
 
 
 @dataclass
@@ -54,6 +56,7 @@ class World:
         self.objects: dict[str, RegistryObject] = {}
         self.states: dict[str, ObjectState] = {}
         self.sightings: dict[str, Sighting] = {}
+        self.history: dict[str, list[Sighting]] = {}  # every place an object was noted, oldest first
         self.pickups: dict[str, LastPickup] = {}
         self.unknown_tag: UnknownTag | None = None
         self.registry_version: float | None = None
@@ -67,6 +70,7 @@ class World:
         self.set_objects(msg.objects)
         self.registry_version = msg.registry_version
         self.states = {}
+        self.history = {}
         for st in msg.states:
             self.apply_state(st)
 
@@ -77,11 +81,19 @@ class World:
         self.states[st.object_id] = st
         loc = st.location
         if loc.spot is not None or loc.area is not None or loc.near is not None:
-            self.sightings[st.object_id] = Sighting(
+            sighting = Sighting(
                 spot=loc.spot, area=loc.area, near=loc.near,
                 position=list(loc.position) if loc.position else None,
                 t=st.last_seen_t if st.last_seen_t is not None else st.t,
             )
+            self.sightings[st.object_id] = sighting
+            trail = self.history.setdefault(st.object_id, [])
+            def place_of(s: Sighting) -> tuple:
+                return (s.spot, s.area, s.near)
+
+            if not trail or place_of(trail[-1]) != place_of(sighting):
+                trail.append(sighting)
+                del trail[:-MAX_HISTORY]
 
     def apply_pickup(self, msg: Pickup) -> None:
         self.pickups[msg.object_id] = LastPickup(from_spot=msg.from_spot, t=msg.t)
@@ -119,6 +131,21 @@ class World:
                 if a.area == area:
                     return a.label or "the " + a.area.replace("_", " ")
         return "the " + area.replace("_", " ")
+
+    def area_ids(self) -> list[str]:
+        return [a.area for a in self.space.areas] if self.space else []
+
+    def resolve_area(self, text: str) -> str | None:
+        """'the drawer' -> 'drawer'. Matches a saved place's id or label, ignoring 'the'/'my'."""
+        def norm(s: str) -> str:
+            return re.sub(r"^(?:the|my|a|an)\s+", "", " ".join(s.lower().replace("_", " ").split()))
+        wanted = norm(text)
+        if not wanted or self.space is None:
+            return None
+        for a in self.space.areas:
+            if wanted in (norm(a.area), norm(a.label or "")):
+                return a.area
+        return None
 
     def receiver_label(self, receiver: str) -> str:
         if self.space:

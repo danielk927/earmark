@@ -60,7 +60,16 @@ class Removed:
     t: float
 
 
-Output = Union[ObjectState, Pickup, UnknownTag, Placed, Removed]
+@dataclass(frozen=True)
+class Stored:
+    """The user said where they put an item (Convex hub_event `stored`; not a bus message)."""
+
+    object_id: str
+    area: str
+    t: float
+
+
+Output = Union[ObjectState, Pickup, UnknownTag, Placed, Removed, Stored]
 
 
 @dataclass
@@ -124,6 +133,20 @@ class StateEngine:
             self._lost(ev, out)
         else:
             self._free(ev, where, out)
+        self._sync(out)
+        return out
+
+    def place_in_area(self, object_id: str, area: str, t: float) -> list[Output]:
+        """The user's word that an item is at a named place; overrides what the readers last saw."""
+        pos = self.space.area_position(area)
+        if object_id not in self._registry or pos is None:
+            return []
+        self._now = max(self._now, t)
+        b = self._beliefs[object_id]
+        b.clear_location()
+        b.status, b.area, b.position, b.precision = "roaming", area, pos, "area"
+        b.last_seen_t, b.source = self._now, "none"
+        out: list[Output] = [Stored(object_id, area, self._now)]
         self._sync(out)
         return out
 
