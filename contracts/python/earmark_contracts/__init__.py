@@ -13,14 +13,14 @@ import json
 import time
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 Vec3 = Annotated[list[float], Field(min_length=3, max_length=3)]
 Source = Literal["simulator", "nfc", "ble", "camera", "ultrasonic"]
 Precision = Literal["exact", "area", "proximity", "none"]
 DistanceClass = Literal["near", "mid", "far"]
 Status = Literal["on_spot", "held", "missing", "roaming"]
-Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent"]
+Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent", "locator"]
 
 
 class _Model(BaseModel):
@@ -166,6 +166,7 @@ class Hello(_Msg):
     type: Literal["hello"] = "hello"
     component: Component
     subscribe: list[str] | None = None
+    token: str | None = None  # sent by the locator; accepted and ignored
 
 
 class Snapshot(_Msg):
@@ -200,7 +201,27 @@ class Label(_Msg):
 class PlaceItem(_Msg):
     type: Literal["place_item"] = "place_item"
     object_id: str
-    area: str = Field(min_length=1)
+    area: str | None = Field(default=None, min_length=1)
+    position: Vec3 | None = None
+
+    @model_validator(mode="after")
+    def _where(self) -> "PlaceItem":
+        if self.area is None and self.position is None:
+            raise ValueError("place_item needs an area or a position")
+        return self
+
+
+class ListenerPose(_Msg):
+    type: Literal["listener_pose"] = "listener_pose"
+    position: Vec3
+    quality: Literal["ok", "degraded", "lost"]
+    beacons_heard: int = Field(ge=0, le=5)
+    source: Literal["beacons", "steps", "sim", "manual"]
+
+
+class Ptt(_Msg):
+    type: Literal["ptt"] = "ptt"
+    state: Literal["start", "stop"]
 
 
 class MicAudio(_Msg):
@@ -339,7 +360,7 @@ class Reset(_Msg):
 
 BusMessage = Annotated[
     Union[
-        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, PlaceItem, MicAudio,
+        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, PlaceItem, ListenerPose, Ptt, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
     ],

@@ -34,6 +34,8 @@ export type BusMessage =
   | Label
   | PlaceItem
   | MicAudio
+  | ListenerPose
+  | Ptt
   | Transcript
   | SttMode
   | TrialStart
@@ -51,6 +53,25 @@ export type BusMessage =
   | HeadPose
   | Status
   | Reset;
+/**
+ * Concierge -> hub. The user said where they put an item. Either `area` (an id from space.areas: "I put my keys in the drawer") or `position` (room frame, from the locator: "I'm leaving my keys here"). The hub records the item there and logs a `stored` event.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "PlaceItem".
+ */
+export type PlaceItem = PlaceItem1 & {
+  type: "place_item";
+  object_id: string;
+  area?: string;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+  position?: Vec32;
+};
+export type PlaceItem1 = {
+  [k: string]: unknown | undefined;
+};
 /**
  * @minItems 3
  * @maxItems 3
@@ -286,7 +307,8 @@ export interface Phrases {
  */
 export interface Hello {
   type: "hello";
-  component: "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent";
+  component:
+    "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent" | "locator";
   /**
    * Message types to receive, or ["*"] for all including audio.
    */
@@ -294,7 +316,11 @@ export interface Hello {
   /**
    * Unix seconds.
    */
-  t: number;
+  t?: number;
+  /**
+   * Optional shared token sent by the locator; the local hub accepts and ignores it.
+   */
+  token?: string;
 }
 /**
  * Hub -> one client, in reply to hello and after reset. Everything a client needs to render and reason.
@@ -365,21 +391,6 @@ export interface Label {
   t: number;
 }
 /**
- * Concierge -> hub. The user said where they put an item ("I put my keys in the drawer"). `area` is an id from space.areas. The hub records the item at that area and logs a `stored` event.
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "PlaceItem".
- */
-export interface PlaceItem {
-  type: "place_item";
-  object_id: string;
-  area: string;
-  /**
-   * Unix seconds.
-   */
-  t: number;
-}
-/**
  * Mac app -> concierge. Streamed microphone audio for Cartesia STT.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
@@ -394,7 +405,38 @@ export interface MicAudio {
   /**
    * Unix seconds.
    */
+  t?: number;
+}
+/**
+ * Locator -> bus. The user's ear position from the beacons, room frame (origin under the mat center), about 3 per second. quality `lost` repeats the last position once after 1.5 s without a fix.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "ListenerPose".
+ */
+export interface ListenerPose {
+  type: "listener_pose";
+  position: Vec32;
+  quality: "ok" | "degraded" | "lost";
+  beacons_heard: number;
+  source: "beacons" | "steps" | "sim" | "manual";
+  /**
+   * Unix seconds.
+   */
   t: number;
+}
+/**
+ * Push-to-talk start/stop. The Mac app (or the stem button) publishes it; the locator streams phone mic audio while it is on.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "Ptt".
+ */
+export interface Ptt {
+  type: "ptt";
+  state: "start" | "stop";
+  /**
+   * Unix seconds.
+   */
+  t?: number;
 }
 /**
  * Concierge -> bus (from Cartesia STT), or Mac app -> concierge (Apple Speech fallback), or CLI (typed).
@@ -664,7 +706,8 @@ export interface HeadPose {
  */
 export interface Status {
   type: "status";
-  component: "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent";
+  component:
+    "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent" | "locator";
   ok: boolean;
   detail: string;
   info?: {
@@ -673,7 +716,7 @@ export interface Status {
   /**
    * Unix seconds.
    */
-  t: number;
+  t?: number;
 }
 /**
  * Any -> bus. Return every component to the demo starting state (stop guidance and chirps, clear held state, hub re-reads seed/cache and re-sends snapshot).

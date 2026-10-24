@@ -32,6 +32,12 @@
       "$ref": "#/$defs/mic_audio"
     },
     {
+      "$ref": "#/$defs/listener_pose"
+    },
+    {
+      "$ref": "#/$defs/ptt"
+    },
+    {
       "$ref": "#/$defs/transcript"
     },
     {
@@ -105,7 +111,8 @@
         "trial_cli",
         "dashboard",
         "cli",
-        "memory_agent"
+        "memory_agent",
+        "locator"
       ]
     },
     "hello": {
@@ -114,8 +121,7 @@
       "additionalProperties": false,
       "required": [
         "type",
-        "component",
-        "t"
+        "component"
       ],
       "properties": {
         "type": {
@@ -132,7 +138,12 @@
           "description": "Message types to receive, or [\"*\"] for all including audio."
         },
         "t": {
-          "$ref": "#/$defs/t"
+          "type": "number",
+          "description": "Unix seconds."
+        },
+        "token": {
+          "type": "string",
+          "description": "Optional shared token sent by the locator; the local hub accepts and ignores it."
         }
       }
     },
@@ -290,8 +301,7 @@
         "seq",
         "sample_rate",
         "encoding",
-        "chunk_b64",
-        "t"
+        "chunk_b64"
       ],
       "properties": {
         "type": {
@@ -322,7 +332,8 @@
           "contentEncoding": "base64"
         },
         "t": {
-          "$ref": "#/$defs/t"
+          "type": "number",
+          "description": "Unix seconds."
         }
       }
     },
@@ -852,8 +863,7 @@
         "type",
         "component",
         "ok",
-        "detail",
-        "t"
+        "detail"
       ],
       "properties": {
         "type": {
@@ -880,7 +890,8 @@
           }
         },
         "t": {
-          "$ref": "#/$defs/t"
+          "type": "number",
+          "description": "Unix seconds."
         }
       }
     },
@@ -902,13 +913,12 @@
       }
     },
     "place_item": {
-      "description": "Concierge -> hub. The user said where they put an item (\"I put my keys in the drawer\"). `area` is an id from space.areas. The hub records the item at that area and logs a `stored` event.",
+      "description": "Concierge -> hub. The user said where they put an item. Either `area` (an id from space.areas: \"I put my keys in the drawer\") or `position` (room frame, from the locator: \"I'm leaving my keys here\"). The hub records the item there and logs a `stored` event.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "type",
         "object_id",
-        "area",
         "t"
       ],
       "properties": {
@@ -921,6 +931,88 @@
         "area": {
           "type": "string",
           "minLength": 1
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "area"
+          ]
+        },
+        {
+          "required": [
+            "position"
+          ]
+        }
+      ]
+    },
+    "listener_pose": {
+      "description": "Locator -> bus. The user's ear position from the beacons, room frame (origin under the mat center), about 3 per second. quality `lost` repeats the last position once after 1.5 s without a fix.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "position",
+        "quality",
+        "beacons_heard",
+        "source",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "listener_pose"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "quality": {
+          "enum": [
+            "ok",
+            "degraded",
+            "lost"
+          ]
+        },
+        "beacons_heard": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "source": {
+          "enum": [
+            "beacons",
+            "steps",
+            "sim",
+            "manual"
+          ]
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "ptt": {
+      "description": "Push-to-talk start/stop. The Mac app (or the stem button) publishes it; the locator streams phone mic audio while it is on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "state"
+      ],
+      "properties": {
+        "type": {
+          "const": "ptt"
+        },
+        "state": {
+          "enum": [
+            "start",
+            "stop"
+          ]
         },
         "t": {
           "$ref": "#/$defs/t"
