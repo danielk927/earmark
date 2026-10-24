@@ -3,8 +3,23 @@
   "private": true,
   "type": "module",
   "description": "Earmark Convex backend (convex/) lives at the repo root; the dashboard has its own package in dashboard/.",
-  "scripts": {},
+  "scripts": {
+    "dev": "convex dev",
+    "dev:local": "CONVEX_AGENT_MODE=anonymous convex dev",
+    "push": "convex dev --once",
+    "seed": "node convex/scripts/seed.node.mjs seed",
+    "reset": "node convex/scripts/seed.node.mjs reset",
+    "test": "vitest run",
+    "typecheck": "tsc -p convex --noEmit"
+  },
   "dependencies": {
     "convex": "^1.48.0"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
+    "ajv": "^8.20.0",
+    "convex-test": "^0.0.65",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
   }
 }
