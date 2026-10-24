@@ -1,0 +1,68 @@
+/*
+ * Earmark design tokens. Every color is light-dark(light, dark); the theme is chosen by
+ * color-scheme on <html> (system by default, or data-theme="light" / "dark").
+ * test/tokens.test.ts parses this file and checks the contrast pairs listed there.
+ */
+:root {
+  color-scheme: light dark;
+
+  /* Surfaces */
+  --paper: light-dark(#f2f5f4, #0f1a1d);
+  --surface: light-dark(#ffffff, #162427);
+  --field: light-dark(#e4ebe9, #1a2b2f);
+  --ripple: light-dark(#c3d0cd, #2c4146);
+
+  /* Text */
+  --ink: light-dark(#132428, #e8f0ee);
+  --ink-soft: light-dark(#3c4e52, #b4c3c1);
+
+  /* Lines: --line is for control borders and map strokes (3:1 or more); --rule is decorative. */
+  --line: light-dark(#6a7d80, #6f8488);
+  --rule: light-dark(#d3dcda, #2a3b40);
+
+  /* Accent: damson plum. Links, primary actions, focus, current page. */
+  --accent: light-dark(#6a2a70, #e7bdeb);
+  --accent-ink: light-dark(#ffffff, #2a0e2e);
+  --accent-wash: light-dark(#f1e6f2, #2e1d33);
+
+  /* Status. Always paired with an icon shape and a text label. */
+  --ok: light-dark(#17592f, #8bdba5);
+  --ok-wash: light-dark(#e1f0e5, #16342a);
+  --warn: light-dark(#6b4200, #f2c46b);
+  --warn-wash: light-dark(#f7ebd6, #3a2e14);
+  --bad: light-dark(#8e1f20, #ffa39c);
+  --bad-wash: light-dark(#f8e3e1, #3d1c1c);
+  --idle: light-dark(#3f4d52, #b9c6c8);
+
+  --focus: var(--accent);
+
+  /* Type */
+  --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+  --step--1: 1rem;
+  --step-0: 1.125rem;
+  --step-1: 1.375rem;
+  --step-2: 1.75rem;
+  --step-3: clamp(2.125rem, 1.6rem + 2vw, 2.75rem);
+
+  /* Space */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+
+  --radius-control: 0.5rem;
+  --radius-panel: 0.875rem;
+  --radius-field: 1.25rem;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Earmark caregiver dashboard: where household items are, medication pickups, and trial results." />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Earmark</title>
+    <script>
+      // Apply a saved theme before first paint so there is no flash of the other theme.
+      try {
+        var t = localStorage.getItem("earmark.theme");
+        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Earmark's dashboard needs JavaScript to show live data.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
