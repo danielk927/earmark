@@ -19,7 +19,7 @@ private func allTypes() throws -> [String] {
 
 @Test func everyBusExampleDecodesWithItsType() throws {
     let types = try allTypes()
-    #expect(types.count >= 25)
+    #expect(types.count >= 23)
     for type in types {
         for data in try examples(type) {
             let msg = try BusCoding.decode(data)

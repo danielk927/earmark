@@ -67,6 +67,17 @@
     "spots": [
       {
         "spot": 1,
+        "label": "the cupboard, top shelf",
+        "container": "cupboard",
+        "detail": "Top shelf, front left.",
+        "position": [
+          -0.08,
+          1.5,
+          1.0
+        ]
+      },
+      {
+        "spot": 2,
         "label": "the drawer",
         "container": "drawer",
         "detail": "In the drawer, at the front.",
@@ -77,25 +88,14 @@
         ]
       },
       {
-        "spot": 2,
-        "label": "the cupboard, top shelf, left",
-        "container": "cupboard",
-        "detail": "Top shelf, front left.",
-        "position": [
-          -0.08,
-          1.5,
-          1.0
-        ]
-      },
-      {
         "spot": 3,
-        "label": "the cupboard, top shelf, right",
-        "container": "cupboard",
-        "detail": "Top shelf, front right.",
+        "label": "the bag",
+        "container": "bag",
+        "detail": "In the bag, in the front pocket.",
         "position": [
-          0.08,
-          1.5,
-          1.0
+          -1.5,
+          0.0,
+          0.5
         ]
       },
       {
@@ -108,52 +108,10 @@
           -1.5,
           0.8
         ]
-      },
-      {
-        "spot": 5,
-        "label": "the bag",
-        "container": "bag",
-        "detail": "In the bag, in the front pocket.",
-        "position": [
-          -1.5,
-          0.0,
-          0.5
-        ]
-      },
-      {
-        "spot": 6,
-        "label": "the setup spot",
-        "container": null,
-        "detail": "On the setup pad next to the laptop.",
-        "position": [
-          0.6,
-          -0.6,
-          0.8
-        ]
       }
     ],
-    "areas": [
-      {
-        "area": "cupboard",
-        "label": "the cupboard",
-        "position": [
-          0.0,
-          1.5,
-          1.0
-        ]
-      }
-    ],
-    "receivers": [
-      {
-        "receiver": "hub",
-        "label": "the laptop",
-        "position": [
-          0.6,
-          -0.6,
-          0.8
-        ]
-      }
-    ],
+    "areas": [],
+    "receivers": [],
     "beacons": [
       {
         "beacon": "B1",
@@ -204,20 +162,6 @@
   },
   "objects": [
     {
-      "object_id": "salt",
-      "name": "salt",
-      "aliases": [
-        "table salt",
-        "sea salt"
-      ],
-      "notes": "For cooking and for eggs. Kept in the cupboard.",
-      "description": "Small glass jar with a white lid, identical to the sugar jar.",
-      "tag": "04A1B2C3D4E501",
-      "home_spot": 2,
-      "is_medication": false,
-      "fob_id": null
-    },
-    {
       "object_id": "sugar",
       "name": "sugar",
       "aliases": [
@@ -225,23 +169,40 @@
         "sweetener"
       ],
       "notes": "For coffee and tea. Kept in the cupboard.",
-      "description": "Small glass jar with a white lid, identical to the salt jar.",
-      "tag": "04A1B2C3D4E502",
-      "home_spot": 3,
+      "description": "Small glass jar with a white lid.",
+      "tag": null,
+      "home_spot": 1,
       "is_medication": false,
       "fob_id": null
     },
     {
-      "object_id": "pepper",
-      "name": "pepper",
+      "object_id": "keys",
+      "name": "keys",
       "aliases": [
-        "black pepper",
-        "pepper grinder"
+        "house keys",
+        "car keys",
+        "key ring"
       ],
-      "notes": "For eggs and soup. Usually kept in the pantry.",
-      "description": "Tall wooden pepper grinder.",
-      "tag": "04A1B2C3D4E503",
-      "home_spot": null,
+      "notes": "Usually in the drawer.",
+      "description": "Key ring with three keys.",
+      "tag": null,
+      "home_spot": 2,
+      "is_medication": false,
+      "fob_id": null
+    },
+    {
+      "object_id": "spice_jar",
+      "name": "spice jar",
+      "aliases": [
+        "spices",
+        "pepper",
+        "black pepper",
+        "seasoning"
+      ],
+      "notes": "Black pepper, for eggs and soup. Kept in the bag.",
+      "description": "Small spice jar with a grinder top.",
+      "tag": null,
+      "home_spot": 3,
       "is_medication": false,
       "fob_id": null
     },
@@ -258,38 +219,9 @@
       ],
       "notes": "Taken at 8 in the morning and 8 in the evening. Kept in the box.",
       "description": "White plastic pill bottle with a child-proof cap.",
-      "tag": "04A1B2C3D4E504",
+      "tag": null,
       "home_spot": 4,
       "is_medication": true,
-      "fob_id": null
-    },
-    {
-      "object_id": "keys",
-      "name": "keys",
-      "aliases": [
-        "house keys",
-        "car keys",
-        "key ring"
-      ],
-      "notes": "Usually in the drawer. Its NFC tag is on the key ring.",
-      "description": "Key ring with a small round NFC tag.",
-      "tag": "04A1B2C3D4E505",
-      "home_spot": 1,
-      "is_medication": false,
-      "fob_id": "fob_keys"
-    },
-    {
-      "object_id": "wallet",
-      "name": "wallet",
-      "aliases": [
-        "purse",
-        "billfold"
-      ],
-      "notes": "Usually in the bag.",
-      "description": "Brown leather wallet.",
-      "tag": "04A1B2C3D4E506",
-      "home_spot": 5,
-      "is_medication": false,
       "fob_id": null
     }
   ],
@@ -298,40 +230,33 @@
       "type": "state_update",
       "object_id": "sugar",
       "location": {
-        "spot": 3,
+        "spot": 1,
         "position": [
-          0.16,
-          0.58,
-          0.0
+          -0.08,
+          1.5,
+          1.0
         ]
       },
       "precision": "exact",
       "status": "on_spot",
-      "home_spot": 3,
-      "last_seen_t": 1761350400.12,
-      "source": "nfc",
-      "t": 1761350400.1299999
+      "home_spot": 1,
+      "last_seen_t": 1792856400.25,
+      "source": "saved",
+      "t": 1792856400.25
     },
     {
       "type": "state_update",
-      "object_id": "keys",
+      "object_id": "spice_jar",
       "location": {
         "spot": null,
-        "position": [
-          0,
-          0.6,
-          0
-        ],
-        "area": null,
-        "near": "hub",
-        "distance_class": "mid"
+        "position": null
       },
-      "precision": "proximity",
-      "status": "roaming",
+      "precision": "none",
+      "status": "missing",
       "home_spot": null,
-      "last_seen_t": 1761350400.12,
-      "source": "ble",
-      "t": 1761350400.12
+      "last_seen_t": null,
+      "source": "none",
+      "t": 1792856400.25
     }
   ],
   "registry_version": 1761350000000,

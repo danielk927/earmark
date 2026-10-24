@@ -1,21 +1,14 @@
 {
   "type": "state_update",
-  "object_id": "keys",
+  "object_id": "spice_jar",
   "location": {
     "spot": null,
-    "position": [
-      0,
-      0.6,
-      0
-    ],
-    "area": null,
-    "near": "hub",
-    "distance_class": "mid"
+    "position": null
   },
-  "precision": "proximity",
-  "status": "roaming",
+  "precision": "none",
+  "status": "missing",
   "home_spot": null,
-  "last_seen_t": 1761350400.12,
-  "source": "ble",
-  "t": 1761350400.12
+  "last_seen_t": null,
+  "source": "none",
+  "t": 1792856400.25
 }

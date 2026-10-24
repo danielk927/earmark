@@ -1,11 +1,11 @@
 {
   "event_id": "e-11111111",
-  "kind": "removed",
-  "object_id": "sugar",
-  "t": 1761350400.12,
+  "kind": "arrived",
+  "object_id": "bp_meds",
+  "t": 1792856400.25,
   "data": {
-    "spot": 3,
-    "tag": "04A1B2C3D4E502",
-    "source": "nfc"
+    "type": "arrived",
+    "object_id": "bp_meds",
+    "t": 1792856400.25
   }
 }

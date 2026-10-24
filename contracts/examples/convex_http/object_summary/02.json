@@ -1,26 +1,24 @@
 {
-  "object_id": "keys",
-  "name": "keys",
-  "aliases": [
-    "house keys"
-  ],
+  "object_id": "bp_meds",
+  "name": "blood pressure pills",
+  "aliases": [],
   "notes": "",
-  "description": "Key ring with a fob.",
-  "home_spot": null,
-  "home_spot_label": null,
-  "is_medication": false,
-  "fob_id": "fob_keys",
+  "description": "",
+  "home_spot": 4,
+  "home_spot_label": "the box",
+  "is_medication": true,
+  "fob_id": null,
   "state": {
-    "status": "roaming",
-    "spot": null,
-    "spot_label": null,
+    "status": "on_spot",
+    "spot": 4,
+    "spot_label": "the box",
     "area": null,
-    "near": "hub",
-    "distance_class": "near",
-    "precision": "proximity",
-    "last_seen_t": 1761350400.12,
-    "last_seen_local": "2025-10-24T17:00:00.120-07:00"
+    "near": null,
+    "distance_class": null,
+    "precision": "exact",
+    "last_seen_t": 1792856400.25,
+    "last_seen_local": "2026-10-24T17:00:00.250-07:00"
   },
-  "last_touched_t": null,
-  "last_touched_local": null
+  "last_touched_t": 1792852800.25,
+  "last_touched_local": "2026-10-24T16:00:00.250-07:00"
 }

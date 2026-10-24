@@ -2,17 +2,17 @@
   "type": "state_update",
   "object_id": "sugar",
   "location": {
-    "spot": 3,
+    "spot": 1,
     "position": [
-      0.16,
-      0.58,
-      0.0
+      -0.08,
+      1.5,
+      1.0
     ]
   },
   "precision": "exact",
   "status": "on_spot",
-  "home_spot": 3,
-  "last_seen_t": 1761350400.12,
-  "source": "nfc",
-  "t": 1761350400.1299999
+  "home_spot": 1,
+  "last_seen_t": 1792856400.25,
+  "source": "saved",
+  "t": 1792856400.25
 }

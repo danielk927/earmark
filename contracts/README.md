@@ -7,7 +7,6 @@ If a component needs a change, it proposes one to the orchestrator; it never edi
 ## Layout
 
 - `schemas/` - JSON Schema (draft 2020-12), the source of truth.
-  - `detection_event.schema.json` - adapter to hub.
   - `object_state.schema.json` - hub to bus and Convex (`type: "state_update"`).
   - `bus_message.schema.json` - every message on the local bus `ws://127.0.0.1:8765`, discriminated by `type`.
   - `space.schema.json` - `config/space.json`.
@@ -49,24 +48,25 @@ Run all contract tests with `make contracts-test`.
 - The hub forwards each message to every other client whose `subscribe` list includes its type.
   Without `subscribe`, a client receives everything except `mic_audio` and `speak`; `["*"]` means everything.
 - The hub validates every inbound message against the schema and drops invalid ones with a logged `status` error.
-- `detection` messages from bus clients (e.g. the simulator) are fed into the hub's state engine exactly like in-process adapter events.
+- `save_spot` from the locator updates an item's saved spot; the hub then re-sends a `snapshot` to every client.
 
-## Spot reader semantics
+## Item locations (design v7)
 
-- Readers report by polling: `kind: "seen"` with the tag on the spot, or `kind: "removed"` with `tag: "EMPTY"` when the spot is empty.
-- The hub's debounce turns that into placements (2 consecutive matching reads) and removals (about 1.5 s of continuous absence).
-- `kind: "placed"` is for adapters that debounce themselves (e.g. a future camera adapter).
-- `status: "roaming"` means tracked by any non-spot method (BLE proximity today, camera position or area later).
-- A `pickup` is emitted when removal is confirmed, about 1.5 s after the lift; trial times include that same debounce in both modes, so Earmark-vs-baseline comparisons stay fair.
+- There is no detection hardware: no NFC, no Bluetooth tags, no cameras.
+- Each item's location is a **saved spot**: during setup the locator sends `save_spot {object_id, position}` while the phone is held at the spot.
+  The hub stores it in `config/space.json` (and the object's `home_spot`), syncs it to Convex (`POST /api/spot`), and re-sends a `snapshot` to every client.
+- `state_update` reports `on_spot` (with the saved position) or `missing` (no saved spot yet).
+- `status: "roaming"` and `kind`-style detection events no longer exist.
 
 ## Medication adherence (deterministic, implemented and unit-tested in Convex)
 
-For each scheduled time S (household-local) and window W minutes, using pickups of the medication object:
-- `taken`: a pickup with |pickup - S| <= W.
-- `late`: no `taken` pickup, but a pickup with W < pickup - S <= 2W.
+Evidence is **arrival** at the medication's spot (the user asked for the pills, was guided, and found them), not proof that a dose was taken; every answer says "found", never "took".
+For each scheduled time S (household-local) and window W minutes, using `arrived` events for the medication object:
+- `found`: an arrival with |arrival - S| <= W.
+- `late`: no `found` arrival, but one with W < arrival - S <= 2W.
 - `missed`: neither, and now > S + 2W.
 - `pending`: neither, and now <= S + 2W.
-Each pickup is evidence for at most one dose (the nearest scheduled time).
+Each arrival is evidence for at most one dose (the nearest scheduled time).
 
 ## Walking guidance (Amendment 01, implemented in the Mac app)
 
@@ -74,7 +74,8 @@ Each pickup is evidence for at most one dose (the nearest scheduled time).
 - Inverse distance attenuation with reference distance 0.5 m and maximum 6 m.
 - Locked tone when the azimuth error stays under about 10 deg for 300 ms; behind sound when it exceeds 100 deg.
 - Height cue: a higher-pitched ping when the target is 0.3 m or more above the ears, lower when it is 0.6 m or more below.
-- `arrived` when the horizontal distance to the target drops below 0.45 m; the concierge then speaks the spot's `detail`.
+- The ping is a short click (easier to localize than a beep).
+- `arrived` when the horizontal distance to the target drops below 0.45 m: the Mac app stops the ping and plays a short "you're here" tone; the concierge speaks the spot's `detail` and sends `guide_stop` (reason `arrived`).
 
 ## Changing a contract
 

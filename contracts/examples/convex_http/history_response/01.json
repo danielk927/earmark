@@ -1,16 +1,25 @@
 {
-  "object_id": "sugar",
-  "name": "sugar",
-  "since_t": 1760745600.12,
+  "object_id": "bp_meds",
+  "name": "blood pressure pills",
+  "since_t": 1792251600.25,
   "events": [
     {
+      "event_id": "e-6f1c2a9b",
+      "kind": "arrived",
+      "t": 1792856400.25,
+      "at_local": "2026-10-24T17:00:00.250-07:00",
+      "spot": 4,
+      "spot_label": "the box",
+      "detail": "Found in the box, after being guided there."
+    },
+    {
       "event_id": "e-6f1c2a9c",
-      "kind": "placed",
-      "t": 1761350430.12,
-      "at_local": "2025-10-24T17:00:30.120-07:00",
-      "spot": 1,
-      "spot_label": "far left",
-      "detail": "Put down on the far left spot."
+      "kind": "guide_start",
+      "t": 1792856391.25,
+      "at_local": "2026-10-24T16:59:51.250-07:00",
+      "spot": 4,
+      "spot_label": "the box",
+      "detail": "Asked for the blood pressure pills."
     }
   ]
 }

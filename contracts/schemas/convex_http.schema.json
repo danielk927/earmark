@@ -63,7 +63,7 @@
       }
     },
     "hub_event": {
-      "description": "Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}.",
+      "description": "Append-only event. `data` holds the originating bus message.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -81,13 +81,10 @@
         },
         "kind": {
           "enum": [
-            "placed",
-            "removed",
-            "pickup",
-            "pickup_result",
-            "unknown_tag",
-            "label",
-            "chirp",
+            "guide_start",
+            "arrived",
+            "guide_stop",
+            "save_spot",
             "trial_start",
             "trial_end"
           ]
@@ -103,57 +100,6 @@
         },
         "data": {
           "type": "object"
-        }
-      }
-    },
-    "label_request": {
-      "description": "POST /api/label (hub). Create an object for `tag`, or rename the object that already has it.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "tag",
-        "name",
-        "aliases"
-      ],
-      "properties": {
-        "tag": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "aliases": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "spot": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      }
-    },
-    "label_response": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "ok",
-        "object_id",
-        "created"
-      ],
-      "properties": {
-        "ok": {
-          "type": "boolean"
-        },
-        "object_id": {
-          "type": "string"
-        },
-        "created": {
-          "type": "boolean"
         }
       }
     },
@@ -237,9 +183,7 @@
                 "status": {
                   "enum": [
                     "on_spot",
-                    "held",
-                    "missing",
-                    "roaming"
+                    "missing"
                   ]
                 },
                 "spot": {
@@ -303,7 +247,7 @@
             "number",
             "null"
           ],
-          "description": "Last pickup or placement."
+          "description": "Last time the user was guided to and arrived at this item."
         },
         "last_touched_local": {
           "type": [
@@ -446,8 +390,8 @@
         "scheduled_for_t",
         "scheduled_for_local",
         "status",
-        "taken_t",
-        "taken_local",
+        "found_t",
+        "found_local",
         "evidence_event_id"
       ],
       "properties": {
@@ -469,19 +413,20 @@
         },
         "status": {
           "enum": [
-            "taken",
+            "found",
             "late",
             "missed",
             "pending"
-          ]
+          ],
+          "description": "Evidence is arrival at the medication's spot (the user was guided to and found it), not proof the dose was taken."
         },
-        "taken_t": {
+        "found_t": {
           "type": [
             "number",
             "null"
           ]
         },
-        "taken_local": {
+        "found_local": {
           "type": [
             "string",
             "null"
@@ -533,7 +478,7 @@
         "timezone",
         "generated_t",
         "doses",
-        "pickup_count",
+        "find_count",
         "untouched_7d",
         "missing",
         "text"
@@ -555,15 +500,16 @@
             "$ref": "#/$defs/dose"
           }
         },
-        "pickup_count": {
-          "type": "integer"
+        "find_count": {
+          "type": "integer",
+          "description": "Guided finds (arrivals) on `date`."
         },
         "untouched_7d": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "object_ids with no pickup/placement in the 7 days before end of `date`."
+          "description": "object_ids not found (no arrival) in the 7 days before end of `date`."
         },
         "missing": {
           "type": "array",
@@ -610,6 +556,49 @@
           }
         }
       ]
+    },
+    "spot_request": {
+      "description": "POST /api/spot (hub): set an object's saved spot.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "object_id",
+        "position"
+      ],
+      "properties": {
+        "object_id": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "bus_message.schema.json#/$defs/vec3"
+        },
+        "label": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        }
+      }
+    },
+    "spot_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok",
+        "object_id",
+        "spot"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "object_id": {
+          "type": "string"
+        },
+        "spot": {
+          "type": "integer"
+        }
+      }
     }
   }
 }

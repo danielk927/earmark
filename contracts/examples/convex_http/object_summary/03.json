@@ -1,11 +1,9 @@
 {
-  "object_id": "pepper",
-  "name": "pepper",
-  "aliases": [
-    "house keys"
-  ],
+  "object_id": "spice_jar",
+  "name": "spice jar",
+  "aliases": [],
   "notes": "",
-  "description": "Key ring with a fob.",
+  "description": "",
   "home_spot": null,
   "home_spot_label": null,
   "is_medication": false,

@@ -34,7 +34,7 @@ public typealias Vec3 = [Double]
 
 public enum Precision: String, Codable, Sendable { case exact, area, proximity, none }
 public enum DistanceClass: String, Codable, Sendable { case near, mid, far }
-public enum ObjectStatus: String, Codable, Sendable { case onSpot = "on_spot", held, missing, roaming }
+public enum ObjectStatus: String, Codable, Sendable { case onSpot = "on_spot", missing }
 public enum Component: String, Codable, Sendable {
     case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent", locator
 }
@@ -186,7 +186,7 @@ public struct GuideStart: Codable, Sendable, Equatable {
 }
 
 public struct GuideStop: Codable, Sendable, Equatable {
-    public enum Reason: String, Codable, Sendable { case found, cancelled, timeout, reset }
+    public enum Reason: String, Codable, Sendable { case arrived, cancelled, timeout, reset }
     public var reason: Reason
     public var objectId: String?
     public var t: Double
@@ -346,21 +346,6 @@ public struct Ptt: Codable, Sendable, Equatable {
     public init(state: State, t: Double = BusCoding.now) { self.state = state; self.t = t }
 }
 
-// MARK: - Messages the Mac app only observes (kept for the map/debug panel)
-
-public struct Pickup: Codable, Sendable, Equatable {
-    public var objectId: String
-    public var fromSpot: Int
-    public var t: Double
-}
-
-public struct PickupResult: Codable, Sendable, Equatable {
-    public var expected: String
-    public var actual: String
-    public var correct: Bool
-    public var t: Double
-}
-
 // MARK: - Union
 
 public enum BusMessage: Sendable {
@@ -381,12 +366,10 @@ public enum BusMessage: Sendable {
     case headPose(HeadPose)
     case status(Status)
     case reset(Reset)
-    case pickup(Pickup)
-    case pickupResult(PickupResult)
     case listenerPose(ListenerPose)
     case arrived(Arrived)
     case ptt(Ptt)
-    /// A valid bus type this app does not act on (detection, chirp, trial_*, label, unknown_tag).
+    /// A valid bus type this app does not act on (trial_*, save_spot).
     case other(type: String)
 
     public var type: String {
@@ -408,8 +391,6 @@ public enum BusMessage: Sendable {
         case .headPose: "head_pose"
         case .status: "status"
         case .reset: "reset"
-        case .pickup: "pickup"
-        case .pickupResult: "pickup_result"
         case .listenerPose: "listener_pose"
         case .arrived: "arrived"
         case .ptt: "ptt"
@@ -442,8 +423,6 @@ extension BusMessage: Codable {
         case "head_pose": self = .headPose(try one.decode(HeadPose.self))
         case "status": self = .status(try one.decode(Status.self))
         case "reset": self = .reset(try one.decode(Reset.self))
-        case "pickup": self = .pickup(try one.decode(Pickup.self))
-        case "pickup_result": self = .pickupResult(try one.decode(PickupResult.self))
         case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
         case "arrived": self = .arrived(try one.decode(Arrived.self))
         case "ptt": self = .ptt(try one.decode(Ptt.self))
@@ -472,8 +451,6 @@ extension BusMessage: Codable {
         case .headPose(let m): try m.encode(to: encoder)
         case .status(let m): try m.encode(to: encoder)
         case .reset(let m): try m.encode(to: encoder)
-        case .pickup(let m): try m.encode(to: encoder)
-        case .pickupResult(let m): try m.encode(to: encoder)
         case .listenerPose(let m): try m.encode(to: encoder)
         case .arrived(let m): try m.encode(to: encoder)
         case .ptt(let m): try m.encode(to: encoder)

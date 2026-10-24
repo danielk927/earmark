@@ -61,6 +61,17 @@
   "spots": [
     {
       "spot": 1,
+      "label": "the cupboard, top shelf",
+      "container": "cupboard",
+      "detail": "Top shelf, front left.",
+      "position": [
+        -0.08,
+        1.5,
+        1.0
+      ]
+    },
+    {
+      "spot": 2,
       "label": "the drawer",
       "container": "drawer",
       "detail": "In the drawer, at the front.",
@@ -71,25 +82,14 @@
       ]
     },
     {
-      "spot": 2,
-      "label": "the cupboard, top shelf, left",
-      "container": "cupboard",
-      "detail": "Top shelf, front left.",
-      "position": [
-        -0.08,
-        1.5,
-        1.0
-      ]
-    },
-    {
       "spot": 3,
-      "label": "the cupboard, top shelf, right",
-      "container": "cupboard",
-      "detail": "Top shelf, front right.",
+      "label": "the bag",
+      "container": "bag",
+      "detail": "In the bag, in the front pocket.",
       "position": [
-        0.08,
-        1.5,
-        1.0
+        -1.5,
+        0.0,
+        0.5
       ]
     },
     {
@@ -102,52 +102,10 @@
         -1.5,
         0.8
       ]
-    },
-    {
-      "spot": 5,
-      "label": "the bag",
-      "container": "bag",
-      "detail": "In the bag, in the front pocket.",
-      "position": [
-        -1.5,
-        0.0,
-        0.5
-      ]
-    },
-    {
-      "spot": 6,
-      "label": "the setup spot",
-      "container": null,
-      "detail": "On the setup pad next to the laptop.",
-      "position": [
-        0.6,
-        -0.6,
-        0.8
-      ]
     }
   ],
-  "areas": [
-    {
-      "area": "cupboard",
-      "label": "the cupboard",
-      "position": [
-        0.0,
-        1.5,
-        1.0
-      ]
-    }
-  ],
-  "receivers": [
-    {
-      "receiver": "hub",
-      "label": "the laptop",
-      "position": [
-        0.6,
-        -0.6,
-        0.8
-      ]
-    }
-  ],
+  "areas": [],
+  "receivers": [],
   "beacons": [
     {
       "beacon": "B1",

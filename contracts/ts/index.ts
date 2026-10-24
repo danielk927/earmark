@@ -1,22 +1,12 @@
 /* Generated from contracts/schemas by contracts/ts/gen.mjs. Do not edit by hand. */
 
 /**
- * [x, y, z] meters. +x right, +y forward, +z up, origin = calibrated listening position.
- *
- * @minItems 3
- * @maxItems 3
- *
- * This interface was referenced by `DetectionEvent`'s JSON-Schema
- * via the `definition` "vec3".
- */
-export type Vec3 = [number, number, number];
-/**
  * Ear position used when no listener_pose has arrived for 5 s (the mat origin at standing ear height).
  *
  * @minItems 3
  * @maxItems 3
  */
-export type Vec31 = [number, number, number];
+export type Vec3 = [number, number, number];
 /**
  * @minItems 3
  * @maxItems 3
@@ -24,14 +14,14 @@ export type Vec31 = [number, number, number];
  * This interface was referenced by `Space`'s JSON-Schema
  * via the `definition` "vec3".
  */
-export type Vec32 = [number, number, number];
+export type Vec31 = [number, number, number];
 /**
  * Unit vector of the mat's tape arrow; always [0, 1, 0] by definition of the axes.
  *
  * @minItems 3
  * @maxItems 3
  */
-export type Vec33 = [number, number, number];
+export type Vec32 = [number, number, number];
 /**
  * Every JSON message on the local WebSocket bus ws://127.0.0.1:8765. Discriminated by `type`. All times are unix seconds (float).
  *
@@ -42,10 +32,7 @@ export type BusMessage =
   | Hello
   | Snapshot
   | RegistryUpdate
-  | DetectionEvent
   | ObjectState
-  | UnknownTag
-  | Label
   | MicAudio
   | Transcript
   | SttMode
@@ -58,84 +45,22 @@ export type BusMessage =
   | SpeakCached
   | SpeakText
   | Playback
-  | Chirp
-  | Pickup
-  | PickupResult
   | HeadPose
   | Status
   | Reset
   | ListenerPose
   | Arrived
-  | Ptt;
+  | Ptt
+  | SaveSpot;
 /**
  * @minItems 3
  * @maxItems 3
  */
-export type Vec34 = [number, number, number];
+export type Vec33 = [number, number, number];
 
 export interface EarmarkContracts {}
 /**
- * Adapter -> hub. One raw observation from any detection method. Downstream of the hub nothing may depend on `source`.
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "DetectionEvent".
- */
-export interface DetectionEvent {
-  type: "detection";
-  source: "simulator" | "nfc" | "ble" | "camera" | "ultrasonic";
-  /**
-   * NFC UID hex, BLE fob id, or any adapter-specific identity. EMPTY reads use kind=removed with the last tag seen, or tag="EMPTY".
-   */
-  tag: string;
-  kind: "seen" | "placed" | "removed" | "lost";
-  /**
-   * Null only when kind=lost.
-   */
-  where: null | WhereSpot | WherePosition | WhereArea | WhereNear;
-  precision: "exact" | "area" | "proximity" | "none";
-  /**
-   * dBm, BLE only.
-   */
-  rssi?: number | null;
-  /**
-   * Unix seconds. In scenario files: seconds relative to scenario start.
-   */
-  t: number;
-}
-/**
- * This interface was referenced by `DetectionEvent`'s JSON-Schema
- * via the `definition` "where_spot".
- */
-export interface WhereSpot {
-  spot: number;
-}
-/**
- * This interface was referenced by `DetectionEvent`'s JSON-Schema
- * via the `definition` "where_position".
- */
-export interface WherePosition {
-  position: Vec3;
-}
-/**
- * This interface was referenced by `DetectionEvent`'s JSON-Schema
- * via the `definition` "where_area".
- */
-export interface WhereArea {
-  area: string;
-}
-/**
- * This interface was referenced by `DetectionEvent`'s JSON-Schema
- * via the `definition` "where_near".
- */
-export interface WhereNear {
-  /**
-   * receiver id from space.json
-   */
-  near: string;
-  distance_class: "near" | "mid" | "far";
-}
-/**
- * Hub -> bus and Convex. Current belief about one registered object.
+ * Hub -> bus and Convex. Where an item is: its saved spot (status on_spot), or missing when it has no saved spot.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "ObjectState".
@@ -146,9 +71,9 @@ export interface ObjectState {
   location: Location;
   precision: "exact" | "area" | "proximity" | "none";
   /**
-   * on_spot: resting on a spot (home or not). held: lifted from a spot and not yet placed. missing: never seen or lost. roaming: tracked by proximity (BLE).
+   * on_spot: the item has a saved spot. missing: no saved spot yet.
    */
-  status: "on_spot" | "held" | "missing" | "roaming";
+  status: "on_spot" | "missing";
   home_spot: number | null;
   /**
    * Unix seconds of the last observation; null if never seen.
@@ -157,7 +82,7 @@ export interface ObjectState {
   /**
    * Informational only. Nothing downstream may branch on it.
    */
-  source: "simulator" | "nfc" | "ble" | "camera" | "ultrasonic" | "none";
+  source: "saved" | "none";
   /**
    * Unix seconds when this state was computed.
    */
@@ -186,11 +111,11 @@ export interface Space {
   listener: {
     label: string;
     origin_note: string;
-    fallback_position: Vec31;
+    fallback_position: Vec3;
   };
   mat: {
-    position: Vec32;
-    forward: Vec33;
+    position: Vec31;
+    forward: Vec32;
   };
   /**
    * Furniture that holds spots (cupboard, drawer, bag, box). Spoken in directions.
@@ -201,7 +126,7 @@ export interface Space {
      * Spoken name, e.g. "the cupboard".
      */
     label: string;
-    position: Vec32;
+    position: Vec31;
   }[];
   spots: {
     spot: number;
@@ -209,7 +134,7 @@ export interface Space {
      * Short spoken name, e.g. "cupboard top shelf, left".
      */
     label: string;
-    position: Vec32;
+    position: Vec31;
     /**
      * containers[].container id, or null for a free-standing spot.
      */
@@ -225,7 +150,7 @@ export interface Space {
      * Spoken name, e.g. "the counter". Defaults to area id.
      */
     label?: string;
-    position: Vec32;
+    position: Vec31;
   }[];
   /**
    * Proximity receivers (BLE scanners). An object seen `near` a receiver resolves to the receiver position with precision=proximity.
@@ -236,7 +161,7 @@ export interface Space {
      * Spoken name, e.g. "the counter".
      */
     label: string;
-    position?: null | Vec32;
+    position?: null | Vec31;
   }[];
   /**
    * Acoustic beacons the iPhone locator listens to (built in a separate repo).
@@ -244,7 +169,7 @@ export interface Space {
   beacons: {
     beacon: string;
     slot: number;
-    position: Vec32;
+    position: Vec31;
   }[];
 }
 /**
@@ -379,41 +304,6 @@ export interface RegistryUpdate {
   t: number;
 }
 /**
- * Hub -> bus when a debounced placement carries a tag not in the registry. The concierge uses the latest one for "this is X".
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "UnknownTag".
- */
-export interface UnknownTag {
-  type: "unknown_tag";
-  tag: string;
-  spot: number | null;
-  /**
-   * Unix seconds.
-   */
-  t: number;
-}
-/**
- * Concierge -> hub. Register `tag` as a new object (or rename the object that has it). The hub updates its local registry immediately and syncs to Convex.
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "Label".
- */
-export interface Label {
-  type: "label";
-  tag: string;
-  name: string;
-  aliases: string[];
-  /**
-   * Spot the tag is on; becomes home_spot for a new object.
-   */
-  spot?: number | null;
-  /**
-   * Unix seconds.
-   */
-  t: number;
-}
-/**
  * Locator (during PTT) or Mac app (fallback) -> concierge. Streamed microphone audio for Cartesia STT.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
@@ -480,7 +370,7 @@ export interface TrialStart {
   t: number;
 }
 /**
- * Sent by scripts/trial.py. Metrics are computed in code from the bus pickups between start and end.
+ * Sent by scripts/trial.py. The trial ends when `arrived` for the target arrives (or manually).
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "TrialEnd".
@@ -500,7 +390,6 @@ export interface TrialEnd {
    * Null unless outcome=found.
    */
   seconds_to_find: number | null;
-  wrong_picks: number;
   /**
    * Unix seconds.
    */
@@ -519,7 +408,7 @@ export interface GuideStart {
    * Display name for the UI.
    */
   name: string;
-  target_position: Vec34;
+  target_position: Vec33;
   precision: "exact" | "area" | "proximity" | "none";
   utterance_id: string;
   /**
@@ -533,7 +422,7 @@ export interface GuideStart {
  */
 export interface GuideStop {
   type: "guide_stop";
-  reason: "found" | "cancelled" | "timeout" | "reset";
+  reason: "arrived" | "cancelled" | "timeout" | "reset";
   object_id?: string | null;
   /**
    * Unix seconds.
@@ -630,52 +519,6 @@ export interface Playback {
   t: number;
 }
 /**
- * Concierge -> hub. Make a BLE fob beep.
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "Chirp".
- */
-export interface Chirp {
-  type: "chirp";
-  fob_id: string;
-  action: "start" | "stop";
-  /**
-   * Unix seconds.
-   */
-  t: number;
-}
-/**
- * Hub -> bus when a registered object leaves a spot (after debounce).
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "Pickup".
- */
-export interface Pickup {
-  type: "pickup";
-  object_id: string;
-  from_spot: number;
-  /**
-   * Unix seconds.
-   */
-  t: number;
-}
-/**
- * Concierge -> bus, for a pickup that happens while guiding.
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "PickupResult".
- */
-export interface PickupResult {
-  type: "pickup_result";
-  expected: string;
-  actual: string;
-  correct: boolean;
-  /**
-   * Unix seconds.
-   */
-  t: number;
-}
-/**
  * Mac app -> bus, debug only, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
@@ -731,7 +574,7 @@ export interface Reset {
  */
 export interface ListenerPose {
   type: "listener_pose";
-  position: Vec34;
+  position: Vec33;
   quality: "ok" | "degraded" | "lost";
   beacons_heard: number;
   source: "beacons" | "steps" | "sim" | "manual";
@@ -741,7 +584,7 @@ export interface ListenerPose {
   t: number;
 }
 /**
- * Mac app -> bus while guiding: the listener's horizontal distance to the target dropped below 0.45 m. The concierge speaks the spot detail; pickup confirmation takes over. Sent once per guidance (again only after leaving and re-entering).
+ * Mac app -> bus while guiding: horizontal distance to the target < 0.45 m. The Mac app stops the ping and plays the 'you're here' tone; the concierge speaks the spot detail and ends guidance (guide_stop reason arrived). Sent once per guidance.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "Arrived".
@@ -769,6 +612,29 @@ export interface Ptt {
   t: number;
 }
 /**
+ * Locator -> hub during setup: the phone is held at an item's spot and the teammate taps save. The hub sets that object's spot position (creating the spot if needed), persists it, syncs it to Convex, and re-sends a snapshot to every client.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "SaveSpot".
+ */
+export interface SaveSpot {
+  type: "save_spot";
+  object_id: string;
+  position: Vec33;
+  /**
+   * Optional spoken spot name, e.g. "the cupboard, top shelf".
+   */
+  label?: string;
+  /**
+   * Optional arrival phrase, e.g. "Top shelf, front left."
+   */
+  detail?: string;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
  * POST /ingest (hub). Idempotent by event_id.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
@@ -783,7 +649,7 @@ export interface IngestRequest {
   listener_pose?: null | ListenerPose;
 }
 /**
- * Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}.
+ * Append-only event. `data` holds the originating bus message.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "HubEvent".
@@ -793,8 +659,7 @@ export interface HubEvent {
    * Hub-generated UUID; Convex ignores duplicates (offline-queue retries).
    */
   event_id: string;
-  kind:
-    "placed" | "removed" | "pickup" | "pickup_result" | "unknown_tag" | "label" | "chirp" | "trial_start" | "trial_end";
+  kind: "guide_start" | "arrived" | "guide_stop" | "save_spot" | "trial_start" | "trial_end";
   object_id: string | null;
   t: number;
   data: {};
@@ -808,27 +673,6 @@ export interface IngestResponse {
   accepted_events: number;
   duplicate_events: number;
   accepted_states: number;
-}
-/**
- * POST /api/label (hub). Create an object for `tag`, or rename the object that already has it.
- *
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "LabelRequest".
- */
-export interface LabelRequest {
-  tag: string;
-  name: string;
-  aliases: string[];
-  spot?: number | null;
-}
-/**
- * This interface was referenced by `EarmarkContracts`'s JSON-Schema
- * via the `definition` "LabelResponse".
- */
-export interface LabelResponse {
-  ok: boolean;
-  object_id: string;
-  created: boolean;
 }
 /**
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
@@ -845,7 +689,7 @@ export interface ObjectSummary {
   is_medication: boolean;
   fob_id: string | null;
   state: null | {
-    status: "on_spot" | "held" | "missing" | "roaming";
+    status: "on_spot" | "missing";
     spot: number | null;
     spot_label: string | null;
     area: string | null;
@@ -856,7 +700,7 @@ export interface ObjectSummary {
     last_seen_local: string | null;
   };
   /**
-   * Last pickup or placement.
+   * Last time the user was guided to and arrived at this item.
    */
   last_touched_t: number | null;
   last_touched_local: string | null;
@@ -925,9 +769,12 @@ export interface Dose {
   scheduled_local_time: string;
   scheduled_for_t: number;
   scheduled_for_local: string;
-  status: "taken" | "late" | "missed" | "pending";
-  taken_t: number | null;
-  taken_local: string | null;
+  /**
+   * Evidence is arrival at the medication's spot (the user was guided to and found it), not proof the dose was taken.
+   */
+  status: "found" | "late" | "missed" | "pending";
+  found_t: number | null;
+  found_local: string | null;
   evidence_event_id: string | null;
 }
 /**
@@ -953,9 +800,12 @@ export interface DailySummaryResponse {
   timezone: string;
   generated_t: number;
   doses: Dose[];
-  pickup_count: number;
   /**
-   * object_ids with no pickup/placement in the 7 days before end of `date`.
+   * Guided finds (arrivals) on `date`.
+   */
+  find_count: number;
+  /**
+   * object_ids not found (no arrival) in the 7 days before end of `date`.
    */
   untouched_7d: string[];
   /**
@@ -971,4 +821,25 @@ export interface DailySummaryResponse {
 export interface ErrorResponse {
   ok: false;
   error: string;
+}
+/**
+ * POST /api/spot (hub): set an object's saved spot.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "SpotRequest".
+ */
+export interface SpotRequest {
+  object_id: string;
+  position: Vec33;
+  label?: string;
+  detail?: string;
+}
+/**
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "SpotResponse".
+ */
+export interface SpotResponse {
+  ok: boolean;
+  object_id: string;
+  spot: number;
 }

@@ -3,11 +3,11 @@
   "object_id": "sugar",
   "name": "sugar",
   "target_position": [
-    0.16,
-    0.58,
-    0.0
+    -0.08,
+    1.5,
+    1.0
   ],
   "precision": "exact",
-  "utterance_id": "u-17",
-  "t": 1761350400.12
+  "utterance_id": "u-1",
+  "t": 1792856400.25
 }

@@ -12,7 +12,6 @@ const load = (f) => JSON.parse(readFileSync(join(schemas, f), "utf8"));
 // named $def, so each type is emitted exactly once.
 const defs = {};
 const top = {
-  DetectionEvent: "detection_event.schema.json",
   ObjectState: "object_state.schema.json",
   Space: "space.schema.json",
   Registry: "registry.schema.json",

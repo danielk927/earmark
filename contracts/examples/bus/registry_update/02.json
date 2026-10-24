@@ -2,16 +2,16 @@
   "type": "registry_update",
   "objects": [
     {
-      "object_id": "salt",
-      "name": "salt",
+      "object_id": "sugar",
+      "name": "sugar",
       "aliases": [
-        "table salt",
-        "sea salt"
+        "white sugar",
+        "sweetener"
       ],
-      "notes": "For cooking and for eggs.",
-      "description": "Small glass jar with a white lid, identical to the sugar jar.",
-      "tag": "04A1B2C3D4E501",
-      "home_spot": 2,
+      "notes": "For coffee and tea. Kept in the cupboard.",
+      "description": "Small glass jar with a white lid.",
+      "tag": null,
+      "home_spot": 1,
       "is_medication": false,
       "fob_id": null
     }

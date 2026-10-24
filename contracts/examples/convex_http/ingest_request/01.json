@@ -2,38 +2,41 @@
   "events": [
     {
       "event_id": "e-6f1c2a9b",
-      "kind": "pickup",
-      "object_id": "salt",
-      "t": 1761350400.12,
+      "kind": "arrived",
+      "object_id": "bp_meds",
+      "t": 1792856400.25,
       "data": {
-        "type": "pickup",
-        "object_id": "salt",
-        "from_spot": 2,
-        "t": 1761350400.12
+        "type": "arrived",
+        "object_id": "bp_meds",
+        "t": 1792856400.25
       }
     }
   ],
   "states": [
     {
       "type": "state_update",
-      "object_id": "salt",
+      "object_id": "sugar",
       "location": {
-        "spot": null,
-        "position": null
+        "spot": 1,
+        "position": [
+          -0.08,
+          1.5,
+          1.0
+        ]
       },
-      "precision": "none",
-      "status": "held",
-      "home_spot": 2,
-      "last_seen_t": 1761350398.62,
-      "source": "nfc",
-      "t": 1761350400.12
+      "precision": "exact",
+      "status": "on_spot",
+      "home_spot": 1,
+      "last_seen_t": 1792856400.25,
+      "source": "saved",
+      "t": 1792856400.25
     }
   ],
   "listener_pose": {
     "type": "listener_pose",
     "position": [
       0.0,
-      1.05,
+      -1.05,
       1.6
     ],
     "quality": "ok",

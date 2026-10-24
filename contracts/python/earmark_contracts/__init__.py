@@ -16,10 +16,9 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 Vec3 = Annotated[list[float], Field(min_length=3, max_length=3)]
-Source = Literal["simulator", "nfc", "ble", "camera", "ultrasonic"]
 Precision = Literal["exact", "area", "proximity", "none"]
 DistanceClass = Literal["near", "mid", "far"]
-Status = Literal["on_spot", "held", "missing", "roaming"]
+Status = Literal["on_spot", "missing"]
 Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent", "locator"]
 
 
@@ -132,37 +131,7 @@ class Phrases(_Model):
     phrases: list[Phrase]
 
 
-# ---------------------------------------------------------------- detection / state
-
-class WhereSpot(_Model):
-    spot: int = Field(ge=0)
-
-
-class WherePosition(_Model):
-    position: Vec3
-
-
-class WhereArea(_Model):
-    area: str = Field(min_length=1)
-
-
-class WhereNear(_Model):
-    near: str = Field(min_length=1)
-    distance_class: DistanceClass
-
-
-Where = Union[WhereSpot, WherePosition, WhereArea, WhereNear]
-
-
-class DetectionEvent(_Msg):
-    type: Literal["detection"] = "detection"
-    source: Source
-    tag: str = Field(min_length=1)
-    kind: Literal["seen", "placed", "removed", "lost"]
-    where: Where | None
-    precision: Precision
-    rssi: float | None = None
-
+# ---------------------------------------------------------------- item state
 
 class Location(_Model):
     spot: int | None = None
@@ -180,7 +149,7 @@ class ObjectState(_Msg):
     status: Status
     home_spot: int | None
     last_seen_t: float | None
-    source: Literal["simulator", "nfc", "ble", "camera", "ultrasonic", "none"]
+    source: Literal["saved", "none"]
 
 
 # ---------------------------------------------------------------- bus messages
@@ -204,20 +173,6 @@ class RegistryUpdate(_Msg):
     type: Literal["registry_update"] = "registry_update"
     objects: list[RegistryObject]
     registry_version: float | None
-
-
-class UnknownTag(_Msg):
-    type: Literal["unknown_tag"] = "unknown_tag"
-    tag: str
-    spot: int | None
-
-
-class Label(_Msg):
-    type: Literal["label"] = "label"
-    tag: str
-    name: str = Field(min_length=1)
-    aliases: list[str]
-    spot: int | None = None
 
 
 class MicAudio(_Msg):
@@ -261,7 +216,6 @@ class TrialEnd(_Msg):
     outcome: Literal["found", "gave_up", "aborted"]
     started_t: float
     seconds_to_find: float | None
-    wrong_picks: int = Field(ge=0)
 
 
 class GuideStart(_Msg):
@@ -275,7 +229,7 @@ class GuideStart(_Msg):
 
 class GuideStop(_Msg):
     type: Literal["guide_stop"] = "guide_stop"
-    reason: Literal["found", "cancelled", "timeout", "reset"]
+    reason: Literal["arrived", "cancelled", "timeout", "reset"]
     object_id: str | None = None
 
 
@@ -317,23 +271,7 @@ class Playback(_Msg):
     event: Literal["started", "finished", "interrupted"]
 
 
-class Chirp(_Msg):
-    type: Literal["chirp"] = "chirp"
-    fob_id: str
-    action: Literal["start", "stop"]
 
-
-class Pickup(_Msg):
-    type: Literal["pickup"] = "pickup"
-    object_id: str
-    from_spot: int
-
-
-class PickupResult(_Msg):
-    type: Literal["pickup_result"] = "pickup_result"
-    expected: str
-    actual: str
-    correct: bool
 
 
 class HeadPose(_Msg):
@@ -374,12 +312,22 @@ class Ptt(_Msg):
     state: Literal["start", "stop"]
 
 
+class SaveSpot(_Msg):
+    """Locator -> hub during setup: the phone is held at an item's spot."""
+
+    type: Literal["save_spot"] = "save_spot"
+    object_id: str
+    position: Vec3
+    label: str | None = None
+    detail: str | None = None
+
+
 BusMessage = Annotated[
     Union[
-        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, MicAudio,
+        Hello, Snapshot, RegistryUpdate, ObjectState, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
-        SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
-        ListenerPose, Arrived, Ptt,
+        SpeakCached, SpeakText, Playback, HeadPose, StatusMsg, Reset,
+        ListenerPose, Arrived, Ptt, SaveSpot,
     ],
     Field(discriminator="type"),
 ]
@@ -410,7 +358,7 @@ def dump(model: BaseModel) -> str:
 
 class HubEvent(_Model):
     event_id: str = Field(min_length=8)
-    kind: Literal["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "chirp", "trial_start", "trial_end"]
+    kind: Literal["guide_start", "arrived", "guide_stop", "save_spot", "trial_start", "trial_end"]
     object_id: str | None
     t: float
     data: dict[str, Any]
@@ -429,17 +377,17 @@ class IngestResponse(_Model):
     accepted_states: int
 
 
-class LabelRequest(_Model):
-    tag: str
-    name: str = Field(min_length=1)
-    aliases: list[str]
-    spot: int | None = None
+class SpotRequest(_Model):
+    object_id: str
+    position: Vec3
+    label: str | None = None
+    detail: str | None = None
 
 
-class LabelResponse(_Model):
+class SpotResponse(_Model):
     ok: bool
     object_id: str
-    created: bool
+    spot: int
 
 
 class SummaryState(_Model):
@@ -505,9 +453,9 @@ class Dose(_Model):
     scheduled_local_time: str
     scheduled_for_t: float
     scheduled_for_local: str
-    status: Literal["taken", "late", "missed", "pending"]
-    taken_t: float | None
-    taken_local: str | None
+    status: Literal["found", "late", "missed", "pending"]
+    found_t: float | None
+    found_local: str | None
     evidence_event_id: str | None
 
 
@@ -523,7 +471,7 @@ class DailySummaryResponse(_Model):
     timezone: str
     generated_t: float
     doses: list[Dose]
-    pickup_count: int
+    find_count: int
     untouched_7d: list[str]
     missing: list[str]
     text: str
@@ -542,8 +490,8 @@ CONVEX_HTTP_MODELS: dict[str, type[_Model]] = {
     "ingest_request": IngestRequest,
     "ingest_response": IngestResponse,
     "hub_event": HubEvent,
-    "label_request": LabelRequest,
-    "label_response": LabelResponse,
+    "spot_request": SpotRequest,
+    "spot_response": SpotResponse,
     "object_summary": ObjectSummary,
     "object_lookup_response": ObjectLookupResponse,
     "objects_response": ObjectsResponse,

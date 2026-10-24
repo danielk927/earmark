@@ -1,29 +1,29 @@
 {
-  "date": "2025-10-24",
+  "date": "2026-10-24",
   "timezone": "America/Los_Angeles",
   "doses": [
     {
       "object_id": "bp_meds",
       "name": "blood pressure pills",
       "scheduled_local_time": "08:00",
-      "scheduled_for_t": 1761318000,
-      "scheduled_for_local": "2025-10-24T08:00:00-07:00",
-      "status": "taken",
-      "taken_t": 1761318900,
-      "taken_local": "2025-10-24T08:15:00-07:00",
+      "scheduled_for_t": 1792854000,
+      "scheduled_for_local": "2026-10-24T08:00:00-07:00",
+      "status": "found",
+      "found_t": 1792854900,
+      "found_local": "2026-10-24T08:15:00-07:00",
       "evidence_event_id": "e-6f1c2a9b"
     },
     {
       "object_id": "bp_meds",
       "name": "blood pressure pills",
       "scheduled_local_time": "20:00",
-      "scheduled_for_t": 1761361200,
-      "scheduled_for_local": "2025-10-24T20:00:00-07:00",
+      "scheduled_for_t": 1792897200,
+      "scheduled_for_local": "2026-10-24T20:00:00-07:00",
       "status": "pending",
-      "taken_t": null,
-      "taken_local": null,
+      "found_t": null,
+      "found_local": null,
       "evidence_event_id": null
     }
   ],
-  "now_t": 1761350400.12
+  "now_t": 1792856400.25
 }

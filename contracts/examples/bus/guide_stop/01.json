@@ -1,6 +1,6 @@
 {
   "type": "guide_stop",
-  "reason": "found",
+  "reason": "arrived",
   "object_id": "sugar",
-  "t": 1761350400.12
+  "t": 1792856400.25
 }

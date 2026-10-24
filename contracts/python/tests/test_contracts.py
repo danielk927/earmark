@@ -59,7 +59,7 @@ BUS_DIRS = sorted(p.name for p in (EXAMPLES / "bus").iterdir() if p.is_dir())
 def test_every_bus_type_has_examples_and_a_model():
     schema = json.loads((SCHEMAS / "bus_message.schema.json").read_text())
     defs = {k for k, v in schema["$defs"].items() if "properties" in v and "type" in v["properties"]}
-    assert defs | {"detection", "state_update"} == set(BUS_DIRS)
+    assert defs | {"state_update"} == set(BUS_DIRS)
     assert set(BUS_DIRS) == set(ec.BUS_TYPES)
 
 
@@ -75,7 +75,6 @@ def test_bus_examples(msg_type):
 @pytest.mark.parametrize(
     "rel,schema_file,model",
     [
-        ("detection_event", "detection_event.schema.json", ec.DetectionEvent),
         ("object_state", "object_state.schema.json", ec.ObjectState),
         ("space", "space.schema.json", ec.Space),
         ("registry", "registry.schema.json", ec.Registry),

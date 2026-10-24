@@ -4,31 +4,28 @@
     {
       "object_id": "sugar",
       "name": "sugar",
-      "aliases": [
-        "white sugar",
-        "sweetener"
-      ],
-      "notes": "For coffee and tea.",
-      "description": "Small glass jar with a white lid, identical to the salt jar.",
-      "home_spot": 3,
-      "home_spot_label": "center right",
+      "aliases": [],
+      "notes": "",
+      "description": "",
+      "home_spot": 1,
+      "home_spot_label": "the cupboard, top shelf",
       "is_medication": false,
       "fob_id": null,
       "state": {
         "status": "on_spot",
-        "spot": 3,
-        "spot_label": "center right",
+        "spot": 1,
+        "spot_label": "the cupboard, top shelf",
         "area": null,
         "near": null,
         "distance_class": null,
         "precision": "exact",
-        "last_seen_t": 1761350400.12,
-        "last_seen_local": "2025-10-24T17:00:00.120-07:00"
+        "last_seen_t": 1792856400.25,
+        "last_seen_local": "2026-10-24T17:00:00.250-07:00"
       },
-      "last_touched_t": 1761346800.12,
-      "last_touched_local": "2025-10-24T16:00:00.120-07:00"
+      "last_touched_t": 1792852800.25,
+      "last_touched_local": "2026-10-24T16:00:00.250-07:00"
     }
   ],
-  "now_t": 1761350400.12,
-  "now_local": "2025-10-24T17:00:00.120-07:00"
+  "now_t": 1792856400.25,
+  "now_local": "2026-10-24T17:00:00.250-07:00"
 }

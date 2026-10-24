@@ -5,44 +5,47 @@
   },
   "objects": [
     {
-      "object_id": "salt",
-      "name": "salt",
-      "aliases": [
-        "table salt",
-        "sea salt"
-      ],
-      "notes": "For cooking and for eggs.",
-      "description": "Small glass jar with a white lid, identical to the sugar jar.",
-      "tag": "04A1B2C3D4E501",
-      "home_spot": 2,
-      "is_medication": false,
-      "fob_id": null
-    },
-    {
       "object_id": "sugar",
       "name": "sugar",
       "aliases": [
         "white sugar",
         "sweetener"
       ],
-      "notes": "For coffee and tea.",
-      "description": "Small glass jar with a white lid, identical to the salt jar.",
-      "tag": "04A1B2C3D4E502",
-      "home_spot": 3,
+      "notes": "For coffee and tea. Kept in the cupboard.",
+      "description": "Small glass jar with a white lid.",
+      "tag": null,
+      "home_spot": 1,
       "is_medication": false,
       "fob_id": null
     },
     {
-      "object_id": "pepper",
-      "name": "pepper",
+      "object_id": "keys",
+      "name": "keys",
       "aliases": [
-        "black pepper",
-        "pepper grinder"
+        "house keys",
+        "car keys",
+        "key ring"
       ],
-      "notes": "For eggs and soup. Usually kept in the pantry.",
-      "description": "Tall wooden pepper grinder.",
-      "tag": "04A1B2C3D4E503",
-      "home_spot": null,
+      "notes": "Usually in the drawer.",
+      "description": "Key ring with three keys.",
+      "tag": null,
+      "home_spot": 2,
+      "is_medication": false,
+      "fob_id": null
+    },
+    {
+      "object_id": "spice_jar",
+      "name": "spice jar",
+      "aliases": [
+        "spices",
+        "pepper",
+        "black pepper",
+        "seasoning"
+      ],
+      "notes": "Black pepper, for eggs and soup. Kept in the bag.",
+      "description": "Small spice jar with a grinder top.",
+      "tag": null,
+      "home_spot": 3,
       "is_medication": false,
       "fob_id": null
     },
@@ -57,27 +60,12 @@
         "morning pills",
         "evening pills"
       ],
-      "notes": "Taken at 8 in the morning and 8 in the evening.",
+      "notes": "Taken at 8 in the morning and 8 in the evening. Kept in the box.",
       "description": "White plastic pill bottle with a child-proof cap.",
-      "tag": "04A1B2C3D4E504",
+      "tag": null,
       "home_spot": 4,
       "is_medication": true,
       "fob_id": null
-    },
-    {
-      "object_id": "keys",
-      "name": "keys",
-      "aliases": [
-        "house keys",
-        "car keys",
-        "key ring"
-      ],
-      "notes": "Roams; carries a Bluetooth fob.",
-      "description": "Key ring with a small Bluetooth tracker fob.",
-      "tag": null,
-      "home_spot": null,
-      "is_medication": false,
-      "fob_id": "fob_keys"
     }
   ],
   "medications": [

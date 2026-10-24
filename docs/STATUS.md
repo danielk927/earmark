@@ -90,6 +90,12 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 - memory-agent-builder: add `window_minutes` to `dose`, and `near_label`/`area_label` to `object_summary.state` (the agent reads `config/space.json` for labels today).
 - convex-builder: document that `untouched_7d` covers tagged objects only, that `date` defaults to today, the 500/500 ingest cap, and 404 for unknown objectIds.
 
+## Design v7 (2026-10-24 afternoon)
+
+The human's design v7 (`docs/DESIGN_v7.md`) supersedes Amendment 01 where they conflict: no NFC, no Bluetooth tags, no cameras; item spots are saved from the phone at setup (`save_spot`); arrival ends a find; the wrong-jar correction, pickups, voice labeling, and fob chirps are removed.
+Contract changes on `a01`: removed `detection`, `pickup`, `pickup_result`, `unknown_tag`, `label`, `chirp`, `detection_event.schema.json`, and trial `wrong_picks`; added `save_spot` and `POST /api/spot`; `guide_stop` reason `found` became `arrived`; dose status `taken` became `found` (evidence = arrival at the pills), `pickup_count` became `find_count`.
+Items: sugar (cupboard, spot 1), keys (drawer, 2), spice jar (bag, 3), pills (box, 4).
+
 ## Decisions
 
 - 2026-10-24: the human authorized fully autonomous work overnight; Phase 0 and Phase 2 checkpoints are recorded here rather than blocking.

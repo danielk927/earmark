@@ -14,16 +14,7 @@
       "$ref": "#/$defs/registry_update"
     },
     {
-      "$ref": "detection_event.schema.json"
-    },
-    {
       "$ref": "object_state.schema.json"
-    },
-    {
-      "$ref": "#/$defs/unknown_tag"
-    },
-    {
-      "$ref": "#/$defs/label"
     },
     {
       "$ref": "#/$defs/mic_audio"
@@ -62,15 +53,6 @@
       "$ref": "#/$defs/playback"
     },
     {
-      "$ref": "#/$defs/chirp"
-    },
-    {
-      "$ref": "#/$defs/pickup"
-    },
-    {
-      "$ref": "#/$defs/pickup_result"
-    },
-    {
       "$ref": "#/$defs/head_pose"
     },
     {
@@ -87,6 +69,9 @@
     },
     {
       "$ref": "#/$defs/ptt"
+    },
+    {
+      "$ref": "#/$defs/save_spot"
     }
   ],
   "$defs": {
@@ -214,74 +199,6 @@
             "number",
             "null"
           ]
-        },
-        "t": {
-          "$ref": "#/$defs/t"
-        }
-      }
-    },
-    "unknown_tag": {
-      "description": "Hub -> bus when a debounced placement carries a tag not in the registry. The concierge uses the latest one for \"this is X\".",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "tag",
-        "spot",
-        "t"
-      ],
-      "properties": {
-        "type": {
-          "const": "unknown_tag"
-        },
-        "tag": {
-          "type": "string"
-        },
-        "spot": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "t": {
-          "$ref": "#/$defs/t"
-        }
-      }
-    },
-    "label": {
-      "description": "Concierge -> hub. Register `tag` as a new object (or rename the object that has it). The hub updates its local registry immediately and syncs to Convex.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "tag",
-        "name",
-        "aliases",
-        "t"
-      ],
-      "properties": {
-        "type": {
-          "const": "label"
-        },
-        "tag": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "aliases": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "spot": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "description": "Spot the tag is on; becomes home_spot for a new object."
         },
         "t": {
           "$ref": "#/$defs/t"
@@ -432,7 +349,7 @@
       }
     },
     "trial_end": {
-      "description": "Sent by scripts/trial.py. Metrics are computed in code from the bus pickups between start and end.",
+      "description": "Sent by scripts/trial.py. The trial ends when `arrived` for the target arrives (or manually).",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -444,7 +361,6 @@
         "outcome",
         "started_t",
         "seconds_to_find",
-        "wrong_picks",
         "t"
       ],
       "properties": {
@@ -483,10 +399,6 @@
             "null"
           ],
           "description": "Null unless outcome=found."
-        },
-        "wrong_picks": {
-          "type": "integer",
-          "minimum": 0
         },
         "t": {
           "$ref": "#/$defs/t"
@@ -550,7 +462,7 @@
         },
         "reason": {
           "enum": [
-            "found",
+            "arrived",
             "cancelled",
             "timeout",
             "reset"
@@ -744,88 +656,6 @@
         }
       }
     },
-    "chirp": {
-      "description": "Concierge -> hub. Make a BLE fob beep.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "fob_id",
-        "action",
-        "t"
-      ],
-      "properties": {
-        "type": {
-          "const": "chirp"
-        },
-        "fob_id": {
-          "type": "string"
-        },
-        "action": {
-          "enum": [
-            "start",
-            "stop"
-          ]
-        },
-        "t": {
-          "$ref": "#/$defs/t"
-        }
-      }
-    },
-    "pickup": {
-      "description": "Hub -> bus when a registered object leaves a spot (after debounce).",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "object_id",
-        "from_spot",
-        "t"
-      ],
-      "properties": {
-        "type": {
-          "const": "pickup"
-        },
-        "object_id": {
-          "type": "string"
-        },
-        "from_spot": {
-          "type": "integer"
-        },
-        "t": {
-          "$ref": "#/$defs/t"
-        }
-      }
-    },
-    "pickup_result": {
-      "description": "Concierge -> bus, for a pickup that happens while guiding.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "expected",
-        "actual",
-        "correct",
-        "t"
-      ],
-      "properties": {
-        "type": {
-          "const": "pickup_result"
-        },
-        "expected": {
-          "type": "string"
-        },
-        "actual": {
-          "type": "string"
-        },
-        "correct": {
-          "type": "boolean"
-        },
-        "t": {
-          "$ref": "#/$defs/t"
-        }
-      }
-    },
     "head_pose": {
       "description": "Mac app -> bus, debug only, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up.",
       "type": "object",
@@ -952,7 +782,7 @@
       }
     },
     "arrived": {
-      "description": "Mac app -> bus while guiding: the listener's horizontal distance to the target dropped below 0.45 m. The concierge speaks the spot detail; pickup confirmation takes over. Sent once per guidance (again only after leaving and re-entering).",
+      "description": "Mac app -> bus while guiding: horizontal distance to the target < 0.45 m. The Mac app stops the ping and plays the 'you're here' tone; the concierge speaks the spot detail and ends guidance (guide_stop reason arrived). Sent once per guidance.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -990,6 +820,39 @@
             "start",
             "stop"
           ]
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "save_spot": {
+      "description": "Locator -> hub during setup: the phone is held at an item's spot and the teammate taps save. The hub sets that object's spot position (creating the spot if needed), persists it, syncs it to Convex, and re-sends a snapshot to every client.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "object_id",
+        "position",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "save_spot"
+        },
+        "object_id": {
+          "type": "string"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional spoken spot name, e.g. \"the cupboard, top shelf\"."
+        },
+        "detail": {
+          "type": "string",
+          "description": "Optional arrival phrase, e.g. \"Top shelf, front left.\""
         },
         "t": {
           "$ref": "#/$defs/t"
