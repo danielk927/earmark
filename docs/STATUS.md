@@ -16,7 +16,7 @@ Sponsor prizes, what each wants, and what we do: `docs/TRACKS.md`.
 - **Claude replaces Bitdeer** everywhere: concierge tool choice (`claude-haiku-5-5`), memory agent (`claude-sonnet-5-5`), and photo labeling in Convex (`claude-haiku-5-5`). No Anthropic key exists yet, so all of it is tested against mocked HTTP only.
 - **Stale test fixed:** the wrong-jar end-to-end test expected "one o'clock", but the concierge intentionally says "one spot to your right".
 - **Test results this pass:** contracts (Python 62, TypeScript check), hub 145, concierge 179, Convex 109 plus typecheck, memory agent 97, dashboard 134 plus typecheck, lint and build, end-to-end 6 passed and 1 skipped (needs a local Convex).
-- **Test results after the locator work:** contracts (Python 65, TypeScript check), hub 148, concierge 184, Convex 110, dashboard 134, memory agent 97, end-to-end 7 passed and 1 skipped.
+- **Test results after the locator work:** contracts (Python 65, TypeScript check), hub 149, concierge 184, Convex 110, dashboard 134, memory agent 97, end-to-end 7 passed and 1 skipped.
 - **Not verifiable on this Mac:** the Swift tests (`swift test` fails here: the `Testing` module is missing from the Command Line Tools, so the earlier "70 Swift tests" claim could not be reproduced). Also, macOS keeps marking the `.pth` files in the Python virtual environments as hidden, which makes Python skip them; if a service says `No module named earmark_...`, run `chflags nohidden` on the `.pth` files in `services/*/.venv/lib/*/site-packages/`.
 
 ## Toolchain (demo Mac)

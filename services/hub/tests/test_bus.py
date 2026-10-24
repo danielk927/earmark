@@ -247,3 +247,21 @@ async def test_slow_client_never_blocks_others(hub):
     hub.bus.clients.discard(stuck)
     await fast.close()
     await sender.close()
+
+
+async def test_locator_messages_exactly_as_the_phone_app_sends_them(hub):
+    """The locator's own example payloads: no timestamps on hello/status/mic_audio, a token on hello."""
+    import json
+    from pathlib import Path
+
+    examples = Path(__file__).resolve().parents[3] / "locator" / "contracts" / "examples"
+    listener = await connect_client(hub, "mac_app", subscribe=["listener_pose", "mic_audio", "status", "ptt"])
+    async with connect(url(hub)) as raw:
+        await raw.send(json.dumps({"type": "hello", "component": "locator", "token": "secret"}))
+        for name in ("listener_pose.ok", "listener_pose.lost", "status.healthy", "mic_audio.chunk", "ptt.start"):
+            await raw.send((examples / f"{name}.json").read_text())
+        got = await drain(listener, skip=())
+    types = [m.type for m in got]
+    assert types.count("listener_pose") == 2 and "mic_audio" in types and "ptt" in types
+    assert not [m for m in got if m.type == "status" and not m.ok], "the hub must not reject locator messages"
+    await listener.close()
