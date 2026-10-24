@@ -294,14 +294,19 @@ async def _history(question: str, tb: Toolbox) -> str:
     pickups = [e for e in touches if e.kind == "pickup"]
     latest = pickups[0] if pickups else touches[0]
     verb = "picked up" if latest.kind == "pickup" else "put down"
-    spot = f" {'from' if latest.kind == 'pickup' else 'on'} the {latest.spot_label} spot" if latest.spot_label else ""
+    if latest.spot is None and not latest.spot_label:
+        spot = ""
+    elif latest.kind == "pickup":
+        spot = f" from {tb.labels.spot_noun(latest.spot, latest.spot_label)}"
+    else:
+        spot = f" {tb.labels.spot_place(latest.spot, latest.spot_label)}"
     text = f"{cap(the(name))} {'were' if is_plural(name) else 'was'} last {verb} at {clock.when(clock.parse_local(latest.at_local, latest.t))}{spot}."
     after = [e for e in touches if e.t > latest.t and e.kind == "placed"]
     if latest.kind == "pickup" and after:
         back = after[-1]
         text += (
             f" {'They were' if is_plural(name) else 'It was'} put back"
-            + (f" on the {back.spot_label} spot" if back.spot_label else "")
+            + (f" {tb.labels.spot_place(back.spot, back.spot_label)}" if back.spot is not None or back.spot_label else "")
             + f" at {clock.when(clock.parse_local(back.at_local, back.t))}."
         )
     n = len(pickups)
@@ -328,7 +333,7 @@ async def _untouched(a: Analysis, tb: Toolbox) -> str:
             )
         text = f"Not picked up or put down in {window}: " + "; ".join(items) + "."
     else:
-        text = f"Everything on a spot reader was picked up or put down in {window}."
+        text = f"Everything with an NFC tag was picked up or put down in {window}."
     for o in (o for o in objects if fob_only(o)):
         seen, place = last_seen_phrase(o, clock), where_phrase(o, tb.labels)
         text += (

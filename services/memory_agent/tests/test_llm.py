@@ -103,13 +103,13 @@ async def test_slow_model_hits_the_budget_and_falls_back(monkeypatch):
     a = await p.answer("Where did Dad leave his keys?")
     assert loop.time() - started < 0.9
     assert a.path == "fallback" and "budget" in a.reason
-    assert "close to the counter" in a.text
+    assert "in the drawer" in a.text
 
 
 async def test_llm_error_falls_back():
     a = await pipeline_with(ScriptedModel([LlmError("Bitdeer returned HTTP 503")])).answer("Where did Dad leave his keys?")
     assert a.path == "fallback" and "HTTP 503" in a.reason
-    assert "close to the counter" in a.text
+    assert "in the drawer" in a.text
 
 
 async def test_answer_without_any_lookup_is_rejected():

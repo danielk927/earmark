@@ -1,9 +1,10 @@
 """An offline stand-in for Earmark's Convex read endpoints.
 
 Built from `config/objects.seed.json` and `config/space.json` plus two scripted days of history
-(BUILD_BRIEF 5.C seed data): salt and sugar in identical jars on spots 2 and 3, blood-pressure
-pills on spot 4 scheduled at 08:00 and 20:00, keys on a fob, pepper never detected, and one
-missed evening dose (yesterday at 20:00).
+(BUILD_BRIEF 5.C seed data, walking room of Amendment 01): salt and sugar in identical jars on the
+cupboard's top shelf (spots 2 and 3), blood-pressure pills in the box (spot 4) scheduled at 08:00
+and 20:00, keys in the drawer (spot 1, NFC), the wallet in the bag (spot 5), pepper never
+detected, and one missed evening dose (yesterday at 20:00).
 
 "Now" is fixed (default: Friday 2025-10-24 17:00 America/Los_Angeles, the instant the contract
 examples use), so answers are deterministic. Every response is built as a pydantic contract
@@ -46,7 +47,8 @@ UNTOUCHED_DAYS = 7
 HISTORY_DEFAULT_DAYS = 7
 HISTORY_MAX_EVENTS = 200
 
-# (day offset from "now"'s date, local HH:MM, object_id, kind, spot)
+# (day offset from "now"'s date, local HH:MM, object_id, kind, spot). Spots follow config/space.json:
+# 1 the drawer (keys), 2-3 the cupboard top shelf (salt, sugar), 4 the box (pills), 5 the bag (wallet).
 HISTORY_SCRIPT: list[tuple[int, str, str, str, int]] = [
     # Yesterday: morning dose taken at 08:05, evening dose missed (no pickup between 19:00 and 22:00).
     (-1, "07:32", "sugar", "pickup", 3),
@@ -55,10 +57,14 @@ HISTORY_SCRIPT: list[tuple[int, str, str, str, int]] = [
     (-1, "08:07", "bp_meds", "placed", 4),
     (-1, "08:20", "salt", "pickup", 2),
     (-1, "08:21", "salt", "placed", 2),
+    (-1, "08:30", "keys", "pickup", 1),
+    (-1, "08:31", "wallet", "pickup", 5),
     (-1, "12:10", "salt", "pickup", 2),
     (-1, "12:12", "salt", "placed", 2),
     (-1, "15:30", "sugar", "pickup", 3),
     (-1, "15:31", "sugar", "placed", 3),
+    (-1, "17:45", "keys", "placed", 1),
+    (-1, "17:46", "wallet", "placed", 5),
     (-1, "18:40", "salt", "pickup", 2),
     (-1, "18:43", "salt", "placed", 2),
     # Today: morning dose taken at 08:15; the 20:00 dose is still ahead at 17:00.
@@ -66,13 +72,15 @@ HISTORY_SCRIPT: list[tuple[int, str, str, str, int]] = [
     (0, "07:52", "sugar", "placed", 3),
     (0, "08:15", "bp_meds", "pickup", 4),
     (0, "08:16", "bp_meds", "placed", 4),
+    (0, "08:40", "keys", "pickup", 1),
+    (0, "08:41", "wallet", "pickup", 5),
     (0, "12:30", "salt", "pickup", 2),
     (0, "12:33", "salt", "placed", 2),
     (0, "16:00", "sugar", "pickup", 3),
     (0, "16:02", "sugar", "placed", 3),
+    (0, "16:52", "keys", "placed", 1),
+    (0, "16:53", "wallet", "placed", 5),
 ]
-# Fob-tracked objects: (object_id, receiver, distance class, minutes before now last detected).
-FOB_SIGHTINGS: list[tuple[str, str, str, int]] = [("keys", "hub", "near", 8)]
 
 
 class FixtureError(Exception):
@@ -175,6 +183,7 @@ class FixtureData:
         self.tz = ZoneInfo(self.timezone)
         self.objects = {o.object_id: o for o in self.registry.objects}
         self.spot_labels = {s.spot: s.label for s in self.space.spots}
+        self.spot_in_container = {s.spot for s in self.space.spots if s.container}
         self.events = self._build_events()
         # Like convex/ medications.activeSinceT: no doses before monitoring began (the start of the history).
         first_day = datetime.fromtimestamp(now_t, self.tz).date() + timedelta(days=min(s[0] for s in HISTORY_SCRIPT))
@@ -208,20 +217,6 @@ class FixtureData:
         return self.spot_labels.get(spot) if spot is not None else None
 
     def _state(self, object_id: str) -> ec.SummaryState | None:
-        for fob_object, receiver, distance, minutes in FOB_SIGHTINGS:
-            if fob_object == object_id:
-                seen = self.now_t - minutes * 60
-                return ec.SummaryState(
-                    status="roaming",
-                    spot=None,
-                    spot_label=None,
-                    area=None,
-                    near=receiver,
-                    distance_class=distance,
-                    precision="proximity",
-                    last_seen_t=seen,
-                    last_seen_local=local_iso(seen, self.tz),
-                )
         mine = [e for e in self.events if e.object_id == object_id]
         if not mine:
             return None
@@ -323,9 +318,9 @@ class FixtureData:
                 spot=e.spot,
                 spot_label=self._spot_label(e.spot),
                 detail=(
-                    f"Picked up from the {self._spot_label(e.spot)} spot."
+                    f"Picked up from {self._spot_label(e.spot)}."
                     if e.kind == "pickup"
-                    else f"Put down on the {self._spot_label(e.spot)} spot."
+                    else f"Put down {'in' if e.spot in self.spot_in_container else 'on'} {self._spot_label(e.spot)}."
                 ),
             )
             for e in sorted(mine, key=lambda e: e.t, reverse=True)[:HISTORY_MAX_EVENTS]
