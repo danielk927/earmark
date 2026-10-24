@@ -109,7 +109,7 @@ scenarios: ## Regenerate scenarios/*.jsonl from scripts/gen_scenarios.py
 # ---------------------------------------------------------------- tests
 
 .PHONY: test
-test: contracts-test hub-test concierge-test convex-test memory-test dashboard-test mac-test e2e-test ## Run every test suite
+test: contracts-test hub-test concierge-test ranging-test convex-test memory-test dashboard-test mac-test e2e-test ## Run every test suite
 
 .PHONY: contracts-test
 contracts-test: ## Contracts: every example, config file, and scenario (Python, TS, Swift)
@@ -124,6 +124,14 @@ hub-test:
 .PHONY: concierge-test
 concierge-test:
 	cd services/concierge && uv run --quiet pytest -q && uvx --quiet ruff check .
+
+.PHONY: ranging-test
+ranging-test: ## Phone position service, with virtual phones
+	cd services/ranging && uv run --quiet pytest -q && uvx --quiet ruff check .
+
+.PHONY: ranging
+ranging: ## Phone position service (phones connect to it; see locator/docs/PHONE_BEACONS.md)
+	cd services/ranging && uv run --quiet earmark-ranging serve
 
 .PHONY: convex-test
 convex-test:
