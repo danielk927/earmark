@@ -52,12 +52,12 @@ def test_two_days_of_history_with_exactly_one_missed_dose(data: FixtureData):
 def test_object_states_match_the_seed(data: FixtureData):
     objs = {o.object_id: o for o in data.objects_response().objects}
     assert (objs["salt"].state.status, objs["salt"].state.spot) == ("on_spot", 2)
-    assert (objs["sugar"].state.status, objs["sugar"].state.spot_label) == ("on_spot", "center right")
+    assert (objs["sugar"].state.status, objs["sugar"].state.spot_label) == ("on_spot", "the cupboard, top shelf, right")
     assert objs["bp_meds"].state.spot == 4
     assert objs["pepper"].state is None and objs["pepper"].last_touched_t is None
-    keys = objs["keys"].state
-    assert (keys.status, keys.near, keys.distance_class, keys.precision) == ("roaming", "hub", "near", "proximity")
-    assert objs["keys"].last_touched_t is None
+    assert (objs["keys"].state.status, objs["keys"].state.spot, objs["keys"].home_spot_label) == ("on_spot", 1, "the drawer")
+    assert objs["keys"].last_touched_local == "2025-10-24T16:52:00-07:00"
+    assert (objs["wallet"].state.spot, objs["wallet"].state.spot_label) == (5, "the bag")
 
 
 def test_lookup_order_name_then_alias_then_substring(data: FixtureData):
@@ -69,15 +69,15 @@ def test_lookup_order_name_then_alias_then_substring(data: FixtureData):
 
 def test_daily_summary(data: FixtureData):
     s = data.daily_summary(YESTERDAY)
-    assert s.untouched_7d == ["pepper"]  # tagged objects only, like convex/; fob-only keys are excluded
-    assert s.pickup_count == 6
+    assert s.untouched_7d == ["pepper"]  # keys and wallet are tagged and were handled
+    assert s.pickup_count == 8
     assert "20:00 dose was missed (no pickup between 19:00 and 22:00)" in s.text
 
 
 def test_history_newest_first_and_unknown_object(data: FixtureData):
     events = data.history("salt").events
     assert [e.t for e in events] == sorted((e.t for e in events), reverse=True)
-    assert events[0].detail == "Put down on the center left spot."
+    assert events[0].detail == "Put down in the cupboard, top shelf, left."
     with pytest.raises(Exception, match="unknown objectId"):
         data.history("unicorn")
 

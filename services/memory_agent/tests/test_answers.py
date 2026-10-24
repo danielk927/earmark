@@ -58,10 +58,7 @@ async def test_medication_questions(pipeline, q, expected):
 
 async def test_keys_answer_comes_from_the_keys_state(pipeline):
     a = await ask(pipeline, "Where did Dad leave his keys?")
-    assert a.text == (
-        "The keys' fob was last detected close to the counter at 4:52 PM today. "
-        "That position is approximate: the fob only reports how close it is to a receiver."
-    )
+    assert a.text == "The keys were last put down in the drawer at 4:52 PM today. At the front."
     assert [r.name for r in a.tool_calls] == ["find_object"]
     assert a.tool_calls[0].args == {"name": "keys"}
 
@@ -69,14 +66,16 @@ async def test_keys_answer_comes_from_the_keys_state(pipeline):
 @pytest.mark.parametrize(
     "q,expected",
     [
-        ("Where's the sugar?", "The sugar is on the center right spot, where it belongs. Last confirmed there at 5:00 PM today."),
-        ("Where is Mom's salt?", "The salt is on the center left spot"),
+        ("Where's the sugar?", "The sugar was last put down in the cupboard at 4:02 PM today. Top shelf, front right."),
+        ("Where is Mom's salt?", "The salt was last put down in the cupboard at 12:33 PM today. Top shelf, front left."),
+        ("Where is her wallet?", "The wallet was last put down in the bag at 4:53 PM today. In the front pocket."),
+        ("Where are her pills?", "The blood pressure pills were last put down in the box at 8:16 AM today. On top."),
         ("Where is the pepper?", "Earmark has never detected the pepper"),
         (
             "Where did she put the unicorn?",
-            "I couldn't find \"unicorn\" in Earmark's records. Earmark tracks: salt, sugar, pepper, blood pressure pills, keys.",
+            "I couldn't find \"unicorn\" in Earmark's records. Earmark tracks: salt, sugar, pepper, blood pressure pills, keys, wallet.",
         ),
-        ("Where are the house keys?", "The keys' fob was last detected close to the counter"),
+        ("Where are the house keys?", "The keys were last put down in the drawer"),
     ],
 )
 async def test_where_questions(pipeline, q, expected):
@@ -85,11 +84,7 @@ async def test_where_questions(pipeline, q, expected):
 
 async def test_untouched_in_a_week_lists_the_right_objects(pipeline):
     a = await ask(pipeline, "What hasn't been touched in a week?")
-    first = a.text.split(". ")[0]
-    assert first == "Not picked up or put down in the last week: the pepper (no pickup or put-down on record)"
-    for touched in ("salt", "sugar", "blood pressure"):
-        assert touched not in a.text
-    assert "The keys are tracked by a Bluetooth fob, which doesn't record pickups" in a.text
+    assert a.text == "Not picked up or put down in the last week: the pepper (no pickup or put-down on record)."
     assert [r.name for r in a.tool_calls] == ["list_objects"]
 
 
@@ -128,8 +123,8 @@ async def test_summary_and_history(pipeline):
     s = await ask(pipeline, "Give me yesterday's summary")
     assert s.text.startswith("On Thursday, October 23:") and "Not touched in 7 days: pepper." in s.text
     h = await ask(pipeline, "When was the salt last used?")
-    assert h.text.startswith("The salt was last picked up at 12:30 PM today from the center left spot.")
-    assert "put back on the center left spot at 12:33 PM today" in h.text
+    assert h.text.startswith("The salt was last picked up at 12:30 PM today from the cupboard.")
+    assert "put back in the cupboard at 12:33 PM today" in h.text
 
 
 async def test_greeting_gets_help_without_tool_calls(pipeline):

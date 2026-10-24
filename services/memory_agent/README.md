@@ -38,10 +38,10 @@ $ uv run earmark-memory ask --fixture "Did Mom take her evening pills?"
 Not yet tonight. Today (Friday, October 24): the 8:00 PM dose of blood pressure pills isn't due yet. Yesterday (Thursday, October 23): the 8:00 PM dose of blood pressure pills was missed (no pickup of the bottle was recorded for it).
 
 $ uv run earmark-memory ask --fixture "Where did Dad leave his keys?"
-The keys' fob was last detected close to the counter at 4:52 PM today. That position is approximate: the fob only reports how close it is to a receiver.
+The keys were last put down in the drawer at 4:52 PM today. At the front.
 
 $ uv run earmark-memory ask --fixture "What hasn't been touched in a week?"
-Not picked up or put down in the last week: the pepper (no pickup or put-down on record). The keys are tracked by a Bluetooth fob, which doesn't record pickups; the fob was last detected close to the counter at 4:52 PM today.
+Not picked up or put down in the last week: the pepper (no pickup or put-down on record).
 ```
 
 ## How it works
@@ -156,8 +156,8 @@ Never run two copies with the same seed at once (for example the laptop and Azur
 ## What is mocked
 
 - **Convex**: when `CONVEX_SITE_URL` is unset (or with `--fixture`), `earmark_memory/fixture.py` serves the contract from `config/objects.seed.json`, `config/space.json`, and two scripted days of history with a fixed clock (Friday 2025-10-24 17:00).
-  It has one missed dose (yesterday's 20:00), keys roaming near the hub receiver, and the pepper never detected.
-  Verified against the real backend too: with the local Convex deployment running, every example question was answered correctly from its seed data.
+  It uses the walking room of Amendment 01 (keys in the drawer, salt and sugar in the cupboard, pills in the box, wallet in the bag), has one missed dose (yesterday's 20:00), and the pepper is never detected.
+  Verified against the real backend too (its pre-Amendment-01 seed): with the local Convex deployment running, every example question was answered correctly.
 - **Bitdeer**: no key exists tonight, so the model path has only run against scripted models and a mock HTTP transport.
   Without `BITDEER_API_KEY`, the keyword router answers.
 - **Agentverse / ASI:One**: not exercised (needs the human's browser login).
@@ -171,8 +171,11 @@ Never run two copies with the same seed at once (for example the laptop and Azur
 - All date and time handling (relative days, weekday names, part of day, formatting) is in code; tool results reach the model pre-formatted.
 - "Taken" is reported as "marked taken (the bottle was picked up at ...)", because Earmark sees bottle pickups, not swallowed pills.
 - For "Did Mom take her evening pills?" when tonight's dose isn't due yet, the answer also reports the most recent earlier day, which is what a caregiver usually means.
-- "Hasn't been touched": objects without a pickup or put-down in the window; fob-only objects (the keys) are reported separately with their last detection, because a fob records no pickups (this matches `untouched_7d` in `convex/`).
-- Receiver and area labels ("the counter") come from `config/space.json`, because the read endpoints return only their ids.
+- "Hasn't been touched": objects without a pickup or put-down in the window.
+  Since Amendment 01 the keys carry an NFC tag (the drawer), so they count like everything else.
+  A fob-only object (fob, no home spot, no pickups) would be reported separately with its last detection; that path is kept for the fob stretch.
+- Answers name the container ("in the drawer", "in the cupboard") plus the spot's detail from `config/space.json` ("Top shelf, front left."), because the read endpoints return only spot labels.
+  Containers are named by id ("the box"), not by their mat-relative label ("the box behind you"), because the caregiver isn't standing on the mat.
 - Every reply ends the session (`EndSessionContent`), as in the official ASI:One example, because each answer is self-contained and no history is kept.
 - Messages are handled one at a time (the uAgents default).
 - Without a seed, local-only mode uses a throwaway in-memory identity, because uAgents would otherwise write `private_keys.json` into the working directory.

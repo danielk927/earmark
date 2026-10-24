@@ -5,7 +5,7 @@
 ![tag:domain/accessibility](https://img.shields.io/badge/accessibility-4CAF50)
 
 Earmark helps blind and low-vision people find everyday objects by sound.
-Spot readers on the counter and Bluetooth fobs record where household objects are and when they are picked up or put down.
+NFC spots inside a cupboard, a drawer, a bag, and a box record where household objects are and when they are picked up or put down.
 Earmark Memory lets a caregiver or family member ask about that record in plain language from ASI:One.
 Every answer comes from Earmark's logged events, with times in the household's time zone.
 
@@ -19,7 +19,7 @@ Every answer comes from Earmark's logged events, with times in the household's t
 
 ## What it can do
 
-- Find an object: its current spot, when it was last confirmed there, or where its Bluetooth fob was last detected.
+- Find an object: which container it was last put down in and when ("The keys were last put down in the drawer at 4:52 PM today").
 - Report medication adherence for any day: each scheduled dose marked taken, late, missed, or not yet due, with the time the bottle was picked up.
 - List objects that haven't been picked up or put down in a week (or another period you name).
 - Give a day's summary: doses, number of pickups, untouched and missing objects.

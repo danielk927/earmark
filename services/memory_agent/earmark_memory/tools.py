@@ -224,10 +224,10 @@ class Toolbox:
             "name": o.name,
             "aliases": o.aliases,
             "is_medication": o.is_medication,
-            "tracked_by": "bluetooth fob (proximity only, no pickups)" if o.fob_id and o.home_spot is None else "spot reader",
+            "tracked_by": "bluetooth fob (proximity only, no pickups)" if o.fob_id and o.home_spot is None else "NFC spot",
             "status": o.state.status if o.state else "never detected",
             "where_now": where_phrase(o, self.labels),
-            "home_spot": o.home_spot_label,
+            "usual_place": self.labels.spot_place(o.home_spot, o.home_spot_label) if o.home_spot is not None else None,
             "last_touched": last_touched_phrase(o, self.clock),
             "last_touched_days_ago": None
             if o.last_touched_t is None

@@ -19,7 +19,7 @@ async def test_sends_the_secret_header_and_query_names(server: FixtureServer):
     reader = HttpConvexReader(server.url, SECRET)
     try:
         assert (await reader.find_object("keys")).matches[0].object_id == "keys"
-        assert len((await reader.list_objects()).objects) == 5
+        assert len((await reader.list_objects()).objects) == 6
         assert (await reader.history("salt", 1761300000.5)).object_id == "salt"
         assert (await reader.adherence("2025-10-23")).doses[1].status == "missed"
         assert (await reader.daily_summary("2025-10-23")).untouched_7d == ["pepper"]
@@ -133,7 +133,7 @@ async def test_toolbox_over_http_records_calls_and_errors(server: FixtureServer,
     reader = HttpConvexReader(server.url, SECRET)
     tb = Toolbox(reader, data.clock, SpaceLabels.load())
     view = await tb.call_json("find_object", '{"name": "keys"}')
-    assert view["matches"][0]["where_now"] == "close to the counter"
+    assert view["matches"][0]["where_now"] == "in the drawer"
     adherence = await tb.call_json("adherence", '{"date": "yesterday"}')
     assert adherence["date"] == "2025-10-23" and adherence["doses"][1]["status"] == "missed"
     missing = await tb.call_json("history", '{"object_id": "unicorn"}')
