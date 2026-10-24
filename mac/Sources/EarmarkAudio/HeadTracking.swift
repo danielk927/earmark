@@ -128,7 +128,8 @@ public final class HeadphoneMotionTracker: HeadTrackerBase, HeadTracking {
     public override init() {
         super.init()
         delegateProxy.onConnect = { [weak self] in
-            self?.setState(.waiting, "AirPods connected - waiting for motion data")
+            guard let self, self.state != .connected else { return }
+            self.setState(.waiting, "AirPods connected - waiting for motion data")
         }
         delegateProxy.onDisconnect = { [weak self] in
             self?.setState(.disconnected, "AirPods disconnected. Reconnect them to resume head tracking.")
@@ -149,6 +150,12 @@ public final class HeadphoneMotionTracker: HeadTrackerBase, HeadTracking {
             return
         }
         started = true
+        // CoreMotion picks a new arbitrary reference frame whenever updates start, so the old reference is invalid.
+        queue.addOperation { [weak self] in
+            self?.reference = nil
+            self?.yawSmoother.reset()
+            self?.pitchSmoother.reset()
+        }
         manager.delegate = delegateProxy
         manager.startConnectionStatusUpdates()
         setState(.waiting, "Waiting for AirPods head motion. Connect AirPods (Pro, Max, or 3rd gen or later) and wear them.")
