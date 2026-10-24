@@ -13,5 +13,8 @@
   "devDependencies": {
     "json-schema-to-typescript": "^15.0.4",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "convex": "^1.48.0"
   }
 }
