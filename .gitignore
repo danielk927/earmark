@@ -36,3 +36,6 @@ var/
 
 # os
 .DS_Store
+
+# agent worktrees (Claude Code isolation)
+.claude/worktrees/

@@ -1,0 +1,10 @@
+{
+  "name": "earmark",
+  "private": true,
+  "type": "module",
+  "description": "Earmark Convex backend (convex/) lives at the repo root; the dashboard has its own package in dashboard/.",
+  "scripts": {},
+  "dependencies": {
+    "convex": "^1.48.0"
+  }
+}
