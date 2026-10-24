@@ -1,6 +1,6 @@
 # Earmark status
 
-Last updated: 2026-10-24 03:50 PDT (Phase 0 done; Phase 0.5 and Phase 1 building in parallel).
+Last updated: 2026-10-24 07:35 PDT (Phase 1: hub, concierge, Convex merged; Mac app, dashboard, memory agent building; Phase 2 integration started).
 The orchestrator is working autonomously overnight while the human sleeps; checkpoints that ask for human confirmation are recorded here instead of blocking.
 
 ## Toolchain (demo Mac)
@@ -26,8 +26,8 @@ The orchestrator is working autonomously overnight while the human sleeps; check
 | scenarios | done | `scripts/gen_scenarios.py`; every line validates against the bus schema | - |
 | Convex AI guidelines | done | `npx convex ai-files install` wrote `convex/_generated/ai/guidelines.md`, `AGENTS.md`, `CLAUDE.md`, and 33 skills | - |
 | hub | done (Phase 1) | 140 tests: debounce, state engine, every scenario, bus routing, offline Convex queue, CLIs, trial CLI; smoke run over the real WebSocket | Convex (fake server), BLE (fake bleak), serial (fake port), camera (stub) |
-| convex | building | - | - |
-| concierge | building | - | - |
+| convex | done (Phase 1) | 108 tests (adherence incl. DST, every HTTP route validated against the schemas with ajv, client-function type contract, seed/reset keeps trials); live on the local anonymous backend; liveMap update 15 ms after /ingest | Bitdeer photo labeling (mocked fetch; no key) |
+| concierge | done (Phase 1) | 167 tests; every scenario with LLM off; STT/TTS fallbacks against fake Cartesia servers; real-process integration | Cartesia (fake servers), Bitdeer (fake), Moss (fake; real SDK fails fast to fallback) |
 | Mac app + spatial spike | building | - | - |
 | dashboard | building | - | - |
 | memory agent | building | - | - |
@@ -55,6 +55,8 @@ The orchestrator is working autonomously overnight while the human sleeps; check
 8. **BLE fobs:** by the Immediate Alert spec a disconnect ends the alert, so the hub holds the connection for the chirp and writes 0x00 before disconnecting.
    macOS grants Bluetooth to the terminal app, so the hub must be launched once from Terminal.app to accept the prompt.
 9. **Azure:** Static Web Apps (free) for the dashboard, Container Apps (min 1 replica) for the memory agent; `az containerapp up --source` may be blocked on student subscriptions (needs Docker locally then).
+
+| e2e | started (Phase 2) | `make e2e-test`: real hub + concierge processes, scenarios replayed over the bus: wrong_jar, moved_item, roaming_keys, missed_dose (and the seeded missed dose read back from Convex), full_demo - 6 passed | vendor keys blanked (grammar, fallback resolver, system voice) |
 
 ## Spatial gate (Phase 0.5)
 
