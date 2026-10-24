@@ -289,10 +289,10 @@ class FixtureData:
         day_end = datetime.combine(day + timedelta(days=1), dtime(0, 0), self.tz).timestamp()
         pickups = [e for e in self.events if e.kind == "pickup" and day_start <= e.t < day_end]
         window_start = day_end - UNTOUCHED_DAYS * 86400
-        # Fob-tracked objects are located by signal, not pickups, so they never count as untouched.
+        # Like convex/: only NFC-tagged objects; fob-only objects never produce pickups or placements.
         untouched = [
             o.object_id for o in self.registry.objects
-            if o.fob_id is None and not any(
+            if o.tag is not None and not any(
                 e.object_id == o.object_id and window_start <= e.t < day_end for e in self.events)
         ]
         missing = [o.object_id for o in self.registry.objects

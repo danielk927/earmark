@@ -28,6 +28,13 @@ LLM_MAX_TOKENS = 500
 LLM_REASONING_EFFORT = "none"
 MAX_QUESTION_CHARS = 500
 
+SEED_HELP = (
+    "MEMORY_AGENT_SEED is not set, so the agent can't use its Agentverse mailbox (the seed is the agent's identity "
+    "and fixes its address). Set it in the repo-root .env to a long random phrase that you keep secret and never "
+    "commit, for example the output of:  python3 -c 'import secrets; print(secrets.token_urlsafe(32))'  "
+    "Or run locally without a mailbox:  earmark-memory run --no-mailbox"
+)
+
 
 class ConfigError(Exception):
     """A setting is missing or invalid; the message tells the human how to fix it."""
