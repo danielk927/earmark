@@ -5,6 +5,9 @@ Sponsor prizes, what each wants, and what we do: `docs/TRACKS.md`.
 
 ## What changed in the latest pass
 
+- **Merged in Aidan's hardware work** (his repo is retired): `locator/` (beacon firmware, mic-only iPhone app, Python positioning tools; its 188 tests pass), `firmware/` (NFC reader, ESP-NOW gateway and Bluetooth anchor sketches), and `docs/HARDWARE_NFC.md` (his wiring guide). His own hub, dashboard, Mac app and camera-based iPhone app were not brought over.
+  **Not connected yet:** the locator sends `listener_pose`, `mic_audio`, `ptt` and `status` messages, which this repo's hub and Mac app do not handle yet, and the Mac app still treats the listener as fixed at the origin. Wiring those in is the next big job. The locator's own hub notes (`locator/docs/CONTRACT_NOTES.md`) describe Aidan's hub, not this one.
+
 - **Memory by named places.** The user says "I put my keys in the drawer"; Earmark saves it (a new `place_item` bus message and `stored` event, using the `areas` in `config/space.json`: the counter, cupboard, drawer, bag, box).
   "Where are my keys?" then says where and when it was noted, and "Where did I put my keys before?" lists the earlier place with its time.
   The dashboard timeline and the memory agent show these moves too.
