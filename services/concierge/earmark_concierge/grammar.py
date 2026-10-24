@@ -32,6 +32,8 @@ _LAST_SEEN = (
     re.compile(r"\bwhen (?:was|were)\s+" + _DET + r"(?P<x>.+?)\s+last\s+"
                r"(?:taken|used|picked up|touched|moved|seen)\b"),
     re.compile(r"\bwhen did you last see\s+" + _DET + r"(?P<x>.+)$"),
+    # Advice-seeking ("should I take my pills") is answered with facts only (core.ADVICE).
+    re.compile(r"\b(?:should|can|may|do) i (?:take|have|use)\s+" + _DET + r"(?P<x>.+)$"),
     re.compile(r"\b(?:last seen|last time i (?:took|used|had))\s+" + _DET + r"(?P<x>.+)$"),
 )
 _GUIDE = re.compile(r"\b(?:take|guide|lead|bring)\s+me\s+to\s+" + _DET + r"(?P<x>.+)$")
