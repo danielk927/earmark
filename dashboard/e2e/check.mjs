@@ -118,6 +118,25 @@ try {
     for (const c of [desktop, phone, reflow, zoom200]) await c.close();
   }
 
+  // Remote labeling, end to end in demo mode: the map's new tag -> label it -> the map shows the name.
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await open(ctx, "/?demo=1", "Every item, as a list");
+    await page.getByRole("link", { name: "Label this item" }).first().click();
+    await page.getByLabel("Name", { exact: true }).fill("honey");
+    if ((await page.getByLabel("Home spot").inputValue()) !== "1") failures.push("labeling: home spot was not prefilled");
+    await page.getByRole("button", { name: "Save item" }).click();
+    await page.getByText("Saved honey.").waitFor();
+    await page.getByRole("link", { name: "Live map" }).click();
+    await page.getByRole("rowheader", { name: "Honey" }).waitFor();
+    const desc = await page.locator("svg.map desc").textContent();
+    if (!desc?.includes("Far left spot: honey.")) failures.push(`labeling: map description is "${desc}"`);
+    if (await page.getByText("New item on the far left spot").count()) failures.push("labeling: the new-tag notice is still shown");
+    if (!new URL(page.url()).searchParams.has("demo")) failures.push("labeling: navigation dropped ?demo=1");
+    console.log("remote labeling: new tag labeled and shown on the map");
+    await ctx.close();
+  }
+
   // The manual theme choice wins over the system setting and survives a reload.
   const ctx = await browser.newContext({ colorScheme: "light" });
   const page = await open(ctx, "/?demo=1", "Every item, as a list");

@@ -229,6 +229,22 @@ code {
   font-size: var(--step--1);
 }
 
+/* On phones the connection badge and theme switch share one row; the legend stays for screen readers. */
+@media (max-width: 30rem) {
+  .theme-switch legend {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .masthead-tools {
+    margin-left: 0;
+    gap: 0.75rem;
+  }
+}
+
 .segmented {
   display: inline-flex;
   border: 2px solid var(--line);

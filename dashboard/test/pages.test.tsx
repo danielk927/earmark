@@ -1,8 +1,7 @@
-import { screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { TrialRow } from "@contracts/convexFunctions";
-import { render } from "@testing-library/react";
 import { makeFixtures } from "../src/data/fixtures";
 import { App } from "../src/App";
 import { convexMock } from "./convexMock";
