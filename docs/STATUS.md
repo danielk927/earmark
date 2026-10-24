@@ -53,7 +53,7 @@ Sponsor prizes, what each wants, and what we do: `docs/TRACKS.md`.
 2. **Cartesia turn detection** exists only for `ink-2` on `wss://api.cartesia.ai/stt/turns/websocket`; audio goes as raw binary PCM frames, 16 kHz.
    TTS is `sonic-3.6-2026-08-27` (pinned so cached phrases match live speech), streamed as raw `pcm_f32le` at 48 kHz.
 3. **Claude settings** (checked against the current API docs): the concierge's Haiku call forces one tool, turns thinking off and sets effort `low` for speed; the memory agent's Sonnet call uses `thinking: between_tools` (Sonnet 5.5 rejects `disabled`) with effort `low` and no forced tool choice (Sonnet 5.5 rejects it); no `temperature` is sent (rejected on newer models).
-   Bitdeer was dropped, so its research notes (`docs/vendor-notes/bitdeer.md`) are historical.
+   Bitdeer was dropped and its notes were deleted.
 4. **Moss cold start needs internet** (credential check and model download); queries are in-process (about 6 ms).
    The concierge must start online, and falls back to alias/fuzzy matching on any Moss error.
 5. **uAgents crashes on Python 3.14+**; the memory agent pins 3.12.
