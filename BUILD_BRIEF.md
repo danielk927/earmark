@@ -1,5 +1,7 @@
 # EARMARK — Build Brief for Claude Code
 
+> **Design v7 is in effect** (`docs/DESIGN_v7.md`): no NFC, Bluetooth tags, or cameras; item spots are saved from the phone at setup; arrival ends a find; the wrong-jar correction is removed. It supersedes Amendment 01 where they conflict.
+>
 > **Amendment 01 (walking demo) is in effect.** `docs/AMENDMENT_01_walking.md` overrides anything in this brief that conflicts with it. Sections changed by it are marked **[A01]**.
 
 > **For the human:** Put this file in the root of an empty git repo as `BUILD_BRIEF.md`, start Claude Code there, and send:
