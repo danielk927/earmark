@@ -246,6 +246,7 @@ describe("POST /api/label", () => {
     ["aliases not strings", { tag: "04AA", name: "x", aliases: [1] }],
     ["spot not an integer", { tag: "04AA", name: "x", aliases: [], spot: 1.5 }],
     ["empty tag", { tag: " ", name: "x", aliases: [] }],
+    ["name over 80 characters (rejected inside the mutation)", { tag: "04AA", name: "x".repeat(81), aliases: [] }],
   ])("400 for %s", async (_name, body) => {
     const t = setup();
     const r = await post(t, "/api/label", body);

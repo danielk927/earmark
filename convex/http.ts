@@ -5,6 +5,7 @@
  * EARMARK_READ_SECRET only on GET /api/*.
  */
 import { httpRouter } from "convex/server";
+import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { env, httpAction, type ActionCtx } from "./_generated/server";
 import { isAuthorized } from "./lib/auth";
@@ -48,6 +49,8 @@ function route(readRoute: boolean, handler: Handler) {
       return await handler(ctx, req, Date.now() / 1000);
     } catch (err) {
       if (err instanceof BadRequest) return errorResponse(400, err.message);
+      // Validation inside a mutation (e.g. a name over 80 characters) is the caller's fault too.
+      if (err instanceof ConvexError) return errorResponse(400, String(err.data));
       console.error("http handler failed", err instanceof Error ? err.message : String(err));
       return errorResponse(500, "internal error");
     }
