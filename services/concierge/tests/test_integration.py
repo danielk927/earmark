@@ -57,7 +57,9 @@ async def test_concierge_process_over_the_bus(tmp_path):
         await asyncio.sleep(0.8)  # the concierge is already retrying: exercises reconnect
         server = await serve(bus.handler, "127.0.0.1", port)
         app = asyncio.create_task(mac_app(url, inbox, stop))
-        types = lambda: [m["type"] for m in inbox]
+        def types():
+            return [m["type"] for m in inbox]
+
         assert await wait_until(lambda: "guide_start" in types() and "speak_text" in types(), timeout=15), types()
         [g] = [m for m in inbox if m["type"] == "guide_start"]
         assert g["object_id"] == "sugar" and g["target_position"] == SPOT_POS[3]

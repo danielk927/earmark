@@ -1,6 +1,5 @@
 """Speech fallback chain: speak (Sonic) -> speak_text; static phrases -> speak_cached; no Mac app -> say."""
 import base64
-from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -59,6 +58,8 @@ async def test_tts_failure_falls_back_to_speak_text(tmp_path, sonic, mode):
     assert not h.of("speak", out)
     assert [m["text"] for m in h.of("speak_text", out)] == [TEXT]
     assert h.core.speaker.mode == "system"
+    await h.core.drain()
+    assert h.of("status")[-1]["info"]["tts"] == "system"  # mode change announced
 
 
 async def test_unreachable_tts_falls_back(tmp_path):

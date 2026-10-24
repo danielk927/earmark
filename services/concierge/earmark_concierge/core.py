@@ -67,6 +67,7 @@ class Concierge:
         self.latency = latency
         self.emit = emit
         stt.listener = self
+        speaker.on_mode_change = lambda: self.spawn(self.publish_status(only_if_changed=True))
         self.started_t = time.time()
         self.ready = asyncio.Event()
         self.mac_present = asyncio.Event()
@@ -130,11 +131,11 @@ class Concierge:
         elif isinstance(msg, Snapshot):
             self.world.apply_snapshot(msg)
             self.ready.set()
-            self.spawn(self.resolver.on_registry())
+            self.spawn(self._sync_registry())
         elif isinstance(msg, RegistryUpdate):
             self.world.set_objects(msg.objects)
             self.world.registry_version = msg.registry_version
-            self.spawn(self.resolver.on_registry())
+            self.spawn(self._sync_registry())
         elif isinstance(msg, UnknownTag):
             self.world.apply_unknown_tag(msg)
         elif isinstance(msg, Transcript):
@@ -171,6 +172,11 @@ class Concierge:
             self.silent_trial = None
             self.last_object = None
             self.router.cancel_prefetch()
+
+    async def _sync_registry(self) -> None:
+        """Rebuild the Moss index from the registry; announce if Moss became ready or failed."""
+        await self.resolver.on_registry()
+        await self.publish_status(only_if_changed=True)
 
     async def inject_typed(self, text: str) -> None:
         await self.emit(Transcript(text=text, is_final=True, source="typed"))

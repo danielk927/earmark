@@ -192,9 +192,21 @@ async def test_latency_log_has_every_stage(h):
     out = await h.say("Where's the sugar?")
     uid = h.of("guide_start", out)[0]["utterance_id"]
     await h.feed(Playback(utterance_id=uid, event="started"))
-    events = [json.loads(l)["event"] for l in h.settings.latency_log.read_text().splitlines()]
+    events = [json.loads(line)["event"] for line in h.settings.latency_log.read_text().splitlines()]
     for e in ("final_transcript", "intent", "resolve", "tool", "speech_out", "playback"):
         assert e in events, e
+
+
+async def test_moss_mode_and_latency_published_in_status(settings):
+    from test_resolver import FakeIndex
+    from earmark_concierge.moss_index import Hit
+    h = Harness(settings)
+    h.core.resolver.index = FakeIndex({"something sweet for tea": [Hit("sugar", 0.7)]})
+    await h.feed(snapshot())
+    assert h.of("status")[-1]["info"]["resolver"] == "moss"
+    out = await h.say("I need something sweet for tea")
+    assert h.of("guide_start", out)[0]["object_id"] == "sugar"
+    assert h.core.status_msg().info["moss_ms"] is not None
 
 
 async def test_status_reports_modes(h):

@@ -194,7 +194,8 @@ class CartesiaStt:
                 elif typ == "turn.end" and text:
                     await self.listener.on_stt_final(text)
             elif typ == "error":
-                raise SttFailure(f"cartesia stt error {ev.get('status_code')} {ev.get('error_code') or ev.get('title')}")
+                code = ev.get("error_code") or ev.get("title")
+                raise SttFailure(f"cartesia stt error {ev.get('status_code')} {code}")
 
     # ------------------------------------------------------------ fallback and recovery
 

@@ -18,7 +18,7 @@ async def test_exact_guides_and_speaks_clock_face(h):
 async def test_proximity_with_fob_chirps(h):
     await h.feed(state("keys", near="hub", distance_class="mid"))
     out = await h.say("Where are my keys?")
-    assert h.of("chirp", out) == [{"type": "chirp", "fob_id": "fob_keys", "action": "start", "t": h.of("chirp", out)[0]["t"]}]
+    assert [(c["fob_id"], c["action"]) for c in h.of("chirp", out)] == [("fob_keys", "start")]
     assert h.spoken(out) == ["The keys are near the counter. I'll make them beep."]
     assert not h.of("guide_start", out)
 

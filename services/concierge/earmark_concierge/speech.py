@@ -48,7 +48,14 @@ class Speaker:
         self.sample_rate = sample_rate
         self.say_cmd = say_cmd
         self.mode = "cartesia" if tts else "system"
+        self.on_mode_change: Callable[[], object] | None = None
         self._lock = asyncio.Lock()
+
+    def _set_mode(self, mode: str) -> None:
+        if mode != self.mode:
+            self.mode = mode
+            if self.on_mode_change is not None:
+                self.on_mode_change()
 
     async def say(self, utterance_id: str, text: str | None = None, phrase_id: str | None = None,
                   turn: dict | None = None) -> str:
@@ -85,10 +92,10 @@ class Speaker:
             await agen.aclose()
             await self.tts.cancel(uid)
             log.warning("tts failed before first chunk (%s); speak_text", type(e).__name__ or "timeout")
-            self.mode = "system"
+            self._set_mode("system")
             await self.emit(SpeakText(utterance_id=uid, text=text))
             return "speak_text"
-        self.mode = "cartesia"
+        self._set_mode("cartesia")
         self.latency.log("tts_first_chunk", turn=_tid(turn), utterance_id=uid, vendor="cartesia",
                          ms=round((time.perf_counter() - t0) * 1000, 1), since_final_ms=_since(turn))
         seq = 0

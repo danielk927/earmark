@@ -17,7 +17,8 @@ SUGAR_SPOT1 = "The sugar is at your ten o'clock, about an arm's length away."
 
 
 def transcripts(name: str) -> list[str]:
-    lines = [json.loads(l) for l in (REPO_ROOT / "scenarios" / f"{name}.jsonl").read_text().splitlines()]
+    path = REPO_ROOT / "scenarios" / f"{name}.jsonl"
+    lines = [json.loads(line) for line in path.read_text().splitlines()]
     return [m["text"] for m in sorted(lines, key=lambda m: m["t"]) if m["type"] == "transcript"]
 
 
