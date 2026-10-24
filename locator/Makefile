@@ -33,3 +33,8 @@ bandtest:
 		echo "usage: make bandtest FILE=path/to/recording.wav" >&2; exit 2; \
 	fi
 	$(PYTHON) tools/band_test.py "$(FILE)"
+
+# Test sound to play from any speaker when there is no beacon hardware yet (tools/make_test_sweep.py).
+.PHONY: testsweep
+testsweep:
+	$(PYTHON) tools/make_test_sweep.py out/test_sweep.wav
