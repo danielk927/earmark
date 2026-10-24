@@ -42,3 +42,5 @@ var/
 
 # local notes with secrets
 api keys
+api keys.md
+.env.local
