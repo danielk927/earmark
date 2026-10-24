@@ -170,6 +170,7 @@ class Hello(_Msg):
 
 class Snapshot(_Msg):
     type: Literal["snapshot"] = "snapshot"
+    household: Household
     space: Space
     objects: list[RegistryObject]
     states: list[ObjectState]

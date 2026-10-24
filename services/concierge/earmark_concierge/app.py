@@ -23,7 +23,7 @@ TEXT_WAIT_FOR_MAC_APP_S = 6.0
 
 
 def build(settings: Settings, emit, bus_connected=lambda: True) -> Concierge:
-    world = World(settings.timezone or household_timezone(settings.registry_paths))
+    world = World(settings.timezone or household_timezone(settings.registry_paths), pinned=bool(settings.timezone))
     latency = LatencyLog(settings.latency_log)
     index = (MossIndex(settings.moss_project_id, settings.moss_project_key, settings.moss_index_name)
              if settings.moss_enabled else None)

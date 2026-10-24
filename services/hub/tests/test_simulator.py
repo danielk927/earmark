@@ -92,8 +92,9 @@ async def test_step_pauses_before_transcripts_and_fob_class_changes(space, objec
     sim = Simulator(VirtualClock(T0), objects=objects, spots=space.spot_numbers, scenario=scenario("roaming_keys"),
                     step=True, gate=gate)
     await collect(sim)
-    assert len(prompts) == 5  # lost, transcript, far, mid, near
-    assert "transcript: Where are my keys?" in prompts[1]
+    assert len(prompts) == 5  # lost, far, transcript, mid, near
+    assert "seen far" in prompts[1]
+    assert "transcript: Where are my keys?" in prompts[2]
 
 
 async def test_step_rebases_time_after_a_pause(space, objects):

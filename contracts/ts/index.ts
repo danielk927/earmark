@@ -205,19 +205,20 @@ export interface Space {
  * via the `definition` "Registry".
  */
 export interface Registry {
-  household: {
-    name: string;
-    /**
-     * IANA tz, e.g. America/Los_Angeles. Medication schedule times are in this zone.
-     */
-    timezone: string;
-  };
+  household: Household;
   objects: RegistryObject[];
   medications: Medication[];
   /**
    * Monotonic registry version (Convex: max updated time in ms). Absent in seed files.
    */
   version?: number | null;
+}
+export interface Household {
+  name: string;
+  /**
+   * IANA tz, e.g. America/Los_Angeles. Medication schedule times are in this zone.
+   */
+  timezone: string;
 }
 /**
  * This interface was referenced by `Registry`'s JSON-Schema
@@ -302,6 +303,7 @@ export interface Hello {
  */
 export interface Snapshot {
   type: "snapshot";
+  household: Household;
   space: Space;
   objects: RegistryObject[];
   states: ObjectState[];

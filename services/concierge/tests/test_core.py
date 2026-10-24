@@ -214,3 +214,17 @@ async def test_status_reports_modes(h):
     assert s.component == "concierge" and s.info["stt_engine"] == "apple"
     assert s.info["intent_engine"] == "grammar" and s.info["resolver"] == "fallback"
     assert s.info["tts"] == "system"
+
+
+def test_snapshot_household_sets_timezone_unless_pinned():
+    from earmark_contracts import Household
+
+    from earmark_concierge.world import World
+
+    snap = snapshot().model_copy(update={"household": Household(name="h", timezone="Asia/Seoul")})
+    w = World("America/Los_Angeles")
+    w.apply_snapshot(snap)
+    assert w.timezone == "Asia/Seoul"
+    pinned = World("UTC", pinned=True)
+    pinned.apply_snapshot(snap)
+    assert pinned.timezone == "UTC"

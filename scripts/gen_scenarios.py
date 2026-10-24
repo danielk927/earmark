@@ -114,7 +114,8 @@ def scenarios():
     # against the schedule; the hub must simply emit no pickup for bp_meds.
     s["missed_dose"] = spot_reads(20, [])
 
-    s["roaming_keys"] = [fob_lost(0.0), say(3.0, "Where are my keys?")] + keys_far_to_near(5.0, 20.0)
+    # The fob is first heard at t=2 (far), so the question at t=8 gets the proximity answer.
+    s["roaming_keys"] = [fob_lost(0.0), say(8.0, "Where are my keys?")] + keys_far_to_near(2.0, 20.0)
 
     s["label_new_item"] = spot_reads(15, [(3.0, 1, "unknown")]) + [
         say(7.0, "This is honey."),
@@ -141,7 +142,7 @@ def scenarios():
         say(55.0, "Where are my keys?"),
         say(85.0, "I need something for my eggs."),
     ]
-    full += [fob_lost(0.0)] + keys_far_to_near(58.0, 75.0)
+    full += [fob_lost(0.0)] + keys_far_to_near(50.0, 75.0)
     s["full_demo"] = full
     return s
 

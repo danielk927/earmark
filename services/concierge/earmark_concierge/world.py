@@ -36,7 +36,7 @@ class LastPickup:
 
 
 def household_timezone(paths: tuple[Path, ...]) -> str:
-    """The snapshot carries no household, so read it from the registry files."""
+    """Timezone to use before the first snapshot arrives (the snapshot's household wins after that)."""
     for p in paths:
         try:
             return json.loads(p.read_text())["household"]["timezone"]
@@ -46,8 +46,10 @@ def household_timezone(paths: tuple[Path, ...]) -> str:
 
 
 class World:
-    def __init__(self, timezone: str = DEFAULT_TZ) -> None:
+    def __init__(self, timezone: str = DEFAULT_TZ, *, pinned: bool = False) -> None:
         self.timezone = timezone
+        # pinned = set explicitly (CONCIERGE_TIMEZONE); otherwise follow the snapshot's household.
+        self.timezone_pinned = pinned
         self.space: Space | None = None
         self.objects: dict[str, RegistryObject] = {}
         self.states: dict[str, ObjectState] = {}
@@ -59,6 +61,8 @@ class World:
     # ------------------------------------------------------------ updates
 
     def apply_snapshot(self, msg: Snapshot) -> None:
+        if not self.timezone_pinned:
+            self.timezone = msg.household.timezone
         self.space = msg.space
         self.set_objects(msg.objects)
         self.registry_version = msg.registry_version

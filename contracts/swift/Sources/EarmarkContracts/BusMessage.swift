@@ -128,12 +128,19 @@ public enum JSONScalar: Codable, Sendable, Equatable {
 
 // MARK: - Messages the Mac app receives
 
+public struct Household: Codable, Sendable, Equatable {
+    public var name: String
+    public var timezone: String
+}
+
 public struct Snapshot: Codable, Sendable {
     public var space: Space
     public var objects: [RegistryObject]
     public var states: [ObjectState]
     public var registryVersion: Double?
     public var t: Double
+    /// Required on the wire; optional here so older call sites keep compiling.
+    public var household: Household?
 }
 
 public struct RegistryUpdate: Codable, Sendable {

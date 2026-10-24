@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from earmark_contracts import (
+    Household,
     Location, ObjectState, RegistryObject, Snapshot, Space, to_dict,
 )
 from earmark_concierge.app import build
@@ -50,7 +51,7 @@ def home_states() -> list[ObjectState]:
 
 
 def snapshot(states: list[ObjectState] | None = None, objects=None) -> Snapshot:
-    return Snapshot(space=SPACE, objects=objects or OBJECTS,
+    return Snapshot(household=Household(name="Demo household", timezone="America/Los_Angeles"), space=SPACE, objects=objects or OBJECTS,
                     states=home_states() if states is None else states, registry_version=None)
 
 

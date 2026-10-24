@@ -1,5 +1,9 @@
 {
   "type": "snapshot",
+  "household": {
+    "name": "Demo household",
+    "timezone": "America/Los_Angeles"
+  },
   "space": {
     "listener": {
       "label": "demo chair",
