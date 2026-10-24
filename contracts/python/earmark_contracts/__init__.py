@@ -483,6 +483,10 @@ class DailySummaryResponse(_Model):
     text: str
 
 
+class RegistryResponse(Registry):
+    version: float  # required and non-null on GET /api/registry
+
+
 class ErrorResponse(_Model):
     ok: Literal[False]
     error: str
@@ -503,4 +507,5 @@ CONVEX_HTTP_MODELS: dict[str, type[_Model]] = {
     "adherence_response": AdherenceResponse,
     "daily_summary_response": DailySummaryResponse,
     "error_response": ErrorResponse,
+    "registry_response": RegistryResponse,
 }

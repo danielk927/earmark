@@ -25,7 +25,7 @@ The orchestrator is working autonomously overnight while the human sleeps; check
 | contracts | done | Python (59 tests), TS (generated + type-checked), Swift (swift-testing) validate every example, config file, and scenario line | - |
 | scenarios | done | `scripts/gen_scenarios.py`; every line validates against the bus schema | - |
 | Convex AI guidelines | done | `npx convex ai-files install` wrote `convex/_generated/ai/guidelines.md`, `AGENTS.md`, `CLAUDE.md`, and 33 skills | - |
-| hub | building | - | - |
+| hub | done (Phase 1) | 140 tests: debounce, state engine, every scenario, bus routing, offline Convex queue, CLIs, trial CLI; smoke run over the real WebSocket | Convex (fake server), BLE (fake bleak), serial (fake port), camera (stub) |
 | convex | building | - | - |
 | concierge | building | - | - |
 | Mac app + spatial spike | building | - | - |
@@ -76,6 +76,7 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 - 2026-10-24: initial contracts.
   Bus messages added beyond the brief's table: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`.
   Convex client-function contract added in `contracts/ts/convexFunctions.ts`.
+- 2026-10-24: added `registry_response` to `convex_http.schema.json` (GET /api/registry with required `version`), proposed by hub-builder. Documented `roaming` as "tracked by any non-spot method" and the pickup debounce bias.
 
 ## Decisions
 

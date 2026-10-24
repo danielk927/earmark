@@ -47,6 +47,8 @@ Run all contract tests with `make contracts-test`.
 - Readers report by polling: `kind: "seen"` with the tag on the spot, or `kind: "removed"` with `tag: "EMPTY"` when the spot is empty.
 - The hub's debounce turns that into placements (2 consecutive matching reads) and removals (about 1.5 s of continuous absence).
 - `kind: "placed"` is for adapters that debounce themselves (e.g. a future camera adapter).
+- `status: "roaming"` means tracked by any non-spot method (BLE proximity today, camera position or area later).
+- A `pickup` is emitted when removal is confirmed, about 1.5 s after the lift; trial times include that same debounce in both modes, so Earmark-vs-baseline comparisons stay fair.
 
 ## Medication adherence (deterministic, implemented and unit-tested in Convex)
 

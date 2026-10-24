@@ -1,0 +1,9 @@
+{
+  "household": {
+    "name": "Empty",
+    "timezone": "UTC"
+  },
+  "objects": [],
+  "medications": [],
+  "version": 0
+}
