@@ -30,7 +30,7 @@ The orchestrator is working autonomously overnight while the human sleeps; check
 | concierge | done (Phase 1) | 167 tests; every scenario with LLM off; STT/TTS fallbacks against fake Cartesia servers; real-process integration | Cartesia (fake servers), Bitdeer (fake), Moss (fake; real SDK fails fast to fallback) |
 | Mac app + spatial spike | building | - | - |
 | dashboard | building | - | - |
-| memory agent | building | - | - |
+| memory agent | done (Phase 1) | 94 tests; Chat Protocol handler + a real two-uAgent exchange offline; boots on 3.12 and publishes the AgentChatProtocol manifest; answers all example questions from the live local Convex ("Did Mom take her evening pills?" -> the seeded missed dose) | Bitdeer (scripted; keyword router answers without a key); Agentverse/ASI:One not exercised (needs the human's browser login) |
 
 ## Research findings that change the plan
 
@@ -79,6 +79,11 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
   Bus messages added beyond the brief's table: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`.
   Convex client-function contract added in `contracts/ts/convexFunctions.ts`.
 - 2026-10-24: added `registry_response` to `convex_http.schema.json` (GET /api/registry with required `version`), proposed by hub-builder. Documented `roaming` as "tracked by any non-spot method" and the pickup debounce bias.
+
+## Deferred contract proposals
+
+- memory-agent-builder: add `window_minutes` to `dose`, and `near_label`/`area_label` to `object_summary.state` (the agent reads `config/space.json` for labels today).
+- convex-builder: document that `untouched_7d` covers tagged objects only, that `date` defaults to today, the 500/500 ingest cap, and 404 for unknown objectIds.
 
 ## Decisions
 
