@@ -17,6 +17,7 @@ Built for Cal Hacks 13.0. Sponsor tracks and what we do for each: `docs/sponsors
 | `convex/` | Real-time backend: items, places, events, medication doses, trials |
 | `dashboard/` | Family web app: live map, items, timeline, medications, trials |
 | `mac/` | Mac app: head-tracked spatial audio through AirPods |
+| `services/ranging` | Works out the user's position from chirps between phones (the phone-beacon plan) |
 | `locator/` | Tracks where the user is standing using sound beacons: beacon firmware, an iPhone mic-only app, and Python reference tools (from Aidan's repo) |
 | `firmware/` | ESP32 firmware for NFC readers, an ESP-NOW gateway and Bluetooth anchors (from Aidan's repo) |
 | `contracts/` | The message and data formats every part shares |

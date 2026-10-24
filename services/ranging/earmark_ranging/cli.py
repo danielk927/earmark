@@ -46,6 +46,14 @@ async def _serve(args) -> None:
                 await asyncio.sleep(2)
                 await svc.publisher.send(svc.status())
                 print(f"phones connected: {sorted(svc.phones)}   fixes so far: {svc.fixes}")
+                if args.save_audio:
+                    svc.save_audio(args.save_audio)
+                if args.verbose:
+                    for slot in sorted(svc.phones):
+                        d = svc.diag.get(slot)
+                        who = "your phone" if slot == 0 else f"beacon {slot}"
+                        mic = f"own chirp {d['own']:>4}, hears phones {d['heard']}" if d else "no recording yet"
+                        print(f"   {who:<11} {mic}")
 
         await asyncio.gather(runner, beat())
 
@@ -76,6 +84,8 @@ def main() -> None:
         s.add_argument("--audible", action="store_true", help="use the 2000 to 4500 Hz band instead of the quiet high one")
     sv = sub.choices["serve"]
     sv.add_argument("--no-bus", action="store_true", help="do not publish to the Earmark bus")
+    sv.add_argument("--save-audio", metavar="DIR", help="keep the last few seconds each phone heard as WAV files (for checking)")
+    sv.add_argument("--verbose", action="store_true", help="every 2 s, show what each phone heard (for setting up)")
     sm = sub.choices["sim"]
     sm.add_argument("--x", type=float, default=0.3)
     sm.add_argument("--y", type=float, default=0.5)

@@ -111,6 +111,7 @@ class RangingService:
         self.last_fix: Fix | None = None
         self.last_fix_at: float | None = None
         self.last_distances: dict[int, float] = {}
+        self.diag: dict[int, dict] = {}  # per phone: what it heard last round, for the console
         self.pairs: dict[tuple[int, int], float] = {}
         self.fixes = 0
         self._lost_sent = False
@@ -194,6 +195,10 @@ class RangingService:
             events = [type(e)(a / FS + e.t, e.shape, e.score, e.snr) for e in self.detector.find(audio)]
             near = [e for e in events if abs(e.t - expected) <= 0.2]
             slots = assign_slots(events, slot, self.gap, own_pool=near)
+            self.diag[slot] = {
+                "own": round(max((e.score for e in near), default=0.0)), "heard": sorted(slots) if slot in slots else [],
+                "chirps": len(events),
+            }
             if slot in slots:
                 heard[slot] = slots
         return heard
@@ -242,6 +247,22 @@ class RangingService:
             self._lost_sent = True
             pos = [round(self.last_fix.position[i] + self.ear_offset[i], 3) for i in range(3)]
             await self.publisher.send(ListenerPose(position=pos, quality="lost", beacons_heard=0, source="beacons"))
+
+    def save_audio(self, folder: str) -> None:
+        """Write what each phone heard recently, so it can be opened in any audio tool or run through the band test."""
+        import os
+        import wave
+
+        os.makedirs(folder, exist_ok=True)
+        for slot, ph in self.phones.items():
+            audio = ph.buf.get(max(ph.buf.end - 6 * FS, 0), ph.buf.end) if ph.buf.started else None
+            if audio is None:
+                continue
+            with wave.open(os.path.join(folder, f"phone{slot}.wav"), "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(FS)
+                w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
 
     def status(self) -> StatusMsg:
         have = sorted(self.phones)

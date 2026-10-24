@@ -82,7 +82,7 @@ Rules: every answer says when; Earmark records only what it was told or saw (for
 
 The locator (`locator/`) tells the system where the user is standing, so the ping can lead them across the room.
 
-1. Five sound beacons chirp in turn; the iPhone's microphone hears them and works out the user's ear position.
+1. Five sound beacons chirp in turn; the iPhone's microphone hears them and works out the user's ear position. The beacons can be small buzzers on one board (`locator/firmware`) or five spare iPhones (`services/ranging`, `locator/ios/EarmarkPhone`). With phones there is no shared clock: each phone times the chirps on its own recording, and the Mac turns those timings into distances. Setup steps: `locator/docs/PHONE_BEACONS.md`.
 2. The phone sends `listener_pose` (about 3 per second) to the bus. The hub passes it on; it needs no special handling.
 3. The Mac app subtracts the user's position from the item's position, then turns it by the AirPods head angle. The ping gets faster and louder as the user gets closer.
 4. Within half a meter the Mac app stops the ping, plays a short tone and sends `guide_feedback arrived`. The concierge then says "You're here. The keys are up high, at your twelve o'clock."

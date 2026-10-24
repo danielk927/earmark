@@ -21,7 +21,14 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 3. Check the dashboard (live map and timeline) updates.
 4. The AirPods spatial test has passed. Needs the app built once with `make mac`, then `make mac-open` (ad-hoc signing means macOS asks for permissions again after each rebuild).
 
-## Hardware: how to start (in this order, each step must pass before the next)
+## Two ways to track where the user walks (pick one)
+
+- **Phones as beacons (no wiring, built):** five spare iPhones sit around the room and chirp; the user's phone listens. Needs 6 iPhones and Xcode. Setup: `locator/docs/PHONE_BEACONS.md`. The Mac side is tested with virtual phones; nothing has run on real iPhones yet.
+- **Buzzers on a small board (needs wiring):** described below.
+
+First thing to find out either way: can a phone hear the quiet high pitch across the room? For phones, run the app's "Play test sweep" on one and record it on another.
+
+## Buzzer hardware: how to start (in this order, each step must pass before the next)
 
 You need three tools first: `brew install arduino-cli` (to put the program on the ESP32), Xcode from the App Store (for the iPhone app), and `brew install xcodegen`.
 
