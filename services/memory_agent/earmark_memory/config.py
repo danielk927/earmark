@@ -14,8 +14,7 @@ REPO_ROOT = SERVICE_DIR.parents[1]
 CONFIG_DIR = REPO_ROOT / "config"
 AGENTVERSE_README = SERVICE_DIR / "AGENTVERSE_README.md"
 
-DEFAULT_BITDEER_BASE_URL = "https://api-inference.bitdeer.ai/v1"
-DEFAULT_BITDEER_AGENT_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+DEFAULT_ANTHROPIC_AGENT_MODEL = "claude-sonnet-5-5"
 DEFAULT_AGENT_NAME = "earmark-memory"
 DEFAULT_AGENT_PORT = 8010
 
@@ -25,8 +24,8 @@ LLM_REQUEST_TIMEOUT_S = 8.0
 LLM_TOTAL_BUDGET_S = 20.0
 MAX_TOOL_CALLS = 4
 LLM_MAX_TOKENS = 500
-# Bitdeer chat models reason by default, which costs 9-17 s per call (docs/vendor-notes/bitdeer.md).
-LLM_REASONING_EFFORT = "none"
+# Low effort keeps each tool-calling round quick; the answers are short and the facts come from tools.
+LLM_EFFORT = "low"
 MAX_QUESTION_CHARS = 500
 
 SEED_HELP = (
@@ -45,16 +44,15 @@ class ConfigError(Exception):
 class Settings:
     convex_site_url: str | None
     read_secret: str | None
-    bitdeer_api_key: str | None
-    bitdeer_base_url: str
-    bitdeer_model: str
+    anthropic_api_key: str | None
+    anthropic_model: str
     agent_seed: str | None
     agent_name: str
     agent_port: int
 
     @property
     def llm_enabled(self) -> bool:
-        return self.bitdeer_api_key is not None
+        return self.anthropic_api_key is not None
 
     @property
     def convex_configured(self) -> bool:
@@ -85,9 +83,8 @@ def load_settings(env: Mapping[str, str] | None = None, dotenv_path: Path | None
     return Settings(
         convex_site_url=_get(env, "CONVEX_SITE_URL"),
         read_secret=_get(env, "EARMARK_READ_SECRET"),
-        bitdeer_api_key=_get(env, "BITDEER_API_KEY"),
-        bitdeer_base_url=_get(env, "BITDEER_BASE_URL") or DEFAULT_BITDEER_BASE_URL,
-        bitdeer_model=_get(env, "BITDEER_AGENT_MODEL") or DEFAULT_BITDEER_AGENT_MODEL,
+        anthropic_api_key=_get(env, "ANTHROPIC_API_KEY"),
+        anthropic_model=_get(env, "ANTHROPIC_AGENT_MODEL") or DEFAULT_ANTHROPIC_AGENT_MODEL,
         agent_seed=_get(env, "MEMORY_AGENT_SEED"),
         agent_name=_get(env, "MEMORY_AGENT_NAME") or DEFAULT_AGENT_NAME,
         agent_port=port,

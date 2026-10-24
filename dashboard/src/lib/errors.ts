@@ -20,8 +20,8 @@ export function errorMessage(err: unknown): string {
 /** Photo suggestion failures, phrased for a family member rather than a developer. */
 export function photoErrorMessage(err: unknown): string {
   const text = errorMessage(err);
-  if (/bitdeer|api[_ ]?key/i.test(text)) {
-    return "Photo suggestions are not set up on this Earmark server yet (no Bitdeer API key). Fill in the details by hand instead.";
+  if (/anthropic|api[_ ]?key/i.test(text)) {
+    return "Photo suggestions are not set up on this Earmark server yet (no Anthropic API key). Fill in the details by hand instead.";
   }
   if (/timed? ?out|timeout/i.test(text)) return "The suggestion took too long. Try again, or fill in the details by hand.";
   return `No suggestion this time: ${text}`;

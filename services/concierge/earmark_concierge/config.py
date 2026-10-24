@@ -1,7 +1,7 @@
 """Settings from the environment.
 
 Every vendor URL, model ID, and voice ID comes from an env var. Defaults are the
-values verified in docs/vendor-notes/{cartesia,moss,bitdeer}.md. A repo-root
+values verified in docs/vendor-notes/{cartesia,moss}.md. A repo-root
 .env is loaded if present, without overriding the real environment. Empty
 values count as unset, so a test can blank a key that .env would provide.
 """
@@ -61,10 +61,9 @@ class Settings:
     moss_project_key: str | None = None
     moss_index_name: str = "earmark-objects"
 
-    # Bitdeer (docs/vendor-notes/bitdeer.md)
-    bitdeer_api_key: str | None = None
-    bitdeer_base_url: str = "https://api-inference.bitdeer.ai/v1"
-    bitdeer_chat_model: str = "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B"
+    # Anthropic (Claude picks the tool for each request)
+    anthropic_api_key: str | None = None
+    anthropic_chat_model: str = "claude-haiku-5-5"
     llm_timeout_s: float = 1.5
     llm_enabled: bool = True  # --no-llm sets this False
 
@@ -108,8 +107,8 @@ class Settings:
         return bool(self.moss_project_id and self.moss_project_key)
 
     @property
-    def bitdeer_enabled(self) -> bool:
-        return bool(self.llm_enabled and self.bitdeer_api_key)
+    def anthropic_enabled(self) -> bool:
+        return bool(self.llm_enabled and self.anthropic_api_key)
 
 
 def load_settings(*, dotenv: bool = True) -> Settings:
@@ -132,9 +131,8 @@ def load_settings(*, dotenv: bool = True) -> Settings:
         moss_project_id=_get("MOSS_PROJECT_ID"),
         moss_project_key=_get("MOSS_PROJECT_KEY"),
         moss_index_name=_get("MOSS_INDEX_NAME", d.moss_index_name),
-        bitdeer_api_key=_get("BITDEER_API_KEY"),
-        bitdeer_base_url=_get("BITDEER_BASE_URL", d.bitdeer_base_url),
-        bitdeer_chat_model=_get("BITDEER_CHAT_MODEL", d.bitdeer_chat_model),
+        anthropic_api_key=_get("ANTHROPIC_API_KEY"),
+        anthropic_chat_model=_get("ANTHROPIC_CHAT_MODEL", d.anthropic_chat_model),
         llm_timeout_s=_float("LLM_TIMEOUT_S", d.llm_timeout_s),
         stt_connect_timeout_s=_float("CONCIERGE_STT_CONNECT_TIMEOUT_S", d.stt_connect_timeout_s),
         stt_first_event_timeout_s=_float("CONCIERGE_STT_FIRST_EVENT_TIMEOUT_S", d.stt_first_event_timeout_s),

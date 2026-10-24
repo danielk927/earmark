@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fn } from "../contracts/ts/convexFunctions";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { bytesToBase64, parseSuggestion, requestSuggestion } from "./lib/bitdeer";
+import { bytesToBase64, parseSuggestion, requestSuggestion } from "./lib/claude";
 import { setup, type T } from "./test.helpers";
 
 const PHOTO = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5]);
 
-function bitdeerReply(content: unknown, status = 200) {
+function claudeReply(content: unknown, status = 200) {
   return new Response(
-    JSON.stringify(status === 200 ? { choices: [{ message: { role: "assistant", content: JSON.stringify(content) } }] } : content),
+    JSON.stringify(status === 200 ? { content: [{ type: "text", text: JSON.stringify(content) }] } : content),
     { status, headers: { "content-type": "application/json" } },
   );
 }
@@ -26,7 +26,7 @@ async function exists(t: T, id: Id<"_storage">) {
 let t: T;
 beforeEach(() => {
   t = setup();
-  vi.stubEnv("BITDEER_API_KEY", "test-key");
+  vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -35,9 +35,9 @@ afterEach(() => {
 });
 
 describe("labeling:suggestFromPhoto", () => {
-  test("sends the photo inline to Bitdeer, returns the suggestion, deletes the photo", async () => {
+  test("sends the photo inline to Claude, returns the suggestion, deletes the photo", async () => {
     const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
-      bitdeerReply({ name: " Sugar ", aliases: ["white sugar", "Sugar", "sweetener", ""], description: "Small glass jar with a white lid." }),
+      claudeReply({ name: " Sugar ", aliases: ["white sugar", "Sugar", "sweetener", ""], description: "Small glass jar with a white lid." }),
     );
     vi.stubGlobal("fetch", fetchMock);
     const id = await upload(t);
@@ -46,7 +46,7 @@ describe("labeling:suggestFromPhoto", () => {
       name: "sugar",
       aliases: ["white sugar", "sweetener"],
       description: "Small glass jar with a white lid.",
-      model: "deepseek-ai/DeepSeek-V4.1-Flash-1017",
+      model: "claude-haiku-5-5",
       photoDeleted: true,
     });
     expect(r.latencyMs).toBeGreaterThanOrEqual(0);
@@ -54,50 +54,50 @@ describe("labeling:suggestFromPhoto", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://api-inference.bitdeer.ai/v1/chat/completions");
-    expect((init.headers as Record<string, string>).authorization).toBe("Bearer test-key");
+    expect(url).toBe("https://api.anthropic.com/v1/messages");
+    expect((init.headers as Record<string, string>)["x-api-key"]).toBe("test-key");
     expect(init.signal).toBeInstanceOf(AbortSignal);
     const body = JSON.parse(init.body as string);
-    expect(body.reasoning_effort).toBe("none");
-    expect(body.response_format.type).toBe("json_schema");
-    expect(body.response_format.json_schema.strict).toBe(true);
-    expect(body.messages[1].content[0]).toEqual({
-      type: "image_url",
-      image_url: { url: `data:image/jpeg;base64,${bytesToBase64(PHOTO)}` },
+    expect(body.thinking).toEqual({ type: "disabled" });
+    expect(body.output_config.effort).toBe("low");
+    expect(body.output_config.format.type).toBe("json_schema");
+    expect(body.messages[0].content[0]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/jpeg", data: bytesToBase64(PHOTO) },
     });
   });
 
-  test("uses BITDEER_BASE_URL and BITDEER_VISION_MODEL when set", async () => {
-    vi.stubEnv("BITDEER_BASE_URL", "https://example.test/v1/");
-    vi.stubEnv("BITDEER_VISION_MODEL", "Qwen/Qwen3.8-27B");
-    const fetchMock = vi.fn(async () => bitdeerReply({ name: "salt", aliases: [], description: "Jar." }));
+  test("uses ANTHROPIC_BASE_URL and ANTHROPIC_VISION_MODEL when set", async () => {
+    vi.stubEnv("ANTHROPIC_BASE_URL", "https://example.test/v1/");
+    vi.stubEnv("ANTHROPIC_VISION_MODEL", "claude-sonnet-5-5");
+    const fetchMock = vi.fn(async () => claudeReply({ name: "salt", aliases: [], description: "Jar." }));
     vi.stubGlobal("fetch", fetchMock);
     const r = await t.action(fn.labeling.suggestFromPhoto, { storageId: await upload(t, "image/png") });
-    expect(r.model).toBe("Qwen/Qwen3.8-27B");
-    expect((fetchMock.mock.calls[0] as unknown[])[0]).toBe("https://example.test/v1/chat/completions");
+    expect(r.model).toBe("claude-sonnet-5-5");
+    expect((fetchMock.mock.calls[0] as unknown[])[0]).toBe("https://example.test/v1/messages");
   });
 
   test("without an API key: a clear error, no network call, photo deleted", async () => {
-    vi.stubEnv("BITDEER_API_KEY", "");
+    vi.stubEnv("ANTHROPIC_API_KEY", "");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     const id = await upload(t);
-    await expect(t.action(fn.labeling.suggestFromPhoto, { storageId: id })).rejects.toThrow(/BITDEER_API_KEY is missing/);
+    await expect(t.action(fn.labeling.suggestFromPhoto, { storageId: id })).rejects.toThrow(/ANTHROPIC_API_KEY is missing/);
     expect(fetchMock).not.toHaveBeenCalled();
     expect(await exists(t, id)).toBe(false);
   });
 
   test("a model error is reported without the key and the photo is still deleted", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => bitdeerReply({ error: { message: "no credits", code: "NOT_ENOUGH_BALANCE" } }, 403)));
+    vi.stubGlobal("fetch", vi.fn(async () => claudeReply({ type: "error", error: { type: "permission_error", message: "no credits" } }, 403)));
     const id = await upload(t);
     const err = await t.action(fn.labeling.suggestFromPhoto, { storageId: id }).catch((e: Error) => e);
-    expect(String(err)).toMatch(/HTTP 403 NOT_ENOUGH_BALANCE/);
+    expect(String(err)).toMatch(/HTTP 403 permission_error/);
     expect(String(err)).not.toMatch(/test-key/);
     expect(await exists(t, id)).toBe(false);
   });
 
   test("an unreadable model reply is an error and the photo is deleted", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: "a jar" } }] }))));
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ content: [{ type: "text", text: "a jar" }] }))));
     const id = await upload(t);
     await expect(t.action(fn.labeling.suggestFromPhoto, { storageId: id })).rejects.toThrow(/unreadable suggestion/);
     expect(await exists(t, id)).toBe(false);
@@ -120,7 +120,7 @@ describe("labeling:suggestFromPhoto", () => {
   });
 });
 
-describe("lib/bitdeer", () => {
+describe("lib/claude", () => {
   test("times out with a clear message", async () => {
     const hang = (_: string, init: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {

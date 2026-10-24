@@ -1,4 +1,4 @@
-"""Intent: Bitdeer LLM tool choice raced against the keyword grammar.
+"""Intent: Claude tool choice raced against the keyword grammar.
 
 The grammar result is computed immediately. The LLM's single tool call wins if
 it arrives within the timeout and validates; otherwise the grammar result is
@@ -8,6 +8,7 @@ transcript matches (docs/vendor-notes/cartesia.md, section 3.6).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -28,33 +29,31 @@ class ToolChooser(Protocol):
         """Return the model's tool calls as (name, arguments_json)."""
 
 
-class BitdeerChooser:
-    """OpenAI-compatible chat completions on Bitdeer (docs/vendor-notes/bitdeer.md, 3.1)."""
+class AnthropicChooser:
+    """Claude picks one tool for the utterance. Haiku with thinking off and low effort keeps it fast."""
 
-    vendor = "bitdeer"
+    vendor = "anthropic"
 
-    def __init__(self, api_key: str, base_url: str, model: str, timeout_s: float) -> None:
-        from openai import AsyncOpenAI
+    def __init__(self, api_key: str, model: str, timeout_s: float) -> None:
+        from anthropic import AsyncAnthropic
 
         self.model = model
-        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=0)
+        self.client = AsyncAnthropic(api_key=api_key, timeout=timeout_s, max_retries=0)
 
     async def choose(self, text: str, world: World) -> list[tuple[str, str]]:
-        resp = await self.client.chat.completions.create(
+        tools = [{"name": f["function"]["name"], "description": f["function"]["description"],
+                  "input_schema": f["function"]["parameters"]} for f in tool_schemas(world)]
+        resp = await self.client.messages.create(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt(world)},
-                {"role": "user", "content": text},
-            ],
-            tools=tool_schemas(world),
-            tool_choice="required",
-            parallel_tool_calls=False,
             max_tokens=200,
-            temperature=0,
-            extra_body={"reasoning_effort": "none"},
+            system=system_prompt(world),
+            messages=[{"role": "user", "content": text}],
+            tools=tools,
+            tool_choice={"type": "any", "disable_parallel_tool_use": True},
+            thinking={"type": "disabled"},
+            output_config={"effort": "low"},
         )
-        calls = resp.choices[0].message.tool_calls or []
-        return [(c.function.name, c.function.arguments) for c in calls]
+        return [(b.name, json.dumps(b.input)) for b in resp.content if b.type == "tool_use"]
 
     async def close(self) -> None:
         await self.client.close()

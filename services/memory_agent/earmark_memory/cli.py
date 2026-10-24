@@ -18,7 +18,7 @@ def _setup_logging(verbose: bool) -> None:
         stream=sys.stderr,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    for noisy in ("httpx", "httpcore", "openai"):
+    for noisy in ("httpx", "httpcore", "anthropic"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
     ask = sub.add_parser("ask", help="answer one question locally (same pipeline as the agent)")
     ask.add_argument("question")
     ask.add_argument("--fixture", action="store_true", help="use the offline fixture even if CONVEX_SITE_URL is set")
-    ask.add_argument("--no-llm", action="store_true", help="skip Bitdeer and use the keyword router")
+    ask.add_argument("--no-llm", action="store_true", help="skip Claude and use the keyword router")
 
     run = sub.add_parser("run", help="start the uAgent (mailbox on when MEMORY_AGENT_SEED is set)")
     run.add_argument(

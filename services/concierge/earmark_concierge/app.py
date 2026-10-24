@@ -9,7 +9,7 @@ import sys
 from .bus import BusClient
 from .config import Settings
 from .core import Concierge
-from .intent import BitdeerChooser, IntentRouter
+from .intent import AnthropicChooser, IntentRouter
 from .latency import LatencyLog
 from .moss_index import MossIndex
 from .resolver import Resolver
@@ -28,9 +28,8 @@ def build(settings: Settings, emit, bus_connected=lambda: True) -> Concierge:
     index = (MossIndex(settings.moss_project_id, settings.moss_project_key, settings.moss_index_name)
              if settings.moss_enabled else None)
     resolver = Resolver(world, index, settings.moss_min_score, settings.moss_margin)
-    chooser = (BitdeerChooser(settings.bitdeer_api_key, settings.bitdeer_base_url,
-                              settings.bitdeer_chat_model, settings.llm_timeout_s)
-               if settings.bitdeer_enabled else None)
+    chooser = (AnthropicChooser(settings.anthropic_api_key, settings.anthropic_chat_model, settings.llm_timeout_s)
+               if settings.anthropic_enabled else None)
     router = IntentRouter(chooser, settings.llm_timeout_s)
     tts = SonicTts(settings) if settings.tts_enabled else None
     stt = CartesiaStt(settings, keyterms=lambda: ["Earmark"] + [
@@ -50,7 +49,7 @@ def build(settings: Settings, emit, bus_connected=lambda: True) -> Concierge:
 def describe(settings: Settings) -> str:
     return (f"bus={settings.bus_url} stt={'cartesia' if settings.cartesia_enabled else 'apple (no key)'} "
             f"tts={'cartesia' if settings.tts_enabled else 'system voice (no key/voice)'} "
-            f"llm={'bitdeer ' + settings.bitdeer_chat_model if settings.bitdeer_enabled else 'off (grammar)'} "
+            f"llm={'claude ' + settings.anthropic_chat_model if settings.anthropic_enabled else 'off (grammar)'} "
             f"resolver={'moss' if settings.moss_enabled else 'fallback (no key)'}")
 
 

@@ -1,13 +1,13 @@
 /**
- * Photo-assisted labeling via Bitdeer's OpenAI-compatible chat completions
- * (docs/vendor-notes/bitdeer.md): the photo goes inline as a base64 data: URL
- * (Bitdeer cannot fetch local or private URLs), reasoning is off for latency,
- * and the reply is a strict JSON schema. Pure apart from the injected fetch.
+ * Photo-assisted labeling with Claude's Messages API: the photo goes inline as a
+ * base64 image block, thinking is off for latency, and the reply is constrained to a
+ * JSON schema. Pure apart from the injected fetch.
  */
 import { ConvexError } from "convex/values";
 
-export const DEFAULT_BASE_URL = "https://api-inference.bitdeer.ai/v1";
-export const DEFAULT_VISION_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash-1017";
+export const DEFAULT_BASE_URL = "https://api.anthropic.com/v1";
+export const DEFAULT_VISION_MODEL = "claude-haiku-5-5";
+const API_VERSION = "2026-10-21";
 export const TIMEOUT_MS = 8000;
 export const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -52,20 +52,19 @@ export function bytesToBase64(bytes: Uint8Array): string {
 export function buildRequest(model: string, mime: string, bytes: Uint8Array) {
   return {
     model,
+    max_tokens: 300,
+    system: SYSTEM_PROMPT,
     messages: [
-      { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
         content: [
-          { type: "image_url", image_url: { url: `data:${mime};base64,${bytesToBase64(bytes)}` } },
+          { type: "image", source: { type: "base64", media_type: mime, data: bytesToBase64(bytes) } },
           { type: "text", text: USER_PROMPT },
         ],
       },
     ],
-    response_format: { type: "json_schema", json_schema: { name: "item_label", strict: true, schema: RESPONSE_SCHEMA } },
-    reasoning_effort: "none",
-    temperature: 0,
-    max_tokens: 300,
+    thinking: { type: "disabled" },
+    output_config: { effort: "low", format: { type: "json_schema", schema: RESPONSE_SCHEMA } },
   };
 }
 
@@ -104,7 +103,7 @@ export function parseSuggestion(content: unknown): LabelSuggestion {
   return { name, aliases, description: tidy(o.description, 200) };
 }
 
-/** Call Bitdeer once with a hard timeout. Errors are ConvexErrors the dashboard can show; the key is never included. */
+/** Call Claude once with a hard timeout. Errors are ConvexErrors the dashboard can show; the key is never included. */
 export async function requestSuggestion(opts: {
   fetchImpl: typeof fetch;
   baseUrl: string;
@@ -121,9 +120,9 @@ export async function requestSuggestion(opts: {
   let res: Response;
   let text: string;
   try {
-    res = await opts.fetchImpl(`${opts.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
+    res = await opts.fetchImpl(`${opts.baseUrl.replace(/\/+$/, "")}/messages`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` },
+      headers: { "content-type": "application/json", "x-api-key": opts.apiKey, "anthropic-version": API_VERSION },
       body: JSON.stringify(buildRequest(opts.model, opts.mime, opts.bytes)),
       signal: controller.signal,
     });
@@ -140,8 +139,8 @@ export async function requestSuggestion(opts: {
   if (!res.ok) {
     let code = "";
     try {
-      const body = JSON.parse(text) as { error?: { code?: unknown; message?: unknown } };
-      code = typeof body.error?.code === "string" ? ` ${body.error.code}` : "";
+      const body = JSON.parse(text) as { error?: { type?: unknown; message?: unknown } };
+      code = typeof body.error?.type === "string" ? ` ${body.error.type}` : "";
     } catch {
       // Non-JSON error bodies (e.g. a plain "Unauthorized") carry no code.
     }
@@ -149,8 +148,8 @@ export async function requestSuggestion(opts: {
   }
   let content: unknown = null;
   try {
-    const body = JSON.parse(text) as { choices?: { message?: { content?: unknown } }[] };
-    content = body.choices?.[0]?.message?.content ?? null;
+    const body = JSON.parse(text) as { content?: { type?: unknown; text?: unknown }[] };
+    content = body.content?.find((b) => b.type === "text")?.text ?? null;
   } catch {
     content = null;
   }

@@ -1,6 +1,6 @@
 /**
  * Photo-assisted labeling: one photo from the family member's own device, shrunk to a JPEG here,
- * uploaded to Convex storage, described by a Bitdeer multimodal model, then deleted by the server.
+ * uploaded to Convex storage, described by Claude, then deleted by the server.
  * The suggestion is only a starting point: nothing is saved until the person confirms the form.
  */
 import { useEffect, useId, useRef, useState } from "react";

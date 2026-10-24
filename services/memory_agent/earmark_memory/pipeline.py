@@ -2,7 +2,7 @@
 
 Paths, in order:
   guard    - dosing or health questions are answered by code only (facts, never advice).
-  llm      - Bitdeer tool-calling loop, accepted only if it used a tool for a data question
+  llm      - Claude tool-calling loop, accepted only if it used a tool for a data question
              and its text passes the no-medical-advice check.
   fallback - the deterministic keyword router, whenever the LLM is off, slow, or rejected.
 """
@@ -19,7 +19,7 @@ from .config import MAX_QUESTION_CHARS, ConfigError, Settings
 from .convex import ConvexError, ConvexReader, HttpConvexReader
 from .describe import SpaceLabels
 from .fixture import FixtureConvexReader
-from .llm import BitdeerChatModel, ChatModel, LlmError, run_tool_loop
+from .llm import AnthropicChatModel, ChatModel, LlmError, run_tool_loop
 from .router import HELP_TEXT, analyze, unreachable_text
 from .router import answer as route_answer
 from .tools import Toolbox, ToolCallRecord
@@ -95,7 +95,7 @@ class MemoryPipeline:
             text = await route_answer(question, tb, analysis)
             return Answer(text, "guard", reason="medical question: facts only, answered by code", tool_calls=tb.records)
 
-        reason = "LLM disabled (no BITDEER_API_KEY)"
+        reason = "LLM disabled (no ANTHROPIC_API_KEY)"
         if self.chat_model is not None:
             tb = Toolbox(self.reader, clock, self.labels)
             try:
@@ -135,9 +135,7 @@ def build_pipeline(settings: Settings, *, fixture: bool = False, use_llm: bool =
 
     chat_model: ChatModel | None = None
     if use_llm and settings.llm_enabled:
-        chat_model = BitdeerChatModel(
-            api_key=settings.bitdeer_api_key, base_url=settings.bitdeer_base_url, model=settings.bitdeer_model
-        )
+        chat_model = AnthropicChatModel(api_key=settings.anthropic_api_key, model=settings.anthropic_model)
     elif use_llm:
-        log.warning("BITDEER_API_KEY is not set: answering with the deterministic keyword router")
+        log.warning("ANTHROPIC_API_KEY is not set: answering with the deterministic keyword router")
     return MemoryPipeline(reader, chat_model)
