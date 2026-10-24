@@ -23,6 +23,10 @@ class TtsError(Exception):
     pass
 
 
+def _close_code(e: ConnectionClosed) -> int | None:
+    return e.rcvd.code if e.rcvd is not None else None
+
+
 class SonicTts:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
@@ -57,7 +61,7 @@ class SonicTts:
                 if q is not None:
                     q.put_nowait(msg)
         except ConnectionClosed as e:
-            err = TtsError(f"tts socket closed ({e.code})")
+            err = TtsError(f"tts socket closed ({_close_code(e)})")
         except Exception as e:
             err = TtsError(f"tts reader failed ({type(e).__name__})")
         finally:
@@ -97,7 +101,7 @@ class SonicTts:
                 elif typ == "done" or (msg.get("done") is True and typ != "chunk"):
                     return
         except ConnectionClosed as e:
-            raise TtsError(f"tts socket closed ({e.code})") from e
+            raise TtsError(f"tts socket closed ({_close_code(e)})") from e
         finally:
             self._queues.pop(context_id, None)
 

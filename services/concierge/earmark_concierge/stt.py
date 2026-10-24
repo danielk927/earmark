@@ -113,11 +113,13 @@ class CartesiaStt:
             await self._fallback(f"cartesia stt connect failed ({type(e).__name__})", b)
             return
         tasks = [asyncio.create_task(c) for c in (self._read(ws, b), self._watchdog(b), self._send(ws, b))]
+        reader, pending = tasks[0], set(tasks)
         try:
-            done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_EXCEPTION)
-            for t in done:
-                if t.exception() is not None:
-                    raise t.exception()
+            while not reader.done():  # the burst ends when the server closes the socket
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                for t in done:
+                    if t.exception() is not None:
+                        raise t.exception()
         except SttFailure as e:
             await self._fallback(str(e), b)
         except Exception as e:
