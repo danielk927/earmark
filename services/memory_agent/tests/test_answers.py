@@ -35,6 +35,7 @@ async def test_evening_pills_reports_tonight_pending_and_yesterdays_miss(pipelin
         ("Did Mom take her pills on Thursday?", "the 8:00 AM dose of blood pressure pills was marked taken (the bottle was picked up at 8:05 AM), and the 8:00 PM dose was missed"),
         ("Did Mom take her 8 pm dose yesterday?", "the 8:00 PM dose of blood pressure pills was missed"),
         ("Did Mom take her afternoon pills?", "There's no afternoon dose on the schedule today"),
+        ("Did she take her pills tonight?", "Not yet tonight. Today (Friday, October 24): the 8:00 PM dose of blood pressure pills isn't due yet. Yesterday (Thursday, October 23): the 8:00 PM dose"),
         ("Did Mom take her pills on October 1?", "Earmark has no medication doses on record for Wednesday, October 1."),
     ],
 )

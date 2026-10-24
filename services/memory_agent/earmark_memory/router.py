@@ -190,7 +190,7 @@ async def _dose_facts(question: str, a: Analysis, tb: Toolbox) -> tuple[str, str
 
     sentences = [describe_day_doses(doses, clock)]
     lead = ""
-    if explicit is None and all(d.status == "pending" for d in doses):
+    if day == clock.today and all(d.status == "pending" for d in doses):
         # Nothing has settled today yet, so also report the most recent settled day.
         y = clock.today - timedelta(days=1)
         ydoses = _filter((await tb.adherence(y.isoformat())).doses, a.part)
