@@ -11,7 +11,7 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 | Convex | Live on the cloud dev deployment with demo data |
 | Moss | Works (warm it up once before any demo: the first start takes minutes) |
 | Cartesia (voice) | Key set; speech works |
-| AirPods head tracking | Never tested on real AirPods |
+| AirPods 3D sound and head tracking | Tested on real AirPods and works |
 | Beacons, phone locator app | Not built or tested; no hardware yet |
 
 ## A real test you can do today (no hardware)
@@ -19,7 +19,7 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 1. `make demo-sim` starts everything with the simulator (see `docs/project/DEMO_SCRIPT.md`).
 2. Say or type "Where's the sugar?", "I put my keys in the drawer", "Where did I put my keys before?".
 3. Check the dashboard (live map and timeline) updates.
-4. With the AirPods on: run the spatial test in `mac/README.md` and fill in the table in `docs/project/STATUS.md`. This is the most important test that has not been done.
+4. The AirPods spatial test has passed. Needs the app built once with `make mac`, then `make mac-open` (ad-hoc signing means macOS asks for permissions again after each rebuild).
 
 ## Hardware: how to start (in this order, each step must pass before the next)
 
