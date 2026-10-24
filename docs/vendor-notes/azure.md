@@ -159,7 +159,7 @@ az staticwebapp create --name $SWA_NAME --resource-group $RG --location $LOCATIO
 # 2. Fetch the deployment token (treat it as a secret; never commit it).
 export SWA_CLI_DEPLOYMENT_TOKEN=$(az staticwebapp secrets list --name $SWA_NAME --query "properties.apiKey" -o tsv)
 
-# 3. Upload the built site to the production environment.
+# 3. Upload the built site to the production environment (run from dashboard/).
 npm install -g @azure/static-web-apps-cli
 swa deploy ./dist --env production
 
@@ -175,8 +175,11 @@ Sources:
 Notes:
 - `swa deploy --dry-run` simulates the deploy without uploading.
 - If `swa deploy` prompts to create a `swa-cli.config.json`, accepting the detected defaults is fine (UNVERIFIED that it prompts when given a folder and token).
-- If `swa deploy` hangs at "Preparing deployment" or fails with `spawn Unknown system error -86`, the x64 `StaticSitesClient` binary could not run; Rosetta is installed here, so this should not happen. Source: https://github.com/Azure/static-web-apps-cli/issues/1010 and https://github.com/Azure/static-web-apps-cli/issues/914
-- Rotate a leaked token with `az staticwebapp secrets reset-api-key --name $SWA_NAME`. Source: https://learn.microsoft.com/en-us/cli/azure/staticwebapp?view=azure-cli-latest
+- If `swa deploy` hangs at "Preparing deployment" or fails with `spawn Unknown system error -86`, the x64 `StaticSitesClient` binary could not run.
+  Rosetta is installed here, so this should not happen.
+  Sources: https://github.com/Azure/static-web-apps-cli/issues/1010 and https://github.com/Azure/static-web-apps-cli/issues/914
+- Rotate a leaked token with `az staticwebapp secrets reset-api-key --name $SWA_NAME`.
+  Source: https://learn.microsoft.com/en-us/cli/azure/staticwebapp?view=azure-cli-latest
 
 ### 4.5 Fallback if Static Web Apps is blocked by the region policy
 
@@ -233,7 +236,8 @@ Log Analytics ingestion (created by default with the environment) is billed sepa
 ### 5.3 Build path, in order of preference
 
 **Path A: `az containerapp up --source` (no local Docker).**
-It "builds the container image, pushes it to a registry, and deploys the container app. If you don't specify a registry, the command creates one in Container Registry." Python builds work with or without a Dockerfile.
+It "builds the container image, pushes it to a registry, and deploys the container app. If you don't specify a registry, the command creates one in Container Registry."
+Python builds work with or without a Dockerfile.
 Source: https://learn.microsoft.com/en-us/azure/container-apps/containerapp-up
 That build runs on ACR Tasks, which are paused on free-credit subscriptions (section 1).
 Expect it to fail with `TasksOperationsNotAllowed` on Azure for Students; try it once anyway because it is the shortest path.

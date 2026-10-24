@@ -164,7 +164,7 @@ Mentors: Devam Sheth, Aldridge Fonseca, Gitika Rath, Davel Radindra, Shambhavi K
 - Innovation Lab GitHub repo: https://github.com/fetchai/innovation-lab-examples
 - Past hackathon projects: https://innovationlab.fetch.ai/projects
 - How to Connect a Local Agent to Agentverse: https://innovationlab.fetch.ai/resources/docs/agent-creation/uagent-creation#mailbox-agents
-- How to Integrate ASI:One LLM with your uAgent: https://innovationlab.fetch.ai/resources/docs/examples/asione/asi1-mini-language-tutor
+- How to Integrate ASI:One LLM with your uAgent: https://innovationlab.fetch.ai/resources/docs/examples/asione/asi1-mini-language-tutor (returned HTTP 404 on 2026-10-24; Earmark doesn't need it)
 - How to create an Image Generation Agent: https://innovationlab.fetch.ai/resources/docs/examples/chat-protocol/image-generation-agent
 - Agentverse MCP Server: https://docs.agentverse.ai/documentation/advanced-usages/agentverse-mcp (full server `https://mcp.agentverse.ai/sse`, lite `https://mcp-lite.agentverse.ai/mcp`)
 - MCP Integration Example: https://innovationlab.fetch.ai/resources/docs/mcp-integration/what-is-mcp
