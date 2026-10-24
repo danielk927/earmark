@@ -46,7 +46,7 @@
   },
   "convex": {
     "registry_poll_s": 2.0,
-    "timeout_s": 3.0,
+    "timeout_s": 8.0,
     "flush_interval_s": 0.5,
     "batch_max": 100,
     "backoff_initial_s": 0.5,
