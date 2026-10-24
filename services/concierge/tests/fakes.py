@@ -6,6 +6,7 @@ import base64
 import json
 
 from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
 
 from earmark_contracts import dump, parse_bus
 
@@ -82,6 +83,12 @@ class FakeSonic(FakeServer):
         self.auth.append(ws.request.headers.get("Authorization", ""))
         if self.mode == "drop":
             return
+        try:
+            await self._serve(ws)
+        except ConnectionClosed:
+            pass
+
+    async def _serve(self, ws):
         async for msg in ws:
             req = json.loads(msg)
             if req.get("cancel"):
@@ -129,6 +136,8 @@ class FakeBus(FakeServer):
                         await other.send(raw)
                     except Exception:
                         pass
+        except ConnectionClosed:
+            pass
         finally:
             self.clients.pop(ws, None)
 
