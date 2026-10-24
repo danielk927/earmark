@@ -1,0 +1,29 @@
+[project]
+name = "earmark-hub"
+version = "0.1.0"
+description = "Earmark hub: detection adapters, state engine, local WebSocket bus, Convex sync."
+requires-python = ">=3.11"
+dependencies = [
+    "bleak>=3.0.2,<4",
+    "earmark-contracts",
+    "httpx>=0.28.1",
+    "pyserial>=3.5",
+    "python-dotenv>=1.2.4",
+    "websockets>=17.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["earmark_hub"]
+
+[tool.uv.sources]
+earmark-contracts = { path = "../../contracts/python", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]

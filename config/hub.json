@@ -1,0 +1,66 @@
+{
+  "adapters": ["simulator"],
+  "bus": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "client_queue_max": 1000
+  },
+  "debounce": {
+    "placement_reads": 2,
+    "removal_s": 1.5,
+    "tick_s": 0.25
+  },
+  "simulator": {
+    "poll_s": 0.5,
+    "fob_poll_s": 1.0,
+    "start_delay_s": 1.0,
+    "fob_rssi": { "near": -55, "mid": -72, "far": -88 }
+  },
+  "nfc_serial": {
+    "port_globs": [
+      "/dev/cu.usbserial*",
+      "/dev/cu.usbmodem*",
+      "/dev/cu.SLAB_USBtoUART*",
+      "/dev/cu.wchusbserial*"
+    ],
+    "baud": 115200,
+    "reconnect_s": 2.0
+  },
+  "ble_fobs": {
+    "receiver": "hub",
+    "fobs": {
+      "fob_keys": { "address": null, "name": null }
+    },
+    "ema_tau_s": 2.0,
+    "stale_s": 10.0,
+    "near_dbm": -65,
+    "mid_dbm": -80,
+    "emit_interval_s": 1.0,
+    "chirp_timeout_s": 10.0,
+    "connect_timeout_s": 10.0,
+    "alert_service_uuid": "1802",
+    "alert_char_uuid": "2a06",
+    "alert_level": 1,
+    "link_loss_service_uuid": "1803",
+    "link_loss_value": null
+  },
+  "convex": {
+    "registry_poll_s": 2.0,
+    "timeout_s": 3.0,
+    "flush_interval_s": 0.5,
+    "batch_max": 100,
+    "backoff_initial_s": 0.5,
+    "backoff_max_s": 30.0
+  },
+  "health": {
+    "interval_s": 5.0
+  },
+  "paths": {
+    "space": "config/space.json",
+    "seed": "config/objects.seed.json",
+    "cache": "config/objects.cache.json",
+    "queue": "var/hub/queue.jsonl",
+    "trials": "var/trials/trials.jsonl",
+    "logs": "logs"
+  }
+}
