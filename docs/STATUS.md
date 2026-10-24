@@ -1,7 +1,7 @@
 # Earmark status
 
 Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed).
-Sponsor prizes, what each wants, and what we do: `docs/TRACKS.md`.
+Sponsor prizes, what each wants, and what we do: `docs/TRACKS.md`. What is left to do and who does it: `docs/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
 
