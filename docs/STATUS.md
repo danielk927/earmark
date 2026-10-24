@@ -1,6 +1,6 @@
 # Earmark status
 
-Last updated: 2026-10-24 07:35 PDT (Phase 1: hub, concierge, Convex merged; Mac app, dashboard, memory agent building; Phase 2 integration started).
+Last updated: 2026-10-24 08:20 PDT (Phase 1 complete and merged; Phase 2 integration verified across real processes; Phase 3 reviews starting).
 The orchestrator is working autonomously overnight while the human sleeps; checkpoints that ask for human confirmation are recorded here instead of blocking.
 
 ## Toolchain (demo Mac)
@@ -28,8 +28,8 @@ The orchestrator is working autonomously overnight while the human sleeps; check
 | hub | done (Phase 1) | 140 tests: debounce, state engine, every scenario, bus routing, offline Convex queue, CLIs, trial CLI; smoke run over the real WebSocket | Convex (fake server), BLE (fake bleak), serial (fake port), camera (stub) |
 | convex | done (Phase 1) | 108 tests (adherence incl. DST, every HTTP route validated against the schemas with ajv, client-function type contract, seed/reset keeps trials); live on the local anonymous backend; liveMap update 15 ms after /ingest | Bitdeer photo labeling (mocked fetch; no key) |
 | concierge | done (Phase 1) | 167 tests; every scenario with LLM off; STT/TTS fallbacks against fake Cartesia servers; real-process integration | Cartesia (fake servers), Bitdeer (fake), Moss (fake; real SDK fails fast to fallback) |
-| Mac app + spatial spike | building | - | - |
-| dashboard | building | - | - |
+| Mac app + spatial spike | done (Phase 1), gate pending | 70 Swift tests incl. offline-rendered ear checks for both Option A variants; both bundles signed (Apple Development, hardened runtime); against the real hub + concierge it plays every utterance (playback started 20-290 ms after speak_text), reports status every 5 s, and follows stt_mode | AirPods head tracking (mock head); mic and Apple Speech never started (no permission prompts while unattended) |
+| dashboard | done (Phase 1), polish in progress | 134 vitest tests, axe 0 violations (light/dark/phone), lint, build; screenshots of every page against the live local Convex (`dashboard/e2e/live.mjs`) | photo labeling suggestion (no Bitdeer key) |
 | memory agent | done (Phase 1) | 94 tests; Chat Protocol handler + a real two-uAgent exchange offline; boots on 3.12 and publishes the AgentChatProtocol manifest; answers all example questions from the live local Convex ("Did Mom take her evening pills?" -> the seeded missed dose) | Bitdeer (scripted; keyword router answers without a key); Agentverse/ASI:One not exercised (needs the human's browser login) |
 
 ## Research findings that change the plan
@@ -57,6 +57,11 @@ The orchestrator is working autonomously overnight while the human sleeps; check
 9. **Azure:** Static Web Apps (free) for the dashboard, Container Apps (min 1 replica) for the memory agent; `az containerapp up --source` may be blocked on student subscriptions (needs Docker locally then).
 
 | e2e | started (Phase 2) | `make e2e-test`: real hub + concierge processes, scenarios replayed over the bus: wrong_jar, moved_item, roaming_keys, missed_dose (and the seeded missed dose read back from Convex), full_demo - 6 passed | vendor keys blanked (grammar, fallback resolver, system voice) |
+
+Phase 2 findings fixed so far:
+- The concierge sent `stt_mode` only at startup, so a Mac app that connected later stayed on Cartesia (streaming into nothing without a key or during an outage). It now re-sends `stt_mode` whenever the Mac app's status reports a different engine.
+- The keys questions in `roaming_keys` and `full_demo` came before the fob was first heard; they now come after, so the answer is the proximity phrase (definition of done item 4).
+- Lint is part of `make test` for every Python service, with rules pinned per project.
 
 ## Spatial gate (Phase 0.5)
 
