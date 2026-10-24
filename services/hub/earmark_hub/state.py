@@ -157,8 +157,10 @@ class StateEngine:
         self._sync(out)
         return out
 
-    def reset(self, objects: list[RegistryObject] | None = None) -> list[Output]:
+    def reset(self, objects: list[RegistryObject] | None = None, now: float | None = None) -> list[Output]:
         """Back to the startup state: nothing confirmed anywhere, every object missing."""
+        if now is not None:
+            self._now = max(self._now, now)
         if objects is not None:
             self.objects = list(objects)
             self._index(self.objects)

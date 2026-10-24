@@ -111,5 +111,7 @@ def make_step_gate(out: Callable[[str], None]) -> Callable[[str], "asyncio.Futur
         if await reader.get() is None:
             done = True
             out("\n(end of input: playing the rest without pausing)\n")
+        elif not sys.stdin.isatty():
+            out("\n")  # a terminal echoes the Enter; a pipe does not
 
     return gate

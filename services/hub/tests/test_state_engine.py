@@ -260,8 +260,8 @@ def test_registry_change_updates_home_spot_and_drops_removed_objects(engine, obj
 
 def test_reset_returns_to_startup_state(engine):
     place_sugar(engine)
-    out = engine.reset()
-    assert [(o.object_id, o.status) for o in of(out, ObjectState)] == [("sugar", "missing")]
+    out = engine.reset(now=T0 + 3.0)
+    assert [(o.object_id, o.status, o.t) for o in of(out, ObjectState)] == [("sugar", "missing", T0 + 3.0)]
     assert all(s.status == "missing" for s in engine.states())
     out = place_sugar(engine, t=5.0)
     assert engine.state("sugar").status == "on_spot" and of(out, Pickup) == []

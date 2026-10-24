@@ -201,7 +201,7 @@ class Hub:
             except Exception as e:
                 log.warning("adapter reset failed", extra={"adapter": a.name, "error": str(e)})
         self.registry.reload()
-        self._apply(self.engine.reset(self.registry.objects))
+        self._apply(self.engine.reset(self.registry.objects, now=self.clock.now()))
         snap = self.snapshot()
         for c in list(self.bus.clients):
             self.bus.send_to(c, snap)
