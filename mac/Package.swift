@@ -3,6 +3,7 @@ import PackageDescription
 
 // Earmark macOS package.
 // - EarmarkAudio: every testable piece (head tracking, renderers, cues, guidance, devices, mic, speech, bus).
+// - EarmarkUI: SwiftUI pieces shared by both apps (theme, status pills, head dial).
 // - SpatialSpike: the Phase 0.5 gate app (no bus, no network).
 // - EarmarkApp: the judge-facing app (brief 5.E).
 // Built without Xcode; see build_app.sh. Swift 5 language mode avoids strict-concurrency friction
@@ -23,10 +24,11 @@ let package = Package(
             name: "EarmarkAudio",
             dependencies: [.product(name: "EarmarkContracts", package: "swift")]
         ),
-        .executableTarget(name: "SpatialSpike", dependencies: ["EarmarkAudio"]),
+        .target(name: "EarmarkUI", dependencies: ["EarmarkAudio"]),
+        .executableTarget(name: "SpatialSpike", dependencies: ["EarmarkAudio", "EarmarkUI"]),
         .executableTarget(
             name: "EarmarkApp",
-            dependencies: ["EarmarkAudio", .product(name: "EarmarkContracts", package: "swift")]
+            dependencies: ["EarmarkAudio", "EarmarkUI", .product(name: "EarmarkContracts", package: "swift")]
         ),
         .testTarget(
             name: "EarmarkAudioTests",

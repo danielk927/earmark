@@ -143,6 +143,8 @@ private func writeWav(_ url: URL, seconds: Double = 0.5, rate: Double = 24_000) 
         #expect((out?.nominalSampleRate ?? 0) > 0)
         let name = out?.name ?? ""
         #expect(name.count > 0)
+        let latency = AudioDevices.outputLatency(AudioDevices.defaultOutputID())
+        #expect(latency > 0 && latency < 1)
     }
 
     @Test func debouncerCoalescesBursts() async {

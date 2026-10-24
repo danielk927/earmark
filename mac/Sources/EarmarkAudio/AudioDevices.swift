@@ -120,6 +120,26 @@ public enum AudioDevices {
         scalar(system, kAudioHardwarePropertyDefaultOutputDevice, default: AudioDeviceID(kAudioObjectUnknown))
     }
 
+    /// Output latency in seconds: device latency + safety offset + first output stream latency + one IO buffer
+    /// (what AVAudioOutputNode.presentationLatency reports for AVAudioEngine; used for PHASE, which reports none).
+    public static func outputLatency(_ id: AudioDeviceID) -> TimeInterval {
+        let out = kAudioObjectPropertyScopeOutput
+        let rate = scalar(id, kAudioDevicePropertyNominalSampleRate, default: Float64(0))
+        guard rate > 0 else { return 0 }
+        var frames = Double(scalar(id, kAudioDevicePropertyLatency, out, default: UInt32(0)))
+        frames += Double(scalar(id, kAudioDevicePropertySafetyOffset, out, default: UInt32(0)))
+        frames += Double(scalar(id, kAudioDevicePropertyBufferFrameSize, out, default: UInt32(0)))
+        var addr = address(kAudioDevicePropertyStreams, out)
+        var size: UInt32 = 0
+        if AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &size) == noErr, size >= UInt32(MemoryLayout<AudioStreamID>.size) {
+            var streams = [AudioStreamID](repeating: 0, count: Int(size) / MemoryLayout<AudioStreamID>.size)
+            if AudioObjectGetPropertyData(id, &addr, 0, nil, &size, &streams) == noErr, let first = streams.first {
+                frames += Double(scalar(first, kAudioStreamPropertyLatency, default: UInt32(0)))
+            }
+        }
+        return frames / rate
+    }
+
     public static func defaultInput() -> AudioDeviceInfo? { info(defaultInputID()) }
     public static func defaultOutput() -> AudioDeviceInfo? { info(defaultOutputID()) }
 

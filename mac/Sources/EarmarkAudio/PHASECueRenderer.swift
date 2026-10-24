@@ -33,7 +33,8 @@ public final class PHASECueRenderer: SpatialRenderer {
     deinit { driver.stop(); engine?.stop() }
 
     public var isRunning: Bool { lock.withLock { running } }
-    public var presentationLatency: TimeInterval { 0 }
+    /// PHASE reports no latency; this is the default output device's latency from CoreAudio.
+    public var presentationLatency: TimeInterval { AudioDevices.outputLatency(AudioDevices.defaultOutputID()) }
     public var outputSampleRate: Double { AudioDevices.defaultOutput()?.nominalSampleRate ?? 0 }
 
     /// PHASE rotations are right-handed about +Y (up), so a positive angle turns LEFT: negate Earmark yaw.

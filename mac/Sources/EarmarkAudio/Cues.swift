@@ -19,8 +19,8 @@ public enum PingTimbre: String, CaseIterable, Sendable, Identifiable {
     public var id: String { rawValue }
     public var displayName: String {
         switch self {
-        case .tone: "Tone (1 kHz blip)"
-        case .broadband: "Broadband (blip + noise)"
+        case .tone: "Tone"
+        case .broadband: "Broadband"
         }
     }
 }
