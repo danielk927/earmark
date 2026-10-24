@@ -1,0 +1,7 @@
+{
+  "type": "mic_audio",
+  "seq": 0,
+  "sample_rate": 16000,
+  "encoding": "pcm_s16le",
+  "chunk_b64": "AQIDBA=="
+}

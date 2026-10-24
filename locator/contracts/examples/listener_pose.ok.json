@@ -1,0 +1,8 @@
+{
+  "type": "listener_pose",
+  "position": [0.0, 0.0, 1.6],
+  "quality": "ok",
+  "beacons_heard": 5,
+  "source": "beacons",
+  "t": 1761350400.123
+}

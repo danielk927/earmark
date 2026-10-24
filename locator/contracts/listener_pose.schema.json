@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "listener_pose.schema.json",
+  "title": "listener_pose",
+  "description": "Locator -> hub pose fix (LOCATOR_BRIEF.md section 2.4). position is the user's EAR position (center of the head) in the room frame: origin = floor point directly under the mat center, +x right, +y forward, +z up, units meters (section 2.1). t is the Unix epoch time (float) the position refers to: the MEASUREMENT time, not the send time. Publish rules (section 2.4): one pose per valid fix (~3.33 Hz with all 5 beacons); no pose when a cycle produced no valid fix; after 1.5 s with no valid fix, exactly ONE pose with quality 'lost' (holding the last position), then nothing until fixes resume.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "position", "quality", "beacons_heard", "source", "t"],
+  "properties": {
+    "type": {
+      "const": "listener_pose",
+      "description": "Message type discriminator."
+    },
+    "position": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "type": "number" },
+      "description": "Ear position [x, y, z] in meters, room frame per section 2.1. Equals the filtered microphone position plus the configured ear offset (section 6.8)."
+    },
+    "quality": {
+      "enum": ["ok", "degraded", "lost"],
+      "description": "ok: >= 4 beacons used, residual RMS <= 0.15 ms, fix from the current cycle (section 6.9). degraded: 3 beacons plus the height prior, or residual RMS between 0.15 and 0.30 ms. lost: no valid fix for 1.5 s."
+    },
+    "beacons_heard": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Number of beacons actually used in the solve. 0 is valid for manual mode (section 8.2) and for the lost emission, which repeats the last position without a new solve."
+    },
+    "source": {
+      "enum": ["beacons", "steps", "sim", "manual"],
+      "description": "beacons: acoustic solve. steps: dead-reckoning fallback (section 8.8). sim: file-input mode (section 8.7). manual: Debug-screen joystick (section 8.2)."
+    },
+    "t": {
+      "type": "number",
+      "description": "Unix epoch seconds (float) of the measurement time, converted from the phone sample clock using hostTime anchors (section 6.8)."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "beacons": [
+    { "id": "B1", "position": [-1.5, 1.5, 1.8], "slot": 0 },
+    { "id": "B2", "position": [1.5, 1.5, 0.3], "slot": 1 },
+    { "id": "B3", "position": [1.5, -1.5, 1.8], "slot": 2 },
+    { "id": "B4", "position": [-1.5, -1.5, 0.3], "slot": 3 },
+    { "id": "B5", "position": [-1.8, 0.0, 1.0], "slot": 4 }
+  ]
+}

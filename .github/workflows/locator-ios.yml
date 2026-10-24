@@ -1,0 +1,42 @@
+name: Locator iOS
+on:
+  pull_request:
+    paths: ['locator/ios/**', '.github/workflows/locator-ios.yml']
+  push:
+    branches: [main, feat/locator-ios-app]
+    paths: ['locator/ios/**', '.github/workflows/locator-ios.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: locator-ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  core:
+    name: EarmarkCore tests
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift test --package-path locator/ios/EarmarkCore
+      - name: Portable DSP fallback
+        run: swift test --package-path locator/ios/EarmarkCore -Xswiftc -DFORCE_PORTABLE_DSP
+  build:
+    name: iOS unsigned build
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec locator/ios/EarmarkLocator/project.yml
+      - run: xcodebuild -project locator/ios/EarmarkLocator/EarmarkLocator.xcodeproj -scheme EarmarkLocator -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/LocatorBuild CODE_SIGNING_ALLOWED=NO build
+      - name: Capture five native screens
+        run: bash locator/ios/capture-simulator.sh /tmp/LocatorBuild/Build/Products/Debug-iphonesimulator/EarmarkLocator.app /tmp/locator-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: locator-native-screens
+          path: /tmp/locator-evidence
+          if-no-files-found: warn
