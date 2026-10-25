@@ -50,10 +50,8 @@ final class PhoneModel: ObservableObject {
     func start() {
         problem = nil
         if role == .selfTimed { startSelfTimed(); return }
-        let text = server.trimmingCharacters(in: .whitespaces)
-        let address = text.hasPrefix("ws://") ? text : "ws://\(text)"
-        guard !text.isEmpty, let url = URL(string: address), url.host != nil else {
-            problem = "Type the Mac's address first, like 192.168.1.20:8766"
+        guard let url = PhoneAddress.url(server) else {
+            problem = "Type the Mac's address first: the name the Mac printed, like some-words.trycloudflare.com, or 192.168.1.20:8766 on the same Wi-Fi"
             return
         }
         let c = PhoneClient(url: url, slot: slot, name: UIDeviceName.value)

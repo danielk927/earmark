@@ -6,9 +6,19 @@ public enum PhoneAudioError: Error, LocalizedError {
     public var errorDescription: String? { "There is no microphone input (check the microphone permission)." }
 }
 
+/// Where `PhoneClient` gets its audio: the microphone and speaker, or a stand-in in tests.
+protocol AudioSource: AnyObject {
+    var isRunning: Bool { get }
+    var runningChirp: ChirpSpec? { get }
+    func start(chirp: ChirpSpec, onChunk: @escaping (Int, Data) -> Void, onLevel: @escaping (Float) -> Void) throws
+    func stop()
+    func playChirp()
+    func playTestSweep()
+}
+
 /// Records the microphone as a continuous stream (numbered by sample) and plays chirps on command.
 /// No processing is applied: the speaker-to-microphone path is part of what we measure.
-final class PhoneAudio: @unchecked Sendable {
+final class PhoneAudio: AudioSource, @unchecked Sendable {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private var attached = false
@@ -19,6 +29,8 @@ final class PhoneAudio: @unchecked Sendable {
     private var counter = 0  // sample number of pending[0]
     private var lastEnd: Int64?
     private var onChunk: ((Int, Data) -> Void)?
+    /// The chirp the running engine was started with; nil while stopped.
+    private(set) var runningChirp: ChirpSpec?
     private var onLevel: ((Float) -> Void)?
     private let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: phoneSampleRate, channels: 1, interleaved: false)!
 
@@ -50,9 +62,14 @@ final class PhoneAudio: @unchecked Sendable {
         engine.prepare()
         try engine.start()
         player.play()
+        runningChirp = chirp
     }
 
+    /// False after `stop()`, and also when iOS stopped the engine (a call, Siri): either way a new recording.
+    var isRunning: Bool { engine.isRunning }
+
     func stop() {
+        runningChirp = nil
         if engine.isRunning {
             engine.inputNode.removeTap(onBus: 0)
             player.stop()

@@ -87,6 +87,10 @@ class ListenService:
         self.calibrated_at: float | None = None  # monotonic time the schedules were last set
         self.state = "idle"  # idle (waiting to calibrate), calibrating, tracking; or surveying, survey_walk (room setup)
         self.idle_note = ""  # why we are idle, for the status line
+        # The user's phone names its unbroken recording when it joins. A rejoin with the same name kept recording
+        # through the dropout, so the calibration still holds and the audio it held is resent into the same buffer.
+        self._timeline0: str | None = None
+        self._phone0: Phone | None = None
         self.surveyor = surveyor
         self.survey_report: SurveyReport | None = None
         self.first_audio_at: float | None = None  # monotonic
@@ -128,11 +132,19 @@ class ListenService:
                 kind = msg.get("type")
                 if kind == "join":
                     slot = int(msg.get("slot", 0))
-                    if slot == 0:
+                    timeline = msg.get("timeline")
+                    old = self._phone0 if slot == 0 else None
+                    resumed = old is not None and timeline is not None and timeline == self._timeline0
+                    if slot == 0 and not resumed:
                         lost = self._phone_restarted()
                         if lost is not None:
                             await self.publisher.send(lost)  # the hub and room page drop the old position now
                     phone = Phone(slot, str(msg.get("name", f"phone {slot}")), ws)
+                    if resumed:
+                        phone.buf, phone.lags = old.buf, old.lags
+                        log.info("the user's phone rejoined, still on the same recording: calibration kept")
+                    if slot == 0:
+                        self._timeline0, self._phone0 = timeline, phone
                     self.phones[slot] = phone
                     await ws.send(json.dumps({
                         "type": "config", "slot": slot, "fs": FS, "chunk_samples": 2400, "mode": "listen",
@@ -148,7 +160,8 @@ class ListenService:
                     phone.buf.write(start, samples)
                     if self.recorder is not None and phone.slot == 0:
                         self.recorder.write(start, pcm)
-                    phone.lags.append(time.monotonic() - (start + len(samples)) / FS)
+                    if not msg.get("resent"):  # audio held through a dropout arrives late on purpose
+                        phone.lags.append(time.monotonic() - (start + len(samples)) / FS)
                     if phone.slot == 0 and self.first_audio_at is None:
                         self.first_audio_at = time.monotonic()
         except (ConnectionClosed, json.JSONDecodeError, KeyError, ValueError) as e:
@@ -158,9 +171,10 @@ class ListenService:
                 del self.phones[phone.slot]
 
     def _phone_restarted(self) -> ListenerPose | None:
-        """The user's phone (re)joined. It stops its audio engine whenever the link drops and its sample counter
-        carries on, so the seconds it was offline vanish from its timeline and the schedules (and any room-setup
-        marks) no longer line up with anything. Forget all of it. Returns a "lost" pose if a position had gone out.
+        """The user's phone joined on a new recording: its microphone restarted (or an older app, which stops it
+        whenever the link drops). Its sample counter carries on, so the seconds it was off vanish from its timeline
+        and the schedules (and any room-setup marks) no longer line up with anything. Forget all of it. Returns a
+        "lost" pose if a position had gone out.
         """
         if self.state == "idle" and self.feed.cursor is None:
             return None  # first connection, or nothing heard yet: nothing to forget

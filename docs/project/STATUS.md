@@ -1,9 +1,12 @@
 # Earmark status
 
-Last updated: 2026-10-25 (AirPods stem squeeze to talk, "here" saved where you said it, phone reconnects).
+Last updated: 2026-10-25 (venue Wi-Fi without hotspots: the judge phone through a tunnel; AirPods stem squeeze to talk).
 Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
+
+- **No hotspot needed** (branch `phone-tunnel`). The venue forbids hotspots, and its Wi-Fi (like the school's) keeps phones from reaching the Mac; tested 2026-10-25: a phone could not open a page served by the Mac. `make session TUNNEL=1` starts a Cloudflare tunnel (ordinary outbound HTTPS from the Mac) and prints a name to type on the judge phone. Tested on that Wi-Fi with a phone-sized stream (1 Mbit/s) from Safari on the phone to the Mac for 60 s: nothing lost, typical extra delay 10 ms, 95% under 0.2 s, one 1.2 s hiccup. Timing comes from the phone's sample numbers, so delay never changes distances, only how fresh a position is. The judge's room audio passes through Cloudflare (TLS, not stored).
+- **A Wi-Fi blip no longer forces a recalibration.** The phone keeps recording through a dropout, holds up to 6 s and resends it after rejoining under the same recording name; the Mac keeps its calibration. Tested with a fake microphone and a fake Mac that drops the link. **The phone app must be rebuilt and reinstalled** (Xcode) for this and for typing the tunnel name; not yet run on a real iPhone.
 
 - **Squeeze an AirPod stem to talk** (Mac app, push-to-talk mode): squeeze once, hear a short rising sound, speak; it stops by itself 1.5 s after you stop talking (falling sound), or on a second squeeze, after 5 s with no speech, or at 20 s. A squeeze also cuts Earmark off mid-sentence. The squeeze reaches the app as a play/pause command, so Earmark claims Now Playing; music or a video playing on the Mac can take the squeeze instead. Taking an AirPod out sends the same command; that false start ends after 5 s. Tested with unit tests only: **not yet tried on real AirPods.**
 - **"I'm leaving my keys here" is saved where you said it.** The concierge read the position after the language model answered, so a user already walking back was saved at the mat (this was the failing `test_put_here` end-to-end test).

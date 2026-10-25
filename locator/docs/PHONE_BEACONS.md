@@ -6,7 +6,7 @@ The Mac works out where the user is and tells the rest of Earmark.
 
 ## What you need
 - 3 to 5 iPhones (2 or 3 beacons plus the user's phone; old ones are fine; they must be iPhones) and the Mac.
-- All of them on the same Wi-Fi. A phone hotspot works best, not the hall Wi-Fi.
+- The user's phone and the Mac on the venue Wi-Fi. Self-timed beacons need no Wi-Fi. Where the Wi-Fi keeps phones from reaching the Mac (the venue does, and hotspots are not allowed there), run `make session TUNNEL=1` and type the tunnel name it prints into the phone.
 - Xcode on the Mac (App Store, about 10 GB) to put the app on each phone. A free Apple ID is enough, but then each phone's copy lasts 7 days.
 - Tape and a tape measure.
 

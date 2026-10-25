@@ -20,22 +20,35 @@ public enum PhoneEvent: Sendable {
 }
 
 /// Joins the ranging service, streams what the microphone hears, and plays a chirp whenever told to.
+///
+/// A dropped link does not stop the microphone: chunks recorded meanwhile are held (`OutageBuffer`) and sent after
+/// the rejoin, and the join names the unbroken recording (`timeline`), so the Mac keeps its calibration instead of
+/// asking for a new one on the mat.
 public final class PhoneClient: @unchecked Sendable {
     public let slot: Int
     public let name: String
     private let url: URL
     private var session: URLSession?
     private var task: URLSessionWebSocketTask?
-    private let audio = PhoneAudio()
+    private let audio: AudioSource
     private var chirp = ChirpSpec()
     private var played = 0
     private var running = false
-    private var sentSamples = 0
+    /// Names the current unbroken recording; a new one whenever the microphone (re)starts.
+    private var timeline = UUID().uuidString
+    /// The Mac answered this connection's join, so audio goes straight out instead of into `outage`.
+    private var linked = false
+    private var outage = OutageBuffer()
+    private let retryDelay: Double
     private let queue = DispatchQueue(label: "earmark.phone.client")
     public var onEvent: (@Sendable (PhoneEvent) -> Void)?
 
-    public init(url: URL, slot: Int, name: String) {
-        self.url = url; self.slot = slot; self.name = name
+    public convenience init(url: URL, slot: Int, name: String) {
+        self.init(url: url, slot: slot, name: name, audio: PhoneAudio())
+    }
+
+    init(url: URL, slot: Int, name: String, audio: AudioSource, retryDelay: Double = 2) {
+        self.url = url; self.slot = slot; self.name = name; self.audio = audio; self.retryDelay = retryDelay
     }
 
     public func start() {
@@ -49,9 +62,13 @@ public final class PhoneClient: @unchecked Sendable {
     public func stop() {
         queue.async { [self] in
             running = false
+            linked = false
             audio.stop()
+            outage = OutageBuffer()
             task?.cancel(with: .goingAway, reason: nil)
             task = nil
+            session?.invalidateAndCancel()
+            session = nil
             onEvent?(.disconnected)
         }
     }
@@ -61,14 +78,21 @@ public final class PhoneClient: @unchecked Sendable {
 
     private func connect() {
         onEvent?(.connecting)
+        session?.invalidateAndCancel()  // one session per attempt; drop the failed one
         let s = URLSession(configuration: .default)
         session = s
         let t = s.webSocketTask(with: url)
         task = t
         t.maximumMessageSize = 1 << 22
         t.resume()
-        send(["type": "join", "slot": slot, "name": name, "fs": Int(phoneSampleRate)])
+        linked = false
+        if !audio.isRunning { timeline = UUID().uuidString }  // the recording that starts after this join is a new one
+        sendJoin()
         receive(t)
+    }
+
+    private func sendJoin() {
+        send(["type": "join", "slot": slot, "name": name, "fs": Int(phoneSampleRate), "timeline": timeline])
     }
 
     private func receive(_ t: URLSessionWebSocketTask) {
@@ -78,8 +102,8 @@ public final class PhoneClient: @unchecked Sendable {
                 guard self.running, self.task === t else { return }
                 switch result {
                 case .failure(let error):
-                    self.onEvent?(.error("Lost the connection: \(error.localizedDescription). Retrying."))
-                    self.audio.stop()
+                    self.onEvent?(.error("Lost the connection: \(error.localizedDescription). Retrying; still recording."))
+                    self.linked = false
                     self.retry()
                 case .success(let message):
                     if case .string(let text) = message { self.handle(text) }
@@ -90,7 +114,7 @@ public final class PhoneClient: @unchecked Sendable {
     }
 
     private func retry() {
-        queue.asyncAfter(deadline: .now() + 2) { [self] in
+        queue.asyncAfter(deadline: .now() + retryDelay) { [self] in
             guard running else { return }
             connect()
         }
@@ -105,15 +129,30 @@ public final class PhoneClient: @unchecked Sendable {
             guard let c = msg["chirp"] as? [String: Any],
                   let lo = c["f_lo"] as? Double, let hi = c["f_hi"] as? Double, let len = c["length_ms"] as? Double,
                   let amp = c["amplitude"] as? Double, let dir = c["direction"] as? String else { return }
-            chirp = ChirpSpec(fLo: lo, fHi: hi, lengthMs: len, amplitude: amp, direction: dir)
-            do {
-                try audio.start(chirp: chirp,
-                                onChunk: { [weak self] start, pcm in self?.sendAudio(start: start, pcm: pcm) },
-                                onLevel: { [weak self] level in self?.onEvent?(.level(level)) })
-                onEvent?(.connected(slot: slot, chirp: chirp))
-            } catch {
-                onEvent?(.error("Could not start the microphone and speaker: \(error.localizedDescription)"))
+            let spec = ChirpSpec(fLo: lo, fHi: hi, lengthMs: len, amplitude: amp, direction: dir)
+            if audio.isRunning && audio.runningChirp != spec {
+                // The Mac wants a different chirp (it restarted with new settings): the recording has to restart,
+                // so it is a new one. Say so with a fresh join; the Mac starts over and sends its config again.
+                audio.stop()
+                timeline = UUID().uuidString
+                outage = OutageBuffer()
+                sendJoin()
+                return
             }
+            chirp = spec
+            if !audio.isRunning {
+                do {
+                    try audio.start(chirp: chirp,
+                                    onChunk: { [weak self] start, pcm in self?.queue.async { self?.chunk(start, pcm) } },
+                                    onLevel: { [weak self] level in self?.onEvent?(.level(level)) })
+                } catch {
+                    onEvent?(.error("Could not start the microphone and speaker: \(error.localizedDescription)"))
+                    return
+                }
+            }
+            linked = true
+            for held in outage.drain() { sendAudio(start: held.start, pcm: held.pcm, resent: true) }
+            onEvent?(.connected(slot: slot, chirp: chirp))
         case "play":
             audio.playChirp()
             played += 1
@@ -129,8 +168,17 @@ public final class PhoneClient: @unchecked Sendable {
         }
     }
 
-    private func sendAudio(start: Int, pcm: Data) {
-        send(["type": "audio", "start": start, "pcm": pcm.base64EncodedString()])
+    /// One microphone chunk (on `queue`): out now, or held until the link is back.
+    private func chunk(_ start: Int, _ pcm: Data) {
+        guard running else { return }
+        if linked { sendAudio(start: start, pcm: pcm, resent: false) } else { outage.append(start: start, pcm: pcm) }
+    }
+
+    /// `resent` marks audio held through a dropout: it arrives late, so the Mac must not judge network lag by it.
+    private func sendAudio(start: Int, pcm: Data, resent: Bool) {
+        var m: [String: Any] = ["type": "audio", "start": start, "pcm": pcm.base64EncodedString()]
+        if resent { m["resent"] = true }
+        send(m)
     }
 
     private func send(_ object: [String: Any]) {

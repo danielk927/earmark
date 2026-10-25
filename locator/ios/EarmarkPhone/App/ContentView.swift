@@ -48,13 +48,13 @@ struct ContentView: View {
                 }
             } else {
                 Section("The Mac") {
-                    TextField("192.168.1.20:8766", text: $model.server)
+                    TextField("some-words.trycloudflare.com", text: $model.server)
                         #if os(iOS)
-                        .keyboardType(.numbersAndPunctuation)
+                        .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         #endif
                         .autocorrectionDisabled()
-                    Text("The Mac shows this address when you run make ranging.")
+                    Text("Type the name the Mac prints when you run make session TUNNEL=1. On a Wi-Fi that lets phones reach the Mac, its address like 192.168.1.20:8766 works too.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

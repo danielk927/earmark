@@ -2,7 +2,7 @@ import Foundation
 import PhoneCore
 
 // A Mac stand-in for the phone app: uses this Mac's own speaker and microphone.
-//   phone-cli --slot 0 --url ws://127.0.0.1:8766
+//   phone-cli --slot 0 --url ws://127.0.0.1:8766     (or --url some-words.trycloudflare.com, through the tunnel)
 //   phone-cli --sweep          (just plays the test sweep once, for checking what a speaker can make)
 //   phone-cli --beacon 1 [--band 12000 16000] [--volume 0.8]
 //                              (a self-timed beacon on the Mac's speaker: no Mac service, no microphone)
@@ -57,7 +57,7 @@ if let n = beaconNumber {
     RunLoop.main.run()
 }
 
-guard let url = URL(string: urlString) else { print("bad url"); exit(2) }
+guard let url = PhoneAddress.url(urlString) else { print("bad url"); exit(2) }
 
 let client = PhoneClient(url: url, slot: slot, name: "Mac slot \(slot)")
 var lastLevelPrint = Date.distantPast

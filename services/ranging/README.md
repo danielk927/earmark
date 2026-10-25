@@ -45,10 +45,15 @@ beacons within about 5 to 15 cm.
 - The chirp: linear sweep, default 12000 to 16000 Hz (`--band`; the Mac's detector must use the same band), 40 ms,
   Tukey fade alpha 0.4, exactly the synth in `earmark_ranging/chirp.py`. Odd beacons (1, 3) sweep up, even (2, 4)
   sweep down.
-- The user's phone is the app's ordinary "The user's phone" role: it connects to `ws://mac:8766`, sends
-  `{"type":"join","slot":0,...}` then `{"type":"audio","start":<sample index>,"pcm":<base64 int16>}` at 48 kHz. In
-  this mode the Mac never sends `{"type":"play"}`. It may send `{"type":"fix",...}` when it has a position.
+- The user's phone is the app's ordinary "The user's phone" role: it connects to `ws://mac:8766` (or through the
+  tunnel, `wss://some-words.trycloudflare.com`), sends `{"type":"join","slot":0,"timeline":<id>,...}` then
+  `{"type":"audio","start":<sample index>,"pcm":<base64 int16>}` at 48 kHz. In this mode the Mac never sends
+  `{"type":"play"}`. It may send `{"type":"fix",...}` when it has a position.
   The phone's sample counter is the clock; a lost chunk is filled with silence so the timeline stays honest.
+- `timeline` names one unbroken recording. The phone keeps recording through a dropout, holds up to 6 s of chunks,
+  rejoins with the same `timeline` and resends them (marked `"resent": true`, so they do not count as network lag);
+  the Mac then keeps its calibration and audio buffer. A new `timeline` (the microphone restarted), or none (an
+  older app), makes the Mac drop the calibration.
 - Speed of sound `c = 331.3 + 0.606*T` m/s (`--temperature`, default 20 C, so 343.4 m/s). Fixed delays inside the
   phones (speaker to microphone, buffers) are absorbed by calibration, so there is no extra term.
 
@@ -135,9 +140,10 @@ back and forth at 0.5 m/s. `--sim-noise`, `--sim-echo` and `--sim-dropout` make 
   distances will then drift slowly with time. Recalibrate.
 - The schedule is only as good as the phones' clocks stay steady; after a long time, or if a phone's audio engine
   restarts, recalibrate.
-- When the user's phone reconnects (a Wi-Fi blip), its audio engine restarted and the seconds it was offline are
-  missing from its timeline. The Mac then drops the calibration (and any half-walked room setup), sends one `lost`
-  pose, prints a `!!!` line and shows "phone reconnected: recalibrate" in the status. Stand on the mat and press Enter.
+- When the user's phone rejoins on a new recording (its microphone restarted, or an older app that stops it on
+  every dropout), the seconds it was off are missing from its timeline. The Mac then drops the calibration (and any
+  half-walked room setup), sends one `lost` pose, prints a `!!!` line and shows "phone reconnected: recalibrate" in
+  the status. Stand on the mat and press Enter. A dropout shorter than about 6 s with the current app needs nothing.
 - With exactly three beacons at one height, a single wrong distance (an echo, a body in the way) cannot be
   detected: the fit absorbs it into the phone's height and still reports a small error, so the position can be off
   by a metre while marked `ok`. A fourth beacon, or beacons at different heights, makes such a distance show.

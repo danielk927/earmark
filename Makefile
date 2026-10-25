@@ -146,8 +146,8 @@ beacons: ## Type in where each beacon sits (tape measure) and save it to config/
 	python3 scripts/set_beacons.py
 
 .PHONY: session
-session: ## EVERYTHING in one terminal: hub, voice, room page, Mac app, room setup. MODE=recalibrate (default)|setup|sim, ONLY="B1 B2"
-	scripts/session.sh $(or $(MODE),recalibrate) "$(ONLY)"
+session: ## EVERYTHING in one terminal: hub, voice, room page, Mac app, room setup. MODE=recalibrate (default)|setup|sim, ONLY="B1 B2", TUNNEL=1 on Wi-Fi that blocks phones from the Mac
+	TUNNEL=$(TUNNEL) scripts/session.sh $(or $(MODE),recalibrate) "$(ONLY)"
 
 .PHONY: room-setup
 room-setup: fix-venvs ## Room setup, no tape measure (ONLY="B1 B2" when fewer than all beacons are out): stand on each floor mark; the Mac places the beacons (docs/project/ROOM_SETUP.md)

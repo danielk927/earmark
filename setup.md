@@ -6,8 +6,8 @@
 - Mac app: opens by itself. Press **R** in its window.
 
 ## Get ready
-1. Put the Mac on the iPhone hotspot.
-2. Run `make mac` once (builds the Mac app).
+1. Put the Mac and the judge phone on the venue Wi-Fi. No hotspots: they are not allowed at the venue.
+2. Run `make mac` once (builds the Mac app), and `brew install cloudflared` once (the tunnel, see below).
 3. Put a mat on the floor where you will stand. Its middle is the centre. Forward is the way you will face.
 
 ## Place the 3 beacon phones
@@ -40,21 +40,24 @@ On each beacon phone:
 2. Set the number: 1 ahead, 2 right, 3 left. Check it every time.
 3. Band 12 to 16 kHz. Volume all the way up. Screen on. Press Start.
 
-The hotspot phone can be a beacon. Beacons do not need the hotspot.
+Beacons need no Wi-Fi at all.
 
 ## Start everything
 Stop any old Earmark terminals first (Ctrl-C). Then run one command. Everything starts with no items. You add them by voice later:
 
 ```
-make session
+make session TUNNEL=1
 ```
 
 It starts the hub, the voice, the room page and the Mac app, then waits for the phones.
 
+`TUNNEL=1` is because the venue Wi-Fi keeps phones from reaching the Mac directly. The judge phone connects through a Cloudflare tunnel instead: ordinary internet traffic over the venue Wi-Fi, about 1 Mbit/s, no hotspot. The terminal prints a name like `some-words.trycloudflare.com`; it changes every time you run `make session`. On a Wi-Fi that lets phones reach the Mac (at home), plain `make session` works.
+
 ## Connect the judge phone
-1. Put the judge phone on the hotspot Wi-Fi.
+1. Put the judge phone on the venue Wi-Fi.
 2. Open Earmark Phone, choose **The user's phone**.
-3. Type the address the terminal prints (like `ws://172.20.10.9:8766`). Press Start.
+3. Type the name the terminal prints (like `some-words.trycloudflare.com`). Press Start.
+   - A Wi-Fi blip is fine: the phone keeps recording and catches up, so you do not have to recalibrate. If the terminal ever shows `!!! the phone's audio restarted`, stand on the mat and press Enter.
 4. Wait until the terminal shows `B1 heard`, `B2 heard` and `B3 heard`.
 
 ## Stand on the mat

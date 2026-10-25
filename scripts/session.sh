@@ -12,6 +12,8 @@
 # The hub, voice and room page run in the background (logs in logs/). The room setup runs in the
 # foreground so you can press Enter on each mark. Ctrl-C stops everything this script started.
 # NO_MAC=1 skips opening the Mac app; NO_DASHBOARD=1 skips the room page.
+# TUNNEL=1 is for Wi-Fi that keeps phones from reaching the Mac (no hotspots allowed): the judge phone connects
+# through a Cloudflare tunnel instead (needs `brew install cloudflared`), and this prints the name to type on it.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONPATH="$PWD/contracts/python:$PWD/services/hub:$PWD/services/concierge:$PWD/services/memory_agent:$PWD/services/ranging${PYTHONPATH:+:$PYTHONPATH}"
@@ -63,8 +65,27 @@ if [[ -z "${NO_MAC:-}" ]]; then
   fi
 fi
 
+host=""
+if [[ -n "${TUNNEL:-}" ]]; then
+  command -v cloudflared >/dev/null 2>&1 || { echo "TUNNEL=1 needs cloudflared: brew install cloudflared" >&2; exit 1; }
+  echo "tunnel: starting (logs/tunnel.log); the judge phone's audio goes out through Cloudflare and back to this Mac"
+  cloudflared tunnel --no-autoupdate --url http://localhost:8766 > logs/tunnel.log 2>&1 &
+  pids+=($!)
+  for _ in $(seq 1 60); do
+    host=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' logs/tunnel.log | head -1 | sed 's|https://||')
+    [[ -n "$host" ]] && break
+    sleep 0.5
+  done
+  [[ -n "$host" ]] || { echo "the tunnel did not start; see logs/tunnel.log" >&2; exit 1; }
+fi
+
 echo
 echo "Now the phones. This terminal runs the room setup (recalibrate: stand on the mat for 30 s)."
+if [[ -n "$host" ]]; then
+  echo "On the judge phone (Earmark Phone, \"The user's phone\"), type this as the Mac's address:"
+  echo
+  echo "    $host"
+fi
 echo
 record=(--record "$PWD/logs/session-$(date +%Y%m%d-%H%M%S).wav")  # absolute: the ranging step runs in services/ranging
 case "$mode" in

@@ -57,5 +57,5 @@ Run `make session MODE=setup`. Stand on mark 1 (the mat), press Enter, and stand
 - Phones hear each other best within about 1.5 m. Keep the beacons close to the mat.
 - Hold the phone at about chest height (1.25 m), and keep the beacons at about the same height as each other.
 - Hold the phone still, not touching anything else, during the 30 s calibration.
-- The school Wi-Fi blocks phones from reaching the Mac. Use a travel router or an iPhone hotspot (the hotspot phone can be a beacon; it cannot be the judge's phone).
+- The school and venue Wi-Fi block phones from reaching the Mac, and hotspots are not allowed at the venue. Run `make session TUNNEL=1`: the judge phone connects through a Cloudflare tunnel over the Wi-Fi (setup.md).
 - With the floor-mark walk, if a beacon could be in two places that fit equally well, the Mac picks the one nearer its rough spot (ahead, right, left) and says so.

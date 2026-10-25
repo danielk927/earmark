@@ -464,3 +464,39 @@ async def test_a_solver_error_does_not_end_the_service():
     assert len(calls) >= 2
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
+
+
+def _audio(start, resent=False):
+    import base64
+
+    m = {"type": "audio", "start": start, "pcm": base64.b64encode(bytes(2 * 2400)).decode()}
+    return m | ({"resent": True} if resent else {})
+
+
+async def test_a_rejoin_on_the_same_recording_keeps_the_calibration():
+    from earmark_ranging.listen import BeaconSchedule
+    from earmark_ranging.solve import Fix
+
+    anchors = load_anchors()
+    bus = _Bus()
+    svc = ListenService(anchors, known_distances(anchors, at=(0.0, 0.0, 1.25)), SPEC, c=C, publisher=bus)
+    notices = []
+    svc.on_notice = notices.append
+    join = {"type": "join", "slot": 0, "name": "judge", "timeline": "rec-1"}
+    await svc.handler(_Socket(join, _audio(10_000), _audio(12_400)))
+    # Calibrated meanwhile:
+    svc.tracker = Tracker({k: BeaconSchedule(a=0.0, b=0.5) for k in anchors}, C, anchors)
+    svc.tracker.last_fix = Fix((0.3, 0.5, 1.2), 3, 0.01)
+    svc.state, svc.feed.cursor = "tracking", 12_000
+    buf = svc._phone0.buf
+
+    # The Wi-Fi blips. The phone kept recording, rejoins under the same name and resends what it held.
+    await svc.handler(_Socket(join, _audio(14_800, resent=True), _audio(17_200, resent=True), _audio(19_600)))
+    assert svc.state == "tracking" and svc.tracker is not None and not bus.sent and not notices
+    assert svc._phone0.buf is buf and buf.end == 22_000 and buf.gaps == 0  # one unbroken timeline
+    assert len(svc._phone0.lags) == 3  # the two resent chunks did not count as network lag
+
+    # Its microphone restarted (a new recording): the old calibration is useless now.
+    await svc.handler(_Socket(join | {"timeline": "rec-2"}))
+    assert svc.state == "idle" and svc.tracker is None
+    assert [m.quality for m in bus.sent] == ["lost"] and notices
