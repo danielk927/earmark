@@ -39,6 +39,11 @@ demo-sim: ## Full stack with the keyboard-driven simulator (no hardware). SCENAR
 	@if [ -n "$(SCENARIO)" ]; then scripts/run_stack.sh sim --scenario scenarios/$(SCENARIO).jsonl; \
 	 else scripts/run_stack.sh sim; fi
 
+.PHONY: demo-uwb-sim
+demo-uwb-sim: ## Full stack with a simulated UWB wearer (scripted walk to the counter); KEYS=1 moves the wearer from the keyboard
+	@if [ -n "$(KEYS)" ]; then scripts/run_stack.sh sim --interactive --adapters simulator,uwb_sim; \
+	 else scripts/run_stack.sh sim --adapters simulator,uwb_sim; fi
+
 .PHONY: demo-live
 demo-live: ## Full stack with real adapters (NFC spot readers + BLE fobs)
 	scripts/run_stack.sh live

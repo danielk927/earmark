@@ -116,3 +116,10 @@ https://developer.apple.com/documentation/nearbyinteraction/initiating-and-maint
 
 - `UIApplication.isIdleTimerDisabled` — set while a role runs (anchors must not lock; NI suspends in the background). https://developer.apple.com/documentation/uikit/uiapplication/isidletimerdisabled
 - `UIDevice.batteryLevel` — 0.0-1.0, `-1.0` unless `isBatteryMonitoringEnabled` is true. https://developer.apple.com/documentation/uikit/uidevice/batterylevel
+
+## 8. UWB accessories (production path, PRODUCTION.md 3.1)
+
+Read 2026-10-25 on developer.apple.com.
+- Nearby Interaction page: "Implement the Nearby Interaction accessory protocol with a Nearby Interaction-enabled UWB chipset ... Contact your UWB chipset vendor to confirm feature support." No vendors are named. https://developer.apple.com/nearby-interaction/
+- `NINearbyAccessoryConfiguration` (iOS 15+): "In iOS 16, third-party UWB accessories paired to the device through Bluetooth can interact with your app while it's in the background." `init(accessoryData:bluetoothPeerIdentifier:)` is iOS 16+. https://developer.apple.com/documentation/nearbyinteraction/ninearbyaccessoryconfiguration
+- WWDC21 session 10165 names no vendors. Qorvo's pages were not reachable from the build environment (proxy 403), so no module model or price is claimed.
