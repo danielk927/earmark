@@ -78,6 +78,61 @@ Not run yet: needs the human wearing AirPods (procedure will be in `mac/README.m
 
 Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) with the built-in mic capturing.
 
+## UWB track: what's verified in software vs pending on device
+
+As of 2026-10-25, branch `uwb-prd`.
+Nothing UWB has run on a phone yet.
+The Mac and iOS code was written without a Swift toolchain and has **not been compiled** (not locally, not in CI); expect small fixes on the first Xcode build (`ios/README.md`, `mac/README.md`).
+
+| Piece | Verified in software | Pending |
+|---|---|---|
+| contracts | Python suite passes (67 tests), including `config/space.json` with `anchors` and `tracking` | TS and Swift suites not re-run this session |
+| hub | The 140 existing tests pass. Manual run with the scripted `uwb_sim` (`EARMARK_ADAPTERS=simulator,uwb_sim`, `--no-convex`): about 10 `listener_pose` a second, tracked, then frozen at the counter, then tracked on the walk back | **No UWB unit tests yet** (PRD 12.1: solver, freeze, NFC re-anchor, lost to fixed, `uwb_sim` rate). NFC re-anchor and lost to fixed were not exercised |
+| scenarios, e2e | - | `scenarios/uwb_walk.jsonl` is not generated yet; no UWB e2e test |
+| concierge | 232 tests pass, including the listener-aware phrasing tests | - |
+| convex, dashboard | Tests were added with the anchors and wearer-pose changes | Not re-run this session |
+| `scripts/calibrate.py` | Anchor and wearer prompts dry-run with piped input to a temp file; the output validates against `space.schema.json` and `earmark_contracts.Space`, and the hub's tracker loads it | - |
+| Mac app (listener position, map, Calibrate screen) | - | Not compiled; `make mac-test` not run |
+| iOS app `ios/EarmarkUWB` | - | Not compiled; needs Xcode; every gate below |
+
+Open: the hub logs each listener mode change and NFC re-anchor with the position to `logs/hub.jsonl`.
+`docs/RESPONSIBLE_DESIGN.md` 4.1 says no pose history exists "in any table, log, or export"; one of the two needs to change.
+
+## On-device gates (UWB)
+
+From `docs/UWB-PRD.md` 12.2. Run in order; procedure in `ios/README.md`.
+For each gate also note the phone models and iOS versions, the anchor positions used (`python3 scripts/calibrate.py --show`), and anything odd (session restarts, rates, round-robin needed or not).
+
+| # | Gate | Pass | Date/time | Phones (model, iOS) | Result | Pass/fail | Notes |
+|---|---|---|---|---|---|---|---|
+| 1 | Ranging: one anchor + wearer, tape at 0.5 / 1 / 2 / 3 m | Each within ±0.10 m, averaged over 2 s | | | | | |
+| 2 | Concurrency: wearer with three sessions for 2 minutes | At least 5 Hz per anchor the whole time | | | | | |
+| 3 | Position: stand on 5 floor marks | Median error ≤ 0.20 m, max ≤ 0.35 m | | | | | |
+| 4 | Freeze: walk to the counter 10 times, stop naturally | Frozen point ≤ 0.15 m from the mark in 8 of 10 | | | | | |
+| 5 | Body block: body between the phone and one anchor | Outlier flagged in `blocked`; pose jumps no more than 0.3 m | | | | | |
+| 6 | Walk: eyes closed, start mark to the sugar, 5 attempts, with a spotter | 4 of 5 lift the correct jar (NFC-confirmed) | | | | | |
+
+Gate 1 readings:
+
+| True distance | Mean reading | Spread | Error |
+|---|---|---|---|
+| 0.5 m | | | |
+| 1 m | | | |
+| 2 m | | | |
+| 3 m | | | |
+
+Gate 3 readings (the Mac app's Verify marks):
+
+| Mark | Expected (x, y) | Solved (x, y) | Error |
+|---|---|---|---|
+| Origin | (0, 0) | | |
+| 1 m back | (0, -1) | | |
+| 2 m back | (0, -2) | | |
+| 1 m left | (-1, 0) | | |
+| 1 m right | (1, 0) | | |
+
+Bake-off with the sound track (PRD 13.10, gates 3, 4 and 6): decision: -
+
 ## Contract changes
 
 - 2026-10-24: initial contracts.
@@ -126,3 +181,4 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 8. **Timing:** the Convex workshop "Build Your Backend with Convex" is today, Saturday, 4:00-5:00 PM PDT at Gate 3.
 9. **Product decisions:** whether to add Fetch.ai bonus items (Payment Protocol, multi-agent, Interactive Cards); stretch items (Creao, Visa + Apify) stay off unless approved.
 10. **Bluetooth permission:** launch the hub once from Terminal.app and accept the Bluetooth prompt before using real fobs.
+11. **UWB walking demo:** install Xcode (large; gates the iOS app), four UWB iPhones (iPhone 11 or later, not SE), a travel router or a fifth phone's hotspot, and about 3 x 3 m of clear floor in front of the counter (`docs/UWB-PRD.md` 13).
