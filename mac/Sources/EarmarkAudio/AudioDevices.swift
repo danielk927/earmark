@@ -229,7 +229,8 @@ public final class AudioDeviceWatcher {
 
 /// Coalesces bursts of route notifications into one action ("no restart storms").
 /// Each trigger restarts a `delay` countdown; fires are spaced at least `minSpacing` apart.
-public final class DebouncedTrigger {
+/// Sendable by confinement: all state is touched only on `queue`.
+public final class DebouncedTrigger: @unchecked Sendable {
     public let delay: TimeInterval
     public let minSpacing: TimeInterval
     private let queue: DispatchQueue
