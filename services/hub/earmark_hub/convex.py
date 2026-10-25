@@ -151,7 +151,10 @@ class ConvexSync:
 
     def set_pose(self, pose: ListenerPose) -> None:
         """Latest listener pose for the dashboard; replaces any unsent one."""
-        self._pose = IngestPose(position=pose.position, mode=pose.mode, source=pose.source, t=pose.t)
+        # Sound poses carry no UWB mode, and Convex knows them all as "sound".
+        mode = pose.mode or ("lost" if pose.quality == "lost" else "tracked")
+        source = pose.source if pose.source in ("uwb", "sim", "none") else "sound"
+        self._pose = IngestPose(position=pose.position, mode=mode, source=source, t=pose.t)
 
     def set_anchors(self, anchors: list[IngestAnchor]) -> None:
         """Anchor health; sent only if it differs from what Convex last acknowledged."""

@@ -42,8 +42,8 @@ async def connect_client(h, component="cli", subscribe=None):
     return await BusClient.connect(component, subscribe=subscribe, url=url(h))
 
 
-async def drain(client, seconds=0.3, skip=("status", "listener_pose")):
-    """Every message received within `seconds`, minus hub status heartbeats and listener poses."""
+async def drain(client, seconds=0.3, skip=("status", "listener_pose", "positioning")):
+    """Every message received within `seconds`, minus hub status heartbeats, listener poses and positioning."""
     got = []
     try:
         async with asyncio.timeout(seconds):
@@ -255,6 +255,7 @@ async def test_locator_messages_exactly_as_the_phone_app_sends_them(hub):
     from pathlib import Path
 
     examples = Path(__file__).resolve().parents[3] / "locator" / "contracts" / "examples"
+    hub.active = "sound"  # the locator's poses go out as listener_pose only while sound drives the audio
     listener = await connect_client(hub, "mac_app", subscribe=["listener_pose", "mic_audio", "status", "ptt"])
     async with connect(url(hub)) as raw:
         await raw.send(json.dumps({"type": "hello", "component": "locator", "token": "secret"}))

@@ -92,6 +92,11 @@
     "step_m": 0.25,
     "seed": null
   },
+  "positioning": {
+    "active": "uwb",
+    "broadcast_hz": 5,
+    "sound_fresh_s": 2.0
+  },
   "health": {
     "interval_s": 5.0
   },

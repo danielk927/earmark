@@ -12,7 +12,6 @@ from earmark_contracts import (
     DetectionEvent,
     Hello,
     ListenerCommand,
-    ListenerPose,
     MotionState,
     ObjectTap,
     Reset,
@@ -196,8 +195,8 @@ async def test_lan_client_with_the_secret_is_admitted_and_gets_its_tokens(hub_cf
         await h.bus._receive(c, dump(Hello(component="ios_wearer", device_id="wearer", role="wearer", secret="s3cret")))
     assert c.authorized and c.device_id == "wearer" and ws.closed is None
     queued = [parse_bus(text) for _, text in c.queue._items]
-    assert [m.type for m in queued] == ["snapshot", "listener_pose", "uwb_token"]
-    assert queued[2].token_b64 == "dG9rZW4="
+    assert [m.type for m in queued] == ["snapshot", "listener_pose", "positioning", "uwb_token"]
+    assert queued[3].token_b64 == "dG9rZW4="
     assert "s3cret" not in caplog.text
     await h.bus._receive(c, dump(ranges_from(h.space, (0.0, -1.0))[0]))
     assert set(h.tracker.ranges) == {"uwb_1"} and h.tracker.source == "uwb"  # ios_wearer ranges are real UWB
@@ -426,28 +425,6 @@ async def test_tap_with_too_few_fixes_falls_through(hub):
     got = await tap(listener, listener)
     assert got.ok is False and got.source == "none"
     await listener.close()
-
-
-@pytest.mark.parametrize("uwb_enabled", [True, False])
-async def test_tap_falls_back_to_a_fresh_beacon_pose(hub_cfg, hub_root, uwb_enabled):
-    hub_cfg.uwb.enabled = uwb_enabled
-    h = Hub(hub_cfg, root=hub_root)
-    await h.start()
-    try:
-        locator = await Peer.join(h, "locator", subscribe=["tap_position"])
-        # The phone's own clock is ancient; only the hub's receive time counts.
-        await locator.send(ListenerPose(position=[1.0, 2.0, 1.1], quality="degraded", source="beacons",
-                                        beacons_heard=3, t=1.0))
-        got = await tap(locator, locator)
-        assert got.ok and got.position == [1.0, 2.0, 1.1] and got.source == "beacons"
-        h.client_pose_rx -= h.cfg.uwb.beacon_fresh_s + 1  # now stale
-        stale = await tap(locator, locator)
-        assert stale.ok is False and stale.position is None and stale.source == "none"
-        await locator.send(ListenerPose(position=[1.0, 2.0, 1.1], quality="lost", source="beacons", t=1.0))
-        assert (await tap(locator, locator)).ok is False  # a lost pose is no position
-        await locator.close()
-    finally:
-        await h.stop()
 
 
 async def test_sim_m_key_produces_a_tap_position(hub):

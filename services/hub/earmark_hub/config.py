@@ -100,9 +100,8 @@ class UwbCfg(_Cfg):
     head_offset_m: float = Field(default=0.20, ge=0)  # overridden by space.json tracking.head_offset_m
     ear_z_m: float = 0.0  # overridden by space.json tracking.ear_z_m (room frame: floor = 0, standing ~1.55)
     mark_avg_s: float = Field(default=1.5, gt=0)  # tap-to-mark: average the phone fixes of the last mark_avg_s
-    mark_min_fixes: int = Field(default=3, ge=1)  # ... and need at least this many, else fall back to the beacon pose
+    mark_min_fixes: int = Field(default=3, ge=1)  # ... and need at least this many, else the tap has no position
     mark_z_m: float = 0.9  # overridden by space.json tracking.mark_z_m (height stored for a marked object)
-    beacon_fresh_s: float = Field(default=2.0, gt=0)  # beacon-locator listener_pose older than this (hub receive time) is stale
     head_pose_max_age_s: float = Field(default=0.5, gt=0)
     counter_ref: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
     freeze_enter_m: float = Field(default=1.0, gt=0)
@@ -139,6 +138,14 @@ class UwbSimCfg(_Cfg):
     seed: int | None = None
 
 
+class PositioningCfg(_Cfg):
+    """UWB and sound positioning run at once on the same phones; `active` picks the one that drives listener_pose."""
+
+    active: Literal["uwb", "sound"] = "uwb"  # changed at run time by positioning_select
+    broadcast_hz: float = Field(default=5.0, gt=0)  # `positioning` (both systems side by side) for the maps
+    sound_fresh_s: float = Field(default=2.0, gt=0)  # a sound pose older than this (hub receive time) goes lost
+
+
 class HealthCfg(_Cfg):
     interval_s: float = Field(default=5.0, gt=0)
 
@@ -162,6 +169,7 @@ class HubConfig(_Cfg):
     convex: ConvexCfg = Field(default_factory=ConvexCfg)
     uwb: UwbCfg = Field(default_factory=UwbCfg)
     uwb_sim: UwbSimCfg = Field(default_factory=UwbSimCfg)
+    positioning: PositioningCfg = Field(default_factory=PositioningCfg)
     health: HealthCfg = Field(default_factory=HealthCfg)
     paths: PathsCfg = Field(default_factory=PathsCfg)
 
