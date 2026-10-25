@@ -36,6 +36,8 @@ def main_hub(argv: list[str] | None = None) -> int:
     p.add_argument("--step", action="store_true", help="pause (Enter) before each line that changes a reading")
     p.add_argument("--interactive", action="store_true", help="Wizard-of-Oz keyboard simulator")
     p.add_argument("--no-convex", action="store_true", help="never talk to Convex")
+    p.add_argument("--fresh", action="store_true",
+                   help="start with no items (not the seed, cache or Convex); items added this run are not kept")
     p.add_argument("--config", type=Path, help="hub config (default HUB_CONFIG or config/hub.json)")
     p.add_argument("-v", "--verbose", action="store_true", help="debug logging on the console")
     args = p.parse_args(argv)
@@ -49,6 +51,10 @@ def main_hub(argv: list[str] | None = None) -> int:
     from .logs import setup_logging
 
     cfg = load_config(args.config)
+    if args.fresh:  # an empty registry in a throwaway cache file; the real cache and Convex are left alone
+        cfg.paths.seed, cfg.paths.cache = "config/objects.empty.json", "var/hub/fresh-registry.json"
+        cfg.path("cache").unlink(missing_ok=True)
+        args.no_convex = True
     if args.adapters:
         cfg.adapters = parse_adapters(args.adapters)
     if (args.scenario or args.interactive) and "simulator" not in cfg.adapters:
