@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 """Write config/space.json from tape-measure readings.
 
-Stand (or sit) in the listening position and face the counter. The origin is
-the center of your head there; put a floor mark under it. Measure every point
-from the origin, in centimeters:
+Room frame: meters in the file, centimeters here. The origin is a mark on the
+FLOOR under the front-center edge of the table (or the mat). Measure every
+point from that mark:
 
-  forward  cm straight ahead, toward the counter (behind is negative)
+  forward  cm toward the table (the person walks in front of it, at forward < 0)
   side     cm to the right (left is negative)
-  height   cm relative to ear level (below ear level is negative)
+  height   cm ABOVE THE FLOOR (never relative to your ears)
 
-Spots must be in front of you (forward positive). The UWB anchors
-("UWB Reader/Emitter 1/2/3") use the same convention as the Mac app's
-Calibrate UWB anchors screen; anchor 3 is usually behind you (negative).
-The wearer phone height and head offset go into `tracking`.
-Press Enter at any prompt to keep the current value.
+Spots are on the table (forward positive). UWB anchors ("UWB Reader/Emitter
+1/2/3"): height is to the top of the phone, where the cameras and the UWB
+antenna are. Wearer: ear height and held-phone height above the floor (the
+file stores the phone relative to the ears), head offset, and table-top
+height (stored as mark_z_m). Press Enter at any prompt to keep the current value.
+
+The geometry check scores the walking area (horizontal DOP from the anchors,
+and from each pair in case one anchor is body-blocked). Advice only.
 
 Usage:
   python3 scripts/calibrate.py              interactive; previews before writing
   python3 scripts/calibrate.py --show       print the current layout as spoken directions
+  python3 scripts/calibrate.py --area -1.5,1.5,-3,-0.5   walking area xmin,xmax,ymin,ymax in meters
+                                            (default: anchors' bounding box shrunk 0.3 m)
   python3 scripts/calibrate.py --out PATH   write PATH instead of config/space.json
 
 The old file is kept as config/space.json.bak (PATH.bak with --out). Then send
@@ -34,15 +39,21 @@ from pathlib import Path
 
 SPACE = Path(__file__).resolve().parent.parent / "config" / "space.json"
 
-# PRD 9.1 placeholders (same as the Mac app's Calibration.defaultAnchors), used until measured.
+Area = tuple[float, float, float, float]
+
+# Placeholders (heights above the floor), used until measured.
 DEFAULT_ANCHORS = [
-    {"anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9, 0.75, -0.25]},
-    {"anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [0.9, 0.75, -0.25]},
-    {"anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8, -0.25]},
+    {"anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9, 0.75, 1.3]},
+    {"anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [0.9, 0.75, 1.3]},
+    {"anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8, 1.3]},
 ]
-# PRD section 5 defaults (also config/hub.json `uwb`).
-DEFAULT_PHONE_Z = -0.35
+DEFAULT_PHONE_Z = -0.35  # relative to the ears (schema rule)
+DEFAULT_EAR_Z = 1.55
+DEFAULT_MARK_Z = 0.9
 DEFAULT_HEAD_OFFSET_M = 0.20
+HDOP_TRIO_MAX = 2.0
+HDOP_PAIR_MAX = 4.0
+AREA_MARGIN = 0.3
 
 
 def clock(x: float, y: float) -> str:
@@ -51,15 +62,115 @@ def clock(x: float, y: float) -> str:
     return f"{12 if hour == 0 else hour} o'clock"
 
 
-def describe(space: dict) -> str:
-    lines = [f"Listener: {space['listener']['label']} ({space['listener']['origin_note']})"]
+def default_area(anchors: list[dict]) -> Area:
+    """Anchors' horizontal bounding box shrunk by AREA_MARGIN on each side."""
+    def shrink(vals: list[float]) -> tuple[float, float]:
+        lo, hi = min(vals) + AREA_MARGIN, max(vals) - AREA_MARGIN
+        if lo > hi:
+            lo = hi = (lo + hi) / 2
+        return lo, hi
+
+    x0, x1 = shrink([a["position"][0] for a in anchors])
+    y0, y1 = shrink([a["position"][1] for a in anchors])
+    return (x0, x1, y0, y1)
+
+
+def parse_area(text: str) -> Area:
+    try:
+        xmin, xmax, ymin, ymax = (float(v) for v in text.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError("--area needs four numbers: xmin,xmax,ymin,ymax (meters)") from None
+    if xmin > xmax or ymin > ymax:
+        raise argparse.ArgumentTypeError("--area needs xmin <= xmax and ymin <= ymax")
+    return (xmin, xmax, ymin, ymax)
+
+
+def _dop(rows: list[tuple[float, float]]) -> float:
+    """sqrt(trace((H^T H)^-1)) for a 2-column H; inf when singular."""
+    sxx = sum(r[0] * r[0] for r in rows)
+    syy = sum(r[1] * r[1] for r in rows)
+    sxy = sum(r[0] * r[1] for r in rows)
+    det = sxx * syy - sxy * sxy
+    if det < 1e-9:
+        return math.inf
+    return math.sqrt((sxx + syy) / det)
+
+
+def _grid(area: Area, step: float) -> list[tuple[float, float]]:
+    xmin, xmax, ymin, ymax = area
+    nx = int(math.floor((xmax - xmin) / step + 1e-9)) + 1
+    ny = int(math.floor((ymax - ymin) / step + 1e-9)) + 1
+    return [(xmin + i * step, ymin + j * step) for i in range(nx) for j in range(ny)]
+
+
+def geometry_report(anchors: list[dict], area: Area, phone_z_room: float, step: float = 0.1) -> dict | None:
+    """Horizontal DOP over the walking area for the trio and for each anchor pair.
+
+    Rows of H are horizontal unit vectors from the point to each anchor;
+    HDOP = sqrt(trace((H^T H)^-1)). phone_z_room is the held phone's height
+    above the floor; it gives each anchor's vertical offset `dz` (the slant
+    the tracker removes before solving). Returns None unless uwb_1..3 exist.
+
+    Keys: trio_max, trio_worst, trio_median, pairs {missing: {pair, max, worst}}, dz, area.
+    """
+    pos = {a["anchor"]: a["position"] for a in anchors}
+    names = ["uwb_1", "uwb_2", "uwb_3"]
+    if not set(names) <= pos.keys():
+        return None
+    pts = _grid(area, step)
+
+    def unit(p: tuple[float, float], n: str) -> tuple[float, float]:
+        dx, dy = pos[n][0] - p[0], pos[n][1] - p[1]
+        d = math.hypot(dx, dy)
+        return (dx / d, dy / d) if d > 1e-6 else (0.0, 0.0)
+
+    def scan(use: list[str]) -> tuple[float, tuple[float, float], list[float]]:
+        vals = [_dop([unit(p, n) for n in use]) for p in pts]
+        i = max(range(len(pts)), key=lambda k: vals[k])
+        return vals[i], pts[i], vals
+
+    tmax, tworst, tvals = scan(names)
+    ordered = sorted(tvals)
+    mid = len(ordered) // 2
+    median = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    pairs = {}
+    for k in names:
+        use = [n for n in names if n != k]
+        mx, worst, _ = scan(use)
+        pairs[k] = {"pair": use, "max": mx, "worst": worst}
+    return {"trio_max": tmax, "trio_worst": tworst, "trio_median": median, "pairs": pairs,
+            "dz": {n: pos[n][2] - phone_z_room for n in names}, "area": area}
+
+
+def anchor_warnings(anchors: list[dict], area: Area | None = None,
+                    phone_z_room: float = DEFAULT_EAR_Z + DEFAULT_PHONE_Z) -> list[str]:
+    """Geometry advice (nothing is refused)."""
+    have = {a["anchor"] for a in anchors}
+    if not {"uwb_1", "uwb_2", "uwb_3"} <= have:
+        return [] if not anchors else ["the hub expects three anchors: uwb_1, uwb_2, uwb_3"]
+    rep = geometry_report(anchors, area or default_area(anchors), phone_z_room)
+    out = []
+    if rep["trio_max"] > HDOP_TRIO_MAX:
+        x, y = rep["trio_worst"]
+        out.append(f"poor geometry near ({x:+.2f}, {y:+.2f}): HDOP {rep['trio_max']:.1f} > {HDOP_TRIO_MAX:g}")
+    for k, r in rep["pairs"].items():
+        if r["max"] > HDOP_PAIR_MAX:
+            i, j = r["pair"]
+            x, y = r["worst"]
+            out.append(f"if {k} is blocked, {i} and {j} are nearly in line near ({x:+.2f}, {y:+.2f})")
+    return out
+
+
+def describe(space: dict, area: Area | None = None) -> str:
+    lines = [f"Listener: {space['listener']['label']} ({space['listener']['origin_note']})",
+             "Heights are above the floor; the origin is a floor mark under the front-center edge of the table."]
     for s in space["spots"]:
         x, y, z = s["position"]
-        dist = math.sqrt(x * x + y * y + z * z)
+        dist = math.hypot(x, y)
         az = math.degrees(math.atan2(x, y))
         lines.append(
-            f"  spot {s['spot']} {s['label']!r:16} x={x:+.2f} y={y:+.2f} z={z:+.2f} m"
-            f"  azimuth {az:+5.1f} deg ({clock(x, y)}), {dist:.2f} m away"
+            f"  spot {s['spot']} {s['label']!r:16} x={x:+.2f} y={y:+.2f} z={z:.2f} m above the floor"
+            f"  azimuth {az:+5.1f} deg ({clock(x, y)}), {dist:.2f} m from the origin"
         )
     anchors = space.get("anchors") or []
     if anchors:
@@ -67,39 +178,35 @@ def describe(space: dict) -> str:
     for a in anchors:
         x, y, z = a["position"]
         lines.append(
-            f"  {a['label']:22} x={x:+.2f} y={y:+.2f} z={z:+.2f} m"
-            f"  ({clock(x, y)}), {math.hypot(x, y):.2f} m away on the floor"
+            f"  {a['label']:22} x={x:+.2f} y={y:+.2f} z={z:.2f} m above the floor"
+            f"  ({clock(x, y)}), {math.hypot(x, y):.2f} m from the origin on the floor"
         )
     tracking = space.get("tracking")
+    phone_room = DEFAULT_EAR_Z + DEFAULT_PHONE_Z
     if tracking:
+        ear = tracking.get("ear_z_m", DEFAULT_EAR_Z)
         phone_z = tracking.get("phone_z", DEFAULT_PHONE_Z)
+        phone_room = ear + phone_z
         head = tracking.get("head_offset_m", DEFAULT_HEAD_OFFSET_M)
-        lines.append(f"Wearer: phone {phone_z * 100:+.0f} cm vs ear level, head {head * 100:.0f} cm behind the phone")
-    lines += [f"  Warning: {w}" for w in anchor_warnings(anchors)]
+        mark = tracking.get("mark_z_m", DEFAULT_MARK_Z)
+        lines.append(
+            f"Wearer: ears {ear * 100:.0f} cm above the floor; phone {phone_room * 100:.0f} cm above the floor"
+            f" ({phone_z * 100:+.0f} cm vs the ears); head {head * 100:.0f} cm behind the phone;"
+            f" table top {mark * 100:.0f} cm above the floor"
+        )
+    if anchors:
+        area = area or default_area(anchors)
+        lines.append(f"Walking area: x {area[0]:+.2f}..{area[1]:+.2f}, y {area[2]:+.2f}..{area[3]:+.2f} m")
+        rep = geometry_report(anchors, area, phone_room)
+        if rep:
+            tx, ty = rep["trio_worst"]
+            lines.append(f"  HDOP, all three: max {rep['trio_max']:.2f} at ({tx:+.2f}, {ty:+.2f}),"
+                         f" median {rep['trio_median']:.2f}")
+            for k, r in rep["pairs"].items():
+                px, py = r["worst"]
+                lines.append(f"  HDOP, {k} blocked: max {r['max']:.2f} at ({px:+.2f}, {py:+.2f})")
+    lines += [f"  Warning: {w}" for w in anchor_warnings(anchors, area, phone_room)]
     return "\n".join(lines)
-
-
-def _dist_to_line(p: list[float], a: list[float], b: list[float]) -> float:
-    """Floor distance from p to the line through a and b."""
-    dx, dy = b[0] - a[0], b[1] - a[1]
-    length = math.hypot(dx, dy)
-    if length == 0:
-        return math.hypot(p[0] - a[0], p[1] - a[1])
-    return abs(dx * (p[1] - a[1]) - dy * (p[0] - a[0])) / length
-
-
-def anchor_warnings(anchors: list[dict]) -> list[str]:
-    """Booth layout rules from docs/project/UWB-PRD.md 4.2 (advice only; nothing is refused)."""
-    pos = {a["anchor"]: a["position"] for a in anchors}
-    if not {"uwb_1", "uwb_2", "uwb_3"} <= pos.keys():
-        return [] if not anchors else ["the hub expects three anchors: uwb_1, uwb_2, uwb_3"]
-    out = []
-    a, b, c = pos["uwb_1"], pos["uwb_2"], pos["uwb_3"]
-    if math.hypot(a[0] - b[0], a[1] - b[1]) < 1.2:
-        out.append("UWB Reader/Emitter 1 and 2 are less than 1.2 m apart")
-    if _dist_to_line(c, a, b) < 1.5:
-        out.append("UWB Reader/Emitter 3 is less than 1.5 m from the line through 1 and 2 (nearly in line)")
-    return out
 
 
 def ask_float(prompt: str, default: float | None, *, positive: bool = False,
@@ -130,7 +237,7 @@ def cm(m: float) -> float:
     return round(m * 100, 1)
 
 
-def calibrate(space: dict) -> dict:
+def calibrate(space: dict, area: Area | None = None) -> dict:
     label = input(f"Listening position label [{space['listener']['label']}]: ").strip()
     if label:
         space["listener"]["label"] = label
@@ -143,43 +250,52 @@ def calibrate(space: dict) -> dict:
         new_label = input(f"  spoken label [{s['label']}]: ").strip()
         if new_label:
             s["label"] = new_label
-        fwd = ask_float("  forward cm", y if y > 0 else None, positive=True)
+        fwd = ask_float("  forward cm (toward the table)", y if y > 0 else None, positive=True)
         side = ask_float("  side cm (right +, left -)", x)
-        height = ask_float("  height cm vs ear level (below -)", z)
+        height = ask_float("  height cm above the floor", z, minimum=0)
         s["position"] = [round(side / 100, 3), round(fwd / 100, 3), round(height / 100, 3)]
     calibrate_uwb(space)
     return space
 
 
 def calibrate_uwb(space: dict) -> None:
-    """UWB anchors and wearer geometry (docs/project/UWB-PRD.md 10.6). Enter at the first question skips it all."""
+    """UWB anchors and wearer geometry. Enter at the first question skips it all."""
     if input("\nUpdate the UWB anchors and wearer phone (walking guidance)? [y/N]: ").strip().lower() != "y":
         return
     anchors = space.get("anchors") or json.loads(json.dumps(DEFAULT_ANCHORS))
-    print("Measure each anchor's phone from the origin floor mark (forward: behind the origin is negative).")
+    print("Measure each anchor's phone from the floor mark (forward: behind the mark, away from the table, is negative).")
     for a in anchors:
         x, y, z = (cm(v) for v in a["position"])
         print(f"\n{a['label']} ({a['anchor']}):")
         fwd = ask_float("  forward cm (behind -)", y, limit_cm=600)
         side = ask_float("  side cm (right +, left -)", x, limit_cm=600)
-        height = ask_float("  height cm vs ear level (below -)", z)
+        height = ask_float("  height cm above the floor, to the top of the phone", z, minimum=0)
         a["position"] = [round(side / 100, 3), round(fwd / 100, 3), round(height / 100, 3)]
     space["anchors"] = anchors
 
     tracking = space.get("tracking") or {}
-    print("\nWearer phone (held in hand, close to the chest):")
-    phone = ask_float("  phone height cm vs ear level (below -)", cm(tracking.get("phone_z", DEFAULT_PHONE_Z)),
-                      limit_cm=150)
+    ear_now = tracking.get("ear_z_m", DEFAULT_EAR_Z)
+    print("\nWearer (standing, phone held out in front, screen up):")
+    ear = ask_float("  ear height cm above the floor", cm(ear_now), minimum=50)
+    phone_now = cm(ear_now + tracking.get("phone_z", DEFAULT_PHONE_Z))
+    phone = ask_float("  held-phone height cm above the floor", phone_now, minimum=0)
     head = ask_float("  head offset cm (how far the head is behind the phone)",
                      cm(tracking.get("head_offset_m", DEFAULT_HEAD_OFFSET_M)), limit_cm=100, minimum=0)
-    tracking["phone_z"] = round(phone / 100, 3)
+    mark = ask_float("  table-top height cm above the floor",
+                     cm(tracking.get("mark_z_m", DEFAULT_MARK_Z)), minimum=0)
+    tracking["ear_z_m"] = round(ear / 100, 3)
+    tracking["phone_z"] = round((phone - ear) / 100, 3)  # relative to the ears
     tracking["head_offset_m"] = round(head / 100, 3)
+    tracking["mark_z_m"] = round(mark / 100, 3)
     space["tracking"] = tracking
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--show", action="store_true", help="print the current layout and exit")
+    parser.add_argument("--area", type=parse_area, default=None, metavar="XMIN,XMAX,YMIN,YMAX",
+                        help="walking area in meters for the geometry check "
+                             "(default: anchors' bounding box shrunk 0.3 m)")
     parser.add_argument("--out", type=Path, default=SPACE,
                         help="where to write (default config/space.json); the old file there is kept as .bak")
     args = parser.parse_args()
@@ -187,13 +303,13 @@ def main() -> None:
 
     space = json.loads(SPACE.read_text())
     if args.show:
-        print(describe(space))
+        print(describe(space, args.area))
         return
 
     print(__doc__.split("Usage:")[0].strip(), "\n")
-    print("Current layout:\n" + describe(space))
+    print("Current layout:\n" + describe(space, args.area))
     updated = calibrate(json.loads(json.dumps(space)))
-    print("\nNew layout:\n" + describe(updated))
+    print("\nNew layout:\n" + describe(updated, args.area))
     if input(f"\nWrite {out}? [y/N]: ").strip().lower() != "y":
         print("Nothing written.")
         return
