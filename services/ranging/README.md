@@ -9,6 +9,14 @@ uvx ruff check .          # lint
 uv run earmark-ranging --help
 ```
 
+## Where the fixed phones are
+
+By default the UWB anchors in `config/space.json` (`uwb_N` is beacon N): the same three phones are the UWB anchors
+and the sound beacons, running the Earmark iPhone app (`ios/README.md`), so both positioning systems share one
+layout. A bare `beacons.json` still works with `--beacons`. The hub decides which system drives the audio
+(`services/hub/README.md`, "UWB and sound together"); this service just publishes its `listener_pose`.
+`make sound-listen` runs `listen` calibrated at the mat center (`CAL_AT="x y z"` to change it).
+
 ## Two modes
 
 **Two-way (`earmark-ranging serve`).** The Mac tells every phone, over Wi-Fi, when to chirp. Every phone (the
@@ -25,7 +33,7 @@ beacons give a position; one or two give distances only.
 
 ### What the beacons do (shared with the iPhone app; do not change one side without the other)
 
-- Cycle 0.5 s, four slots of 0.125 s. Beacon N (1 to 4, from the id `B1`..`B4` in `config/beacons.json`) starts a
+- Cycle 0.5 s, four slots of 0.125 s. Beacon N (1 to 4, from the anchor id `uwb_1`..`uwb_4` in `config/space.json`) starts a
   chirp when `unix_time mod 0.5 == (N-1)*0.125`, lined up once at startup to about ±30 ms. After that the chirps
   are exactly periodic in the beacon's own audio clock (every `round(0.5*fs)` output samples).
 - The chirp: linear sweep, default 12000 to 16000 Hz (`--band`; the Mac's detector must use the same band), 40 ms,
@@ -45,7 +53,7 @@ in cycle `n = round((t - a)/b)` means distance `d = c*(t - a - b*n)`.
 
 ### The one-beacon test, step by step
 
-1. Put the real beacon position in `config/beacons.json` (B1 is the first entry). Measure, with a tape, a spot
+1. Put the real beacon position in `config/space.json` (`uwb_1` is beacon 1). Measure, with a tape, a spot
    exactly 1.00 m from the beacon phone's bottom edge where the user's phone will be held.
 2. On the Mac:
    ```
