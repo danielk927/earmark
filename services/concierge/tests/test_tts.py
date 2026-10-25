@@ -1,10 +1,12 @@
 """Speech fallback chain: speak (Sonic) -> speak_text; static phrases -> speak_cached; no Mac app -> say."""
+import asyncio
 import base64
 
 import pytest
 
 from conftest import Harness, make_settings, snapshot
-from fakes import FakeSonic
+from earmark_concierge.tts import SonicTts
+from fakes import FakeSonic, wait_until
 
 TEXT = "The sugar is at your one o'clock, about an arm's length away."
 
@@ -111,3 +113,44 @@ async def test_no_mac_app_uses_local_say(tmp_path):
     assert [m["text"] for m in h.of("speak_text", out)] == [TEXT]  # a caption for the live room page
     assert h.of("guide_start", out)
     assert marker.read_text().strip() == TEXT
+
+
+async def _first_chunk(tts: SonicTts, ctx: str) -> str:
+    agen = tts.stream(TEXT, ctx)
+    try:
+        return await agen.__anext__()
+    finally:
+        await agen.aclose()
+
+
+async def test_warm_connects_before_the_first_utterance(tmp_path, sonic):
+    tts = SonicTts(tts_settings(tmp_path, sonic.url))
+    tts.warm()
+    assert await wait_until(lambda: len(sonic.auth) == 1)
+    await _first_chunk(tts, "c1")
+    assert len(sonic.auth) == 1                  # the utterance used the warm socket
+    await tts.close()
+
+
+async def test_a_warm_socket_reopens_when_cartesia_closes_it_idle(tmp_path, sonic):
+    # Live bug: after 5 idle minutes Cartesia closed the socket, the next answer paid a cold connect,
+    # missed the 1 s first-chunk budget, and fell back to the system voice.
+    tts = SonicTts(tts_settings(tmp_path, sonic.url))
+    tts.STABLE_S = 0.0                           # as if it had been open for the 5 idle minutes
+    tts.warm()
+    assert await wait_until(lambda: len(sonic.open) == 1)
+    await sonic.close_idle()
+    assert await wait_until(lambda: len(sonic.auth) == 2 and len(sonic.open) == 1, timeout=0.5)
+    await _first_chunk(tts, "c1")
+    assert len(sonic.auth) == 2
+    await tts.close()
+    await sonic.close_idle()
+    await asyncio.sleep(0.1)
+    assert len(sonic.auth) == 2                  # closed on purpose: no reconnect
+
+
+async def test_warm_survives_an_unreachable_server(tmp_path):
+    tts = SonicTts(tts_settings(tmp_path, "ws://127.0.0.1:9"))
+    tts.warm()
+    await asyncio.sleep(0.1)
+    await tts.close()

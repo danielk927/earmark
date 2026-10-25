@@ -71,6 +71,8 @@ async def run(settings: Settings, text: str | None = None, repl: bool = False) -
     core = build(settings, emit, bus_connected=lambda: bus.connected)
     core_box["core"] = core
     log.info("concierge starting: %s", describe(settings))
+    if core.speaker.tts is not None:
+        core.speaker.tts.warm()
 
     main = asyncio.current_task()
     asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown

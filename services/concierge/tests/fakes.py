@@ -78,15 +78,24 @@ class FakeSonic(FakeServer):
         self.mode = mode
         self.requests: list[dict] = []
         self.auth: list[str] = []
+        self.open: set = set()
 
     async def handler(self, ws):
         self.auth.append(ws.request.headers.get("Authorization", ""))
         if self.mode == "drop":
             return
+        self.open.add(ws)
         try:
             await self._serve(ws)
         except ConnectionClosed:
             pass
+        finally:
+            self.open.discard(ws)
+
+    async def close_idle(self):
+        """What Cartesia does to a TTS socket after 5 idle minutes."""
+        for ws in list(self.open):
+            await ws.close(1000, "idle")
 
     async def _serve(self, ws):
         async for msg in ws:

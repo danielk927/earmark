@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 
 from websockets.asyncio.client import ClientConnection, connect
@@ -28,12 +29,20 @@ def _close_code(e: ConnectionClosed) -> int | None:
 
 
 class SonicTts:
+    STABLE_S = 30.0       # a socket that lived this long reopens at once; shorter-lived ones back off
+    MAX_BACKOFF_S = 60.0
+
     def __init__(self, settings: Settings) -> None:
         self.s = settings
         self._ws: ClientConnection | None = None
         self._reader: asyncio.Task | None = None
         self._queues: dict[str, asyncio.Queue] = {}
         self._lock = asyncio.Lock()
+        self._keep_warm = False
+        self._closed = False
+        self._warmer: asyncio.Task | None = None
+        self._opened_at = 0.0
+        self._backoff = 0.0
 
     @property
     def output_format(self) -> dict:
@@ -47,8 +56,28 @@ class SonicTts:
             headers = {"Authorization": f"Bearer {self.s.cartesia_api_key}",
                        "Cartesia-Version": self.s.cartesia_version}
             self._ws = await connect(url, additional_headers=headers, open_timeout=None, max_size=None)
+            self._opened_at = time.monotonic()
             self._reader = asyncio.create_task(self._read(self._ws))
             return self._ws
+
+    def warm(self) -> None:
+        """Keep a socket open: connect now, and reconnect whenever Cartesia closes it (idle TTS sockets close
+        after 5 minutes). A cold connect takes most of the first-chunk budget, and missing it means the
+        system voice."""
+        self._keep_warm = True
+        if not self._closed and (self._warmer is None or self._warmer.done()):
+            self._warmer = asyncio.create_task(self._warm())
+
+    async def _warm(self) -> None:
+        while not self._closed:
+            if self._backoff:
+                await asyncio.sleep(self._backoff)
+            try:
+                await self._ensure()
+                return
+            except Exception as e:
+                self._backoff = min(max(1.0, self._backoff * 2), self.MAX_BACKOFF_S)
+                log.warning("tts connect failed (%s); retrying in %.0f s", type(e).__name__, self._backoff)
 
     async def _read(self, ws: ClientConnection) -> None:
         err: Exception = TtsError("tts socket closed")
@@ -69,6 +98,11 @@ class SonicTts:
                 self._ws = None
             for q in self._queues.values():
                 q.put_nowait(err)
+            if self._keep_warm and not self._closed:
+                lived = time.monotonic() - self._opened_at
+                self._backoff = 0.0 if lived >= self.STABLE_S else min(max(1.0, self._backoff * 2), self.MAX_BACKOFF_S)
+                log.info("%s after %.0f s; reopening in %.0f s", err, lived, self._backoff)
+                self.warm()
 
     async def stream(self, text: str, context_id: str) -> AsyncIterator[str]:
         """Yield base64 audio chunks. Raises TtsError."""
@@ -114,5 +148,8 @@ class SonicTts:
                 pass
 
     async def close(self) -> None:
+        self._closed = True
+        if self._warmer is not None:
+            self._warmer.cancel()
         if self._ws is not None:
             await self._ws.close()
