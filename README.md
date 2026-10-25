@@ -35,3 +35,4 @@ make demo-sim    # the demo with no hardware (see docs/project/DEMO_SCRIPT.md)
 ```
 
 Needs `uv` (Python 3.12), Node, and for the Mac app the Swift command line tools. More in each folder's README.
+On a Mac, run `scripts/mac_check.sh` (or `/mac-bringup` in Claude Code) to build and test everything.

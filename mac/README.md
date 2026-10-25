@@ -14,6 +14,8 @@ Screenshots (mock head, no AirPods) are in `docs/screenshots/`.
 
 ## Build and run
 
+On a Mac, run `scripts/mac_check.sh` (or `/mac-bringup` in Claude Code) to build and test everything.
+
 ```bash
 mac/build_app.sh                                   # swift build -c release, bundle, sign, codesign --verify --strict
 mac/build_app.sh --open spike -- --mock-head       # build, then launch the spike via `open -n`

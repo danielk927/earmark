@@ -54,6 +54,7 @@ The demo runs with one locator at a time: the sound-beacon locator (`locator/`) 
 - **Wrong-jar finale.** Judge reaches. If they lift the salt: "That's the salt. The sugar is one spot to your right." (This is the hero moment; it is fine to nudge the judge toward the wrong jar first.)
 - Judge lifts the sugar: "Got it, that's the sugar." The dashboard's live map updates at the same instant: the wearer dot "At the counter" and the sugar lifted (point at it).
 - If there is time: "Where are my keys?" Earmark: proximity phrase, and the fob beeps.
+- **Mark then find (UWB, if there is time).** Judge, at the counter: "Add my prescription." Earmark: "Set it down and tap your phone next to it." Judge sets the bottle down and knocks the wearer phone on the table beside it (or presses **Mark here**). Presenter: "The phone is at the bottle now, so Earmark measures where it is. No sticker or reader." Judge walks back to the start mark, eyes closed: "Find my prescription." Earmark guides them to the bottle, as it does for the sugar.
 
 **0:15 - 1:10 Live demo, seated version (Judge + Operator)**
 - Judge (push-to-talk: Operator holds Space, or always-listening): "Where's the sugar?"
@@ -85,11 +86,12 @@ The demo runs with one locator at a time: the sound-beacon locator (`locator/`) 
 - **What if the internet is down?** The local loop keeps working; speech falls back to cached phrases, then the system voice; intent falls back to a keyword grammar (`docs/project/ARCHITECTURE.md`, failure table).
 - **Cost per home?** About $147-$559 in parts, an estimate (`docs/project/PRODUCTION.md`).
 - **Privacy?** `docs/project/RESPONSIBLE_DESIGN.md`.
-- **Can it save "leaving my keys here"?** Not yet: the app does not know where the user is standing, so it asks for a named place (cupboard, drawer, bag, box). Tracking the user is the next step (`docs/project/PRODUCTION.md`).
+- **Can it save "leaving my keys here"?** Yes, when a tracker is running (beacons or UWB): it saves where the user stands. Better: say "add my keys" and tap the phone next to them, which saves the object's own spot. With no tracker it asks for a named place (cupboard, drawer, bag, box).
 - **How do you know where I am?** Ultra-wideband ranging between the phone in your hand and three fixed anchors, measured fresh every time, so errors don't add up as you walk. Position error at five floor marks: [POSITION GATE: median and max]. No camera, no GPS.
 - **Why does it freeze at the counter?** Jars sit about 26 cm apart; a live position that moves a few centimeters would swing the direction between them. Standing still at the counter locks the position; touching a jar corrects it.
 - **Do you store where I walk?** No. Only the latest position is kept, for the live map, and it is cleared on reset; no position history is stored (`docs/project/RESPONSIBLE_DESIGN.md`).
 - **Why iPhones as anchors?** They were the UWB hardware we had tonight. In a home they would be small dedicated modules, and your own iPhone is the wearer (`docs/project/PRODUCTION.md`).
+- **Can an object be placed without an NFC reader?** Yes. The judge says "add my prescription", sets it down, and taps the wearer phone next to it. Earmark averages about 1.5 s of UWB fixes at that spot. It is less exact than NFC, has no pickup confirmation, and the mark goes stale if someone moves the object. Accuracy: [TAP ACCURACY: measured error] (`docs/project/UWB-PRD.md` 18).
 
 ## If something fails (Operator)
 
@@ -102,6 +104,7 @@ The demo runs with one locator at a time: the sound-beacon locator (`locator/`) 
 | An anchor offline mid-walk | Nothing; two anchors still give a position. Afterwards check that phone's screen (locked, unplugged, app closed) | Same experience |
 | UWB lost (fewer than 2 anchors) | Let the judge finish the walk; the Spotter guides them to the origin mark if needed | "I've lost track of where you are. Walk to the counter and say 'I'm here'." |
 | Frozen position off to one side | Nothing; the first jar the judge touches pulls it back. Or the judge says "I'm here" on the origin mark | A corrected direction after the first touch |
+| Tap not accepted | Judge holds the wearer phone still on the table and taps again; the Operator can press **Mark here** | "Hold it still and tap again." |
 | Phones can't reach the hub | Check the network, the Mac's IP, the secret, and that the hub listens on 0.0.0.0 (the phone shows the hub's refusal reason in red) | - |
 | Anything UWB won't work | **Seated demo.** Close the wearer app; within a few seconds the hub falls back to fixed mode (listener at the origin, today's behavior, no code change). Judge in the demo chair at the origin mark, press **R**, run the seated version | Same seated experience |
 | Cartesia down | Nothing; cached phrases and the system voice take over, Apple Speech listens | A different voice |

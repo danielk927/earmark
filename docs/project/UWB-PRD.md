@@ -1,7 +1,7 @@
 # UWB walking guidance: product requirements (UWB-PRD)
 
 Status: draft, 2026-10-24 17:10 PDT. Owner: UWB track (Leo). Parallel track: sound-based ranging (teammate), see section 14.
-Scope: let a user **walk** to an object guided by spatial audio, using iPhone ultra-wideband (UWB) ranging to fixed anchor iPhones, a **freeze** at the counter, and the existing **NFC** spots for object identity, position, and pickup confirmation.
+Scope: let a user **walk** to an object guided by spatial audio, using iPhone ultra-wideband (UWB) ranging to fixed anchor iPhones, a **freeze** at the counter, the existing **NFC** spots for object identity and pickup confirmation, and **tap-to-mark** (section 18) for placing objects.
 
 ---
 
@@ -16,7 +16,8 @@ This PRD adds the missing piece: **where the user is while they walk.**
 - The hub turns three distances into a live 2D position (trilateration), smooths it, and publishes it as `listener_pose`.
 - The Mac app moves the audio listener to that position, so the ping from the sugar jar gets closer and louder as the user walks toward it, with no sweeps and no warmer/colder guessing.
 - Near the counter, the system **freezes** the listener position (averaged while the user stands still) so the last-meter guidance doesn't wobble between jars that are about 26 cm apart.
-- **NFC** keeps doing what it does: exact object positions, pickup confirmation, wrong-jar correction. It also re-anchors the frozen position when a jar is lifted (section 8.4).
+- **NFC** keeps doing what it does: spot positions, pickup confirmation, wrong-jar correction. It also re-anchors the frozen position when a jar is lifted (section 8.4).
+- **Placing an object no longer needs an NFC spot.** The user taps the wearer phone next to the object, and Earmark stores that position (section 18).
 
 Nothing about this uses a camera.
 
@@ -108,12 +109,12 @@ All four iPhones must have UWB (iPhone 11 or later, not SE). Confirm each with `
 ## 5. Coordinate frame
 
 Unchanged from `contracts/README.md`:
-- Meters; +x right, +y forward, +z up; origin = center of the head at the calibrated listening position (standing at the counter, facing it).
+- Meters; floor = 0, +z up; origin under the center of the mat. This is main's room frame (section 19), not the head-centered frame first drafted here.
 - Head yaw: degrees from calibrated forward, positive turning right.
 
 New for UWB:
 - **Anchor positions** are measured in this same frame (tape measure from the origin mark; section 10).
-- **Tracking is 2D.** The solver estimates x, y. The listener's z is fixed at 0 (standing head height, same as calibration).
+- **Tracking is 2D.** The solver estimates x, y. The listener's z is fixed at `tracking.ear_z_m` (1.55 m, the ear height of UWB poses; section 19).
 - **Slant-range correction:** the phone is below the head and anchors may be at other heights. Each raw distance d is converted to a horizontal distance with `h = sqrt(max(d² - Δz², 0))`, where `Δz = anchor_z - phone_z`, and `phone_z` is configurable (default -0.35 m: chest height relative to the ears).
 - **Phone-to-head offset:** the phone is in front of the body. The listener (head) is estimated as the phone position shifted back by `head_offset_m` (default 0.20 m) along the user's facing direction (section 8.3).
 
@@ -290,12 +291,12 @@ All changes go into `contracts/schemas/bus_message.schema.json` with at least tw
 - `config/space.json` (`space.schema.json`): add optional `anchors` array:
   ```json
   "anchors": [
-    { "anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9, 0.75, -0.25] },
-    { "anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [ 0.9, 0.75, -0.25] },
-    { "anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8, -0.25] }
+    { "anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9, 0.75, 1.3] },
+    { "anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [ 0.9, 0.75, 1.3] },
+    { "anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8, 1.3] }
   ]
   ```
-  (Positions above are placeholders until calibration.)
+  (Positions above are placeholders until calibration. Heights are z = 1.3 m after moving the anchors up 1.55 m; section 19.)
 
 ### 9.2 New bus messages
 | `type` | Direction | Fields |
@@ -303,11 +304,11 @@ All changes go into `contracts/schemas/bus_message.schema.json` with at least tw
 | `uwb_token` | iOS → hub → iOS | `from`, `to`, `token_b64`, `t` |
 | `uwb_range` | wearer → hub | `anchor`, `distance_m`, `seq`, `t` |
 | `motion_state` | wearer → hub | `state` (`moving` / `still`), `t` |
-| `listener_pose` | hub → bus | `position` [x, y, z], `mode` (`tracked` / `frozen` / `lost` / `fixed`), `source` (`uwb` / `sound` / `sim` / `none`), `residual_m` (number or null), `anchors_used` (int), `blocked` (array of anchor ids), `t` |
+| `listener_pose` | beacon locator or hub → bus | Shared by two producers (section 19). Required: `position` [x, y, z], `quality` (`ok` / `degraded` / `lost`), `source` (`beacons` / `uwb` / `sim`), `t`. UWB adds `mode` (`tracked` / `frozen` / `lost` / `fixed`), `residual_m`, `anchors_used`, `blocked` |
 
 Example `listener_pose`:
 ```json
-{ "type": "listener_pose", "position": [0.12, -1.85, 0.0], "mode": "tracked", "source": "uwb",
+{ "type": "listener_pose", "position": [0.12, -1.85, 1.55], "quality": "ok", "mode": "tracked", "source": "uwb",
   "residual_m": 0.06, "anchors_used": 3, "blocked": [], "t": 1761351234.5 }
 ```
 
@@ -456,7 +457,7 @@ Set a fixed time (suggested 02:00) to compare the UWB and sound tracks on the sa
 
 ## 14. Interface with the sound track
 
-Both tracks produce the **same** `listener_pose` message, with `source: "uwb"` or `source: "sound"`. Everything downstream (Mac app, concierge, dashboard, freeze, NFC re-anchor) is shared and built once.
+Both tracks produce the **same** `listener_pose` message, with `source: "uwb"` or `source: "beacons"`. Everything downstream (Mac app, concierge, dashboard, freeze, NFC re-anchor) is shared and built once.
 
 | Shared (build once) | UWB track only | Sound track only |
 |---|---|---|
@@ -509,3 +510,82 @@ Rule: the freeze and re-anchor logic live in the hub, after the source-specific 
 3. Does the wearer phone stream the mic (13.2), or does the operator handle voice?
 4. Do we keep the "sweep" sound approach at all, or is it fully replaced by the teammate's timing-based sound track?
 5. Who owns the shared pieces in section 14 (suggest: the UWB track owns the hub freeze and Mac listener changes; the sound track reviews)?
+
+---
+
+## 18. Tap-to-mark (replaces NFC for placing objects)
+
+Before, an object was placed by putting it on an NFC spot. Now the user can place an object anywhere by tapping the wearer phone next to it. NFC still gives object identity, the spots, and pickup confirmation.
+
+### 18.1 Flow
+
+1. The user says "add my prescription". (Or "add an object", and the voice agent asks "What object are you adding?")
+2. The agent says: "Set it down and tap your phone next to it."
+3. The user knocks the wearer iPhone on the table next to the object. The big **Mark here** button, or saying "here", does the same.
+4. The phone sends `object_tap` (no data).
+5. The hub answers with `tap_position`:
+   - With UWB: the mean of the raw phone fixes over the last 1.5 s (at least 3 fixes), at z = `mark_z_m` (0.9 m).
+   - Otherwise: the last beacon pose, if it was received within 2 s.
+   - Otherwise: `ok` false, and Earmark says "hold it still and tap again".
+6. The concierge sends main's `place_item` with that position. It is a `stored` event, so it has history. The object is registered with the synthetic tag `voice:<name>`.
+7. "Find my prescription" guides the user there.
+
+### 18.2 Messages
+
+| Message | Direction | Fields | Notes |
+|---|---|---|---|
+| `object_tap` | wearer → hub | none | Sent for a knock, the Mark here button, or "here". |
+| `tap_position` | hub → concierge | `ok`; `position` when `ok` is true | `ok` false means "hold it still and tap again". |
+| `place_item` | concierge → hub | object id, tapped position | Main's message, used with the tapped position. Creates a `stored` event. |
+
+### 18.3 Knobs
+
+| Setting | File | Default | Meaning |
+|---|---|---|---|
+| `uwb.mark_avg_s` | `config/hub.json` | 1.5 | Seconds of phone fixes averaged |
+| `uwb.mark_min_fixes` | `config/hub.json` | 3 | Fewer fixes in the window falls back to the beacon pose |
+| `uwb.beacon_fresh_s` | `config/hub.json` | 2.0 | Oldest beacon pose used as the fallback |
+| `tracking.mark_z_m` | `config/space.json` | 0.9 | Height given to a tapped object |
+| `spikeG` | iPhone app | 1.5 g | Knock threshold |
+
+### 18.4 Accuracy
+
+The UWB tracker's noise is about 7 cm per fix. Averaging about 1.5 s of fixes should bring that to about 3 cm, which is enough for objects 26 cm apart. This is expected, not yet measured on a phone. Measure it before quoting a number.
+
+### 18.5 Trade-offs
+
+| Compared with | Better | Worse |
+|---|---|---|
+| NFC spot | Any place, no reader needed | No pickup confirmation and no wrong-jar correction; a few cm, not exact |
+| Main's `put_here` ("I'm leaving my keys here") | The phone is at the object, not where the person stands | Needs a fix: UWB, or a beacon pose within 2 s |
+| Any mark | | A mark goes stale if someone else moves the object |
+
+---
+
+## 19. Shared listener_pose and room frame
+
+### 19.1 One message, two producers
+
+| Producer | `source` | Rate | Extra fields |
+|---|---|---|---|
+| Beacon locator (`locator/`) | `beacons` | about 3 Hz | `beacons_heard` |
+| Hub UWB tracker | `uwb` or `sim` | 10 Hz | `mode`, `residual_m`, `anchors_used`, `blocked`, `anchors` |
+
+Required on every message: `position`, `quality` (`ok` / `degraded` / `lost`), `source`, and `t`.
+
+- The UWB tracker maps `tracked` and `frozen` to `quality: ok`, and `lost` and `fixed` to `quality: lost`.
+- Only one tracker drives the audio. While UWB is tracking, the hub drops `listener_pose` from the beacon locator.
+- The Mac app moves the target relative to the listener (main's model). UWB only feeds it positions.
+
+### 19.2 Room frame
+
+Coordinates follow main's room frame: meters, floor = 0, +z up, origin under the center of the mat.
+
+| Thing | Height (z) | Source |
+|---|---|---|
+| UWB anchors | 1.3 m | `config/space.json`; moved up by 1.55 m from the earlier value |
+| Ears (UWB poses) | 1.55 m | `tracking.ear_z_m` |
+| Tap-marked objects | 0.9 m | `tracking.mark_z_m` |
+| Phone | relative to the ears | `tracking.phone_z` (-0.35 m), unchanged |
+
+Three anchors at one height only give a 2D position, so the tracker solves x and y and takes z from these settings. `phone_z` is still relative to the ears, so the tracker math is unchanged.

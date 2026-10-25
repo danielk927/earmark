@@ -1,9 +1,16 @@
 # Earmark status
 
-Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed).
+Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed; UWB branch merged with main, tap-to-mark added).
 Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
+
+- **2026-10-24: UWB branch merged with main; tap-to-mark added (uwb-leo).**
+  - `listener_pose` is one shared message. The beacon locator sends `source: "beacons"` (about 3 Hz); the UWB tracker sends `source: "uwb"` or `"sim"` (10 Hz). While UWB tracks, the hub drops the beacon poses, so only one tracker drives the audio. The Mac app still moves the target relative to the listener; UWB only feeds positions.
+  - Coordinates follow main's room frame (floor = 0, +z up, origin under the mat center). UWB anchors moved up 1.55 m (now z = 1.3). New `tracking.ear_z_m` (1.55) and `tracking.mark_z_m` (0.9).
+  - Tap-to-mark replaces NFC for placing objects: the user taps the wearer phone next to an object, and the hub returns the averaged UWB position (or the last beacon pose). The concierge stores it with `place_item`. NFC still does identity, spots, and pickups. Details: `docs/project/UWB-PRD.md` section 18.
+  - Windows dev: the hub and concierge CLIs skip asyncio loop signal handlers where they are not supported, so end-to-end runs work on Windows.
+  - Not verified on a phone: no UWB ranging or tap has run on a device yet.
 
 - **AirPods test passed (reported by the team, 2026-10-24):** with real AirPods Pro the 3D ping works and follows head turns, head tracking runs at about 54 per second, output stays at 48 kHz, and the app correctly switches the mic to the Mac. The detailed pointing scores in the table below were not filled in.
 
@@ -153,6 +160,8 @@ Gate 3 readings (the Mac app's Verify marks):
 Bake-off with the sound track (PRD 13.10, gates 3, 4 and 6): decision: -
 
 ## Contract changes
+
+- 2026-10-24 (uwb-leo, tap-to-mark): new bus messages `object_tap` (wearer to hub, no data) and `tap_position` (hub to concierge: `ok`, plus `position` when ok). `listener_pose` is one shared message with required `position`, `quality`, `source` (`beacons` | `uwb` | `sim`) and `t`. `space.schema.json` `tracking` gains `ear_z_m` and `mark_z_m`.
 
 - 2026-10-24: added the `place_item` bus message (concierge to hub: object id, saved place id) and the `stored` Convex event kind, with examples in `contracts/examples/bus/place_item/`. Swift treats `place_item` as an unhandled type (`other`), so no Swift change.
 
