@@ -69,8 +69,8 @@ function buildHuman(): THREE.Group {
   for (const s of [-1, 1]) {
     const [x0, x1] = s < 0 ? [-0.3, -0.225] : [0.225, 0.3];
     extrude(roundedBlock(x0, 0.76, x1, 1.2, 0, 0.037)); // arm, parted from the torso by a thin gap
-    const [l0, l1] = s < 0 ? [-0.205, -0.012] : [0.012, 0.205];
-    extrude(roundedBlock(l0, 0, l1, 0.9, 0, 0.06)); // leg
+    const [l0, l1] = s < 0 ? [-0.165, -0.03] : [0.03, 0.165];
+    extrude(roundedBlock(l0, 0, l1, 0.9, 0, 0.05)); // leg, a little narrower than the torso
   }
   return g;
 }
@@ -89,6 +89,7 @@ export class RoomModel {
   private itemsKey = "";
   private person = new THREE.Group();
   private figure = buildHuman();
+  private marker: THREE.Mesh;
   private gaze: THREE.Line;
   private personTag: CSS2DObject;
   private trail: THREE.Line;
@@ -123,7 +124,11 @@ export class RoomModel {
     this.personTag = tag("<i>You</i>", "m3-you");
     this.personTag.position.set(0, 1.95, 0);
     this.gaze = line([new THREE.Vector3(0, 0.01, 0), new THREE.Vector3(0, 0.01, -0.9)], YELLOW, 0.9);
-    this.person.add(this.figure, this.personTag, this.gaze);
+    this.marker = new THREE.Mesh(new THREE.CircleGeometry(0.17, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+    this.marker.rotation.x = -Math.PI / 2;
+    this.marker.position.y = 0.012;
+    this.marker.visible = false;
+    this.person.add(this.figure, this.marker, this.personTag, this.gaze);
     this.scene.add(this.person);
 
     this.trail = line([], BLUE, 0.7);
@@ -235,16 +240,16 @@ export class RoomModel {
     this.person.position.copy(this.shown);
     this.yaw += (this.yawTarget - this.yaw) * 0.25;
     this.person.rotation.y = this.yaw;
-    // The flat figure always turns toward the camera so it never shows its thin edge; seen from above it lies flat.
+    // The flat figure stays upright and turns toward the camera so it never shows its thin edge. From high above it
+    // would be edge-on and vanish, so there it becomes a plain black dot.
     const cam = this.camera.position;
     const dx = cam.x - this.person.position.x;
     const dz = cam.z - this.person.position.z;
     const elevation = Math.atan2(cam.y - 1, Math.hypot(dx, dz));
-    const flat = Math.min(Math.max((elevation - 0.8) / 0.55, 0), 1);
-    this.figure.rotation.order = "YXZ";
-    this.figure.rotation.y = Math.atan2(dx, dz) * (1 - flat) - this.person.rotation.y;
-    this.figure.rotation.x = -flat * (Math.PI / 2);
-    this.figure.scale.setScalar(1 - flat * 0.65); // seen from above it is a small marker, not a 1.8 m figure lying on the floor
+    const fromAbove = elevation > 1.0;
+    this.figure.visible = !fromAbove;
+    this.marker.visible = fromAbove;
+    this.figure.rotation.y = Math.atan2(dx, dz) - this.person.rotation.y;
     this.personTag.element.style.transform = ""; // the tag stays upright (CSS2D), only the figure turns
     const chest = this.shown.clone().setY(1.3);
     const g = s?.guide;
