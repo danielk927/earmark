@@ -291,6 +291,17 @@ public struct ListenerPose: Codable, Sendable, Equatable {
     }
 }
 
+/// Where an item now is: an area id from space.areas, or a room-frame position.
+public struct PlaceItem: Codable, Sendable, Equatable {
+    public var objectId: String
+    public var area: String?
+    public var position: [Double]?
+    public var t: Double
+    public init(objectId: String, area: String? = nil, position: [Double]? = nil, t: Double = BusCoding.now) {
+        self.objectId = objectId; self.area = area; self.position = position; self.t = t
+    }
+}
+
 public struct Ptt: Codable, Sendable, Equatable {
     public enum State: String, Codable, Sendable { case start, stop }
     public var state: State
@@ -348,6 +359,7 @@ public enum BusMessage: Sendable {
     case playback(Playback)
     case headPose(HeadPose)
     case listenerPose(ListenerPose)
+    case placeItem(PlaceItem)
     case ptt(Ptt)
     case status(Status)
     case reset(Reset)
@@ -374,6 +386,7 @@ public enum BusMessage: Sendable {
         case .playback: "playback"
         case .headPose: "head_pose"
         case .listenerPose: "listener_pose"
+        case .placeItem: "place_item"
         case .ptt: "ptt"
         case .status: "status"
         case .reset: "reset"
@@ -407,6 +420,7 @@ extension BusMessage: Codable {
         case "playback": self = .playback(try one.decode(Playback.self))
         case "head_pose": self = .headPose(try one.decode(HeadPose.self))
         case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
+        case "place_item": self = .placeItem(try one.decode(PlaceItem.self))
         case "ptt": self = .ptt(try one.decode(Ptt.self))
         case "status": self = .status(try one.decode(Status.self))
         case "reset": self = .reset(try one.decode(Reset.self))
@@ -436,6 +450,7 @@ extension BusMessage: Codable {
         case .playback(let m): try m.encode(to: encoder)
         case .headPose(let m): try m.encode(to: encoder)
         case .listenerPose(let m): try m.encode(to: encoder)
+        case .placeItem(let m): try m.encode(to: encoder)
         case .ptt(let m): try m.encode(to: encoder)
         case .status(let m): try m.encode(to: encoder)
         case .reset(let m): try m.encode(to: encoder)

@@ -133,6 +133,32 @@ import Testing
         #expect(fb.first?.event == .behind && fb.first?.turn == .right && fb.first?.objectId == "keys")
     }
 
+    @Test func movingAnItemByHandSendsPlaceItem() throws {
+        core.moveItem(objectId: "sugar", to: EarmarkPoint(1.23456, -0.5, 0.9))
+        let sent = busSink.ofType("place_item")
+        #expect(sent.count == 1)
+        guard case .placeItem(let m) = try #require(sent.first) else { Issue.record("not place_item"); return }
+        #expect(m.objectId == "sugar" && m.area == nil && m.position == [1.235, -0.5, 0.9])
+        #expect(core.guide == nil)                     // moving an item starts nothing
+    }
+
+    @Test func movingTheTargetOfAnOperatorPingMovesThePing() throws {
+        core.startManualPing(objectId: "sugar", name: "sugar", at: EarmarkPoint(0.16, 0.58, 0))
+        busSink.clear()
+        core.moveItem(objectId: "sugar", to: EarmarkPoint(-1, -1, 0.5))
+        #expect(try #require(renderer.target) == EarmarkPoint(-1, -1, 0.5))
+        guard case .guideStart(let g) = try #require(busSink.ofType("guide_start").first) else { return }
+        #expect(g.targetPosition == [-1, -1, 0.5])
+    }
+
+    @Test func movingTheTargetOfAVoicePingLeavesRetargetingToTheVoice() throws {
+        core.handle(example("guide_start", "01"))      // sugar, started by the voice
+        busSink.clear()
+        core.moveItem(objectId: "sugar", to: EarmarkPoint(-1, -1, 0.5))
+        #expect(busSink.ofType("guide_start").isEmpty)  // the voice re-sends guide_start from the state update
+        #expect(try #require(renderer.target) == EarmarkPoint(0.16, 0.58, 0))
+    }
+
     @Test func lockPlaysTheLockedToneOnce() {
         core.handle(example("guide_start", "01"))
         let az = Geometry.azimuthDeg([0.16, 0.58, 0])

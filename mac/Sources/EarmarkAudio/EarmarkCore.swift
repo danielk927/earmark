@@ -292,7 +292,7 @@ public final class EarmarkCore {
             if manualListener == nil { applyListenerPose(p) }
         case .reset:
             reset()
-        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other:
+        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .placeItem, .other:
             break
         }
         changed()
@@ -500,6 +500,13 @@ public final class EarmarkCore {
         changed()
     }
 
+    /// Moves an item by hand: the hub records it at `p` and broadcasts its new state to everyone.
+    /// A ping started here follows it; the voice re-targets its own pings from that state update.
+    public func moveItem(objectId: String, to p: EarmarkPoint) {
+        send(.placeItem(PlaceItem(objectId: objectId, position: [p.x, p.y, p.z].map { ($0 * 1000).rounded() / 1000 })))
+        if ownGuide, let g = guide, g.objectId == objectId { startManualPing(objectId: objectId, name: g.name, at: p) }
+    }
+
     /// Stops the ping: one started here stops here; one the voice started is stopped through the voice,
     /// so its own timer ends too (it then sends guide_stop).
     public func stopPing() {
@@ -668,6 +675,7 @@ public final class EarmarkCore {
         case .transcript(let t): "transcript \(t.source.rawValue)\(t.isFinal ? " final" : "")"
         case .pickup(let p): "pickup \(p.objectId)"
         case .pickupResult(let p): "pickup_result \(p.correct ? "correct" : "wrong: " + p.actual)"
+        case .placeItem(let p): "place_item \(p.objectId)"
         default: m.type
         }
     }

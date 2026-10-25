@@ -71,6 +71,9 @@ If the phones cannot place the judge, the operator moves the judge by hand in th
    Head direction stays live from the AirPods; the ping comes from the item relative to where the judge is.
 4. Bring the judge within the dashed 0.5 m ring around the target to arrive: the tone plays and Earmark says where to reach.
 5. "Ping an item" starts a ping without the voice; "Stop ping" stops any ping (one Earmark started is stopped through Earmark).
+6. To match the table when an item is somewhere else, turn on "Move items by hand" (next to it; off by default, remembered) and drag the item.
+   On release the app sends `place_item` with the new position (height kept); the hub records it, and the room view, the voice's directions, a running ping, and the caregiver history follow.
+   Items sharing a place spread out side by side in this mode so each can be grabbed.
 
 ## Manual ping: the operator page
 

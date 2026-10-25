@@ -15,7 +15,8 @@ struct AppView: View {
             BannerStack(m: m)
             HStack(alignment: .top, spacing: 16) {
                 Card("Room", fillHeight: true) {
-                    RoomCircle(core: core, pose: m.pose, manual: m.manualJudge) { m.moveJudge(to: $0) }
+                    RoomCircle(core: core, pose: m.pose, manual: m.manualJudge, moveItems: m.moveItems,
+                               onMoveJudge: { m.moveJudge(to: $0) }, onMoveItem: { m.moveItem($0, to: $1) })
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .frame(minHeight: 300)
                     Divider().overlay(Theme.border)

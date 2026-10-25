@@ -97,6 +97,9 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Operator setting: dragging an item in the room view moves it (sent as place_item).
+    @Published var moveItems: Bool { didSet { UserDefaults.standard.set(moveItems, forKey: "moveItems") } }
+
     init() {
         let d = UserDefaults.standard
         let renderer = flags.renderer ?? d.string(forKey: "renderer").flatMap(RendererKind.init(rawValue:)) ?? .avaudioHRTFHQ
@@ -108,6 +111,7 @@ final class AppModel: ObservableObject {
         mockHead = flags.mockHead
         showDebug = flags.debug
         manualJudge = d.object(forKey: "manualJudge") as? Bool ?? true
+        moveItems = d.bool(forKey: "moveItems")
 
         busClient = BusClient(url: flags.busURL ?? BusClient.defaultURL)
         speechPlayer = SpeechPlayer(phrases: PhraseLibrary.standard(repoRoot: RepoLocator.root()))
@@ -247,6 +251,12 @@ final class AppModel: ObservableObject {
         guard manualJudge else { return }
         let r = RoomCircle.radiusM
         core.setManualListener(EarmarkPoint(max(-r, min(r, p.x)), max(-r, min(r, p.y)), p.z))
+    }
+
+    func moveItem(_ id: String, to p: EarmarkPoint) {
+        guard moveItems else { return }
+        let r = RoomCircle.radiusM
+        core.moveItem(objectId: id, to: EarmarkPoint(max(-r, min(r, p.x)), max(-r, min(r, p.y)), p.z))
     }
 
     private func nudge(_ down: Bool, _ d: Double) -> Bool? {
