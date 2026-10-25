@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 
 import pytest
@@ -141,6 +142,19 @@ async def test_reset_rebroadcasts_and_sends_fresh_snapshots(hub):
         assert {s.object_id: s.status for s in snap.states}["sugar"] == "missing"
     await a.close()
     await b.close()
+
+
+async def test_reset_reloads_space_json(hub, hub_root):
+    path = hub_root / "config" / "space.json"
+    data = json.loads(path.read_text())
+    data["spots"][0]["position"] = [9.0, 9.0, 9.0]
+    path.write_text(json.dumps(data))
+    a = await connect_client(hub)
+    await a.send(Reset())
+    snap = await next_of(a, "snapshot")
+    assert snap.space.spots[0].position == [9.0, 9.0, 9.0]
+    assert hub.space.spot_position(data["spots"][0]["spot"]) == [9.0, 9.0, 9.0]
+    await a.close()
 
 
 async def test_client_detections_drive_the_engine(hub):

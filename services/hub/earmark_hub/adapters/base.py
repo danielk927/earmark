@@ -1,7 +1,7 @@
 """Adapter interface. An adapter turns one detection method into DetectionEvents."""
 from __future__ import annotations
 
-from typing import AsyncIterator, Awaitable, Callable, Protocol
+from typing import AsyncIterator, Protocol
 
 from earmark_contracts import DetectionEvent, RegistryObject
 
@@ -40,5 +40,3 @@ class Adapter:
     async def close(self) -> None:
         """Release hardware on shutdown."""
 
-
-Emit = Callable[[object], Awaitable[None]]

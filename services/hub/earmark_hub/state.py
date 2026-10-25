@@ -93,6 +93,7 @@ class _Belief:
     precision: str = "none"
     last_seen_t: float | None = None
     source: str = "none"
+    placed_t: float | None = None  # when the user said where it is; cleared once a reader hears it again
 
     def clear_location(self) -> None:
         self.spot = self.position = self.area = self.near = self.distance_class = None
@@ -147,6 +148,7 @@ class StateEngine:
         b.clear_location()
         b.status, b.area, b.position, b.precision = "roaming", area, pos, "area"
         b.last_seen_t, b.source = self._now, "none"
+        b.placed_t = self._now
         out: list[Output] = [Stored(object_id, area, self._now)]
         self._sync(out)
         return out
@@ -160,6 +162,7 @@ class StateEngine:
         b.clear_location()
         b.status, b.position, b.precision = "roaming", list(position), "exact"
         b.last_seen_t, b.source = self._now, "none"
+        b.placed_t = self._now
         out: list[Output] = [Stored(object_id, None, self._now, list(position))]
         self._sync(out)
         return out
@@ -229,8 +232,11 @@ class StateEngine:
             track.absent_since = None
             track.candidate, track.candidate_count = None, 0
             oid = self._by_tag.get(tag)
-            if oid and self._beliefs[oid].status == "on_spot" and self._beliefs[oid].spot == spot:
-                self._beliefs[oid].last_seen_t = now
+            b = self._beliefs[oid] if oid else None
+            if b is not None and b.placed_t is not None and ev.t > b.placed_t:
+                self._put_on_spot(oid, spot, track.confirmed_source)  # read after the spoken place: still here
+            elif b is not None and b.status == "on_spot" and b.spot == spot:
+                b.last_seen_t = now
             return
 
         if track.confirmed is not None and track.absent_since is None:
@@ -267,7 +273,7 @@ class StateEngine:
         if oid is None:
             return
         b = self._beliefs[oid]
-        b.status, b.precision, b.last_seen_t = "held", "none", lift_t
+        b.status, b.precision, b.last_seen_t, b.placed_t = "held", "none", lift_t, None
         b.clear_location()
         out.append(Pickup(object_id=oid, from_spot=spot, t=self._now))
 
@@ -293,7 +299,7 @@ class StateEngine:
         b = self._beliefs[oid]
         b.clear_location()
         b.status, b.spot, b.position = "on_spot", spot, self.space.spot_position(spot)
-        b.precision, b.last_seen_t, b.source = "exact", self._now, source
+        b.precision, b.last_seen_t, b.source, b.placed_t = "exact", self._now, source, None
 
     # ------------------------------------------------------------ proximity / free position
 
@@ -304,7 +310,10 @@ class StateEngine:
         b = self._beliefs[oid]
         if b.status == "on_spot":
             return  # a spot reader is more precise than proximity; it decides when it leaves
+        if b.placed_t is not None and ev.t <= b.placed_t:
+            return  # heard before the user said where it is
         b.clear_location()
+        b.placed_t = None
         if isinstance(where, WhereNear):
             b.near, b.distance_class = where.near, where.distance_class
             b.position = self.space.receiver_position(where.near)
@@ -320,8 +329,8 @@ class StateEngine:
         if oid is None:
             return
         b = self._beliefs[oid]
-        if b.status == "on_spot":
-            return
+        if b.status == "on_spot" or b.placed_t is not None:
+            return  # a spoken place stands until the fob is heard again
         b.status, b.precision = "missing", "none"  # location keeps the last known values
 
     # ------------------------------------------------------------ registry / output

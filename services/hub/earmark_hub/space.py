@@ -8,6 +8,9 @@ from earmark_contracts import Space
 
 class SpaceIndex:
     def __init__(self, space: Space) -> None:
+        self._load(space)
+
+    def _load(self, space: Space) -> None:
         self.space = space
         self._spots = {s.spot: list(s.position) for s in space.spots}
         self._areas = {a.area: list(a.position) for a in space.areas}
@@ -16,6 +19,10 @@ class SpaceIndex:
     @classmethod
     def load(cls, path: Path) -> "SpaceIndex":
         return cls(Space.model_validate_json(path.read_text()))
+
+    def reload(self, path: Path) -> None:
+        """Re-read space.json in place, so everything holding this index sees the new layout."""
+        self._load(Space.model_validate_json(path.read_text()))
 
     @property
     def spot_numbers(self) -> list[int]:

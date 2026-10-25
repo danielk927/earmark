@@ -108,13 +108,11 @@ class DurableQueue:
 
 
 class ConvexSync:
-    def __init__(self, client: ConvexClient, queue_path: Path, cfg: ConvexCfg,
-                 on_change: Callable[[], None] | None = None) -> None:
+    def __init__(self, client: ConvexClient, queue_path: Path, cfg: ConvexCfg) -> None:
         self.client, self.cfg = client, cfg
         self.queue = DurableQueue(queue_path)
         self._states: dict[str, ObjectState] = {}
         self._wake = asyncio.Event()
-        self._on_change = on_change or (lambda: None)
         self.reachable: bool | None = None
         self._last_poll_error = ""
 
@@ -150,7 +148,6 @@ class ConvexSync:
                 log.info("convex reachable", extra={"queue_depth": self.depth})
             else:
                 log.warning("convex unreachable; queueing", extra={"error": error[:300], "queue_depth": self.depth})
-            self._on_change()
 
     async def flush_once(self) -> bool:
         """Send the next unit (one label, or a batch of events plus latest states). False if idle."""
@@ -199,7 +196,6 @@ class ConvexSync:
                 pass
             self._wake.clear()
             while True:
-                depth = self.depth
                 try:
                     sent = await self.flush_once()
                 except (httpx.HTTPError, ConvexHttpError, ValidationError, ValueError) as e:
@@ -210,8 +206,6 @@ class ConvexSync:
                 if sent:
                     self._set_reachable(True)
                     backoff = self.cfg.backoff_initial_s
-                    if depth != self.depth:
-                        self._on_change()
                 else:
                     break
 
@@ -224,7 +218,7 @@ class ConvexSync:
                 await on_registry(reg)
             except (httpx.HTTPError, ConvexHttpError) as e:
                 self._set_reachable(False, f"{type(e).__name__}: {e}")
-            except ValidationError as e:
+            except (ValidationError, ValueError) as e:  # ValueError: a 200 that is not JSON (wrong Convex URL)
                 msg = str(e)[:300]
                 if msg != self._last_poll_error:
                     log.error("GET /api/registry returned an invalid registry", extra={"error": msg})

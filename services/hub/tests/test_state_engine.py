@@ -298,3 +298,39 @@ def test_place_at_position_keeps_the_exact_spot(engine):
     assert (st.status, st.precision, st.location.area) == ("roaming", "exact", None)
     assert st.location.position == [0.8, -0.4, 1.0]
     assert engine.place_at_position("nope", [0, 0, 0], T0) == []
+
+
+def test_read_after_a_spoken_place_puts_the_item_back_on_its_spot(engine):
+    place_sugar(engine)
+    engine.place_in_area("sugar", "drawer", T0 + 2)
+    assert engine.state("sugar").status == "roaming"
+    feed(engine, read(3, SUGAR, 2.5))  # the reader still sees it there
+    st = engine.state("sugar")
+    assert (st.status, st.location.spot, st.precision) == ("on_spot", 3, "exact")
+
+
+def test_spoken_place_after_the_latest_read_wins_over_stale_reads(engine):
+    place_sugar(engine)
+    engine.place_in_area("sugar", "drawer", T0 + 2)
+    feed(engine, read(3, SUGAR, 1.5))  # a delayed read from before the user spoke
+    st = engine.state("sugar")
+    assert (st.status, st.location.area) == ("roaming", "drawer")
+
+
+def test_ble_lost_does_not_overwrite_a_spoken_place(engine):
+    feed(engine, fob("near", 0.0))
+    engine.place_in_area("keys", "drawer", T0 + 1)
+    feed(engine, fob(None, 12.0))  # lost
+    st = engine.state("keys")
+    assert (st.status, st.location.area) == ("roaming", "drawer")
+
+
+def test_ble_seen_after_a_spoken_place_wins(engine):
+    engine.place_in_area("keys", "drawer", T0 + 1)
+    feed(engine, fob("mid", 0.5))  # heard before the place: ignored
+    assert engine.state("keys").location.area == "drawer"
+    feed(engine, fob("mid", 2.0))
+    st = engine.state("keys")
+    assert (st.status, st.location.area, st.location.distance_class) == ("roaming", None, "mid")
+    feed(engine, fob(None, 15.0))  # the place no longer protects it
+    assert engine.state("keys").status == "missing"

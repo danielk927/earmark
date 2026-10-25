@@ -7,7 +7,7 @@ Spec: `BUILD_BRIEF.md` sections 5.A, 5.B and 5.I; the contracts in `contracts/` 
 ## Run
 
 All commands run from the repo root.
-`services/hub` is its own uv project (Python 3.12), so prefix commands with `uv run --project services/hub`.
+`services/hub` is its own uv project (Python 3.11 or newer; the checked-in venv is 3.14), so prefix commands with `uv run --project services/hub`.
 
 ```sh
 # Replay a scenario (hardware-free), no Convex
@@ -79,7 +79,7 @@ No test touches real Bluetooth, serial ports, Convex, `config/`, or `var/`.
 | `simulator` | `poll_s`, `fob_poll_s`, `start_delay_s` (1.0 wall seconds, so bus clients can connect before a scenario starts), `fob_rssi` per class. |
 | `nfc_serial` | `port_globs`, `baud`, `reconnect_s`. |
 | `ble_fobs` | `receiver`, `fobs` (`fob_id` -> `{address, name}`), `ema_tau_s`, `stale_s`, `near_dbm`, `mid_dbm`, `emit_interval_s`, `chirp_timeout_s`, `connect_timeout_s`, `alert_service_uuid`, `alert_char_uuid`, `alert_level`, `link_loss_service_uuid`, `link_loss_value`. |
-| `convex` | `registry_poll_s` (2), `timeout_s` (3), `flush_interval_s`, `batch_max`, `backoff_initial_s`, `backoff_max_s`. |
+| `convex` | `registry_poll_s` (2), `timeout_s` (8 in `config/hub.json`; the code default is 3), `flush_interval_s`, `batch_max`, `backoff_initial_s`, `backoff_max_s`. |
 | `health` | `interval_s` (5). |
 | `paths` | `space`, `seed`, `cache`, `queue`, `trials`, `logs`, relative to the repo root unless absolute. |
 
@@ -127,7 +127,8 @@ Pure and deterministic: time comes only from event timestamps and `tick(now)`, a
 - Detections from clients (e.g. `earmark-sim`) enter the state engine exactly like in-process adapter events, and in-process adapter detections are broadcast like client ones.
 - `chirp` is executed by `ble_fobs` when enabled.
   `label` updates the registry.
-  `reset` stops chirps, resets the simulator's physical state, re-reads the registry cache or seed, resets the engine, is re-broadcast, and every client gets a fresh `snapshot`.
+  `place_item` (an item and an `area` or `position`) makes the item `roaming` there and logs a `stored` event; it stands until a spot reader reads the tag again, or a fob is heard again, after it.
+  `reset` stops chirps, resets the simulator's physical state, re-reads `config/space.json` (keeping the old layout if it fails to load) and the registry cache or seed, resets the engine, is re-broadcast, and every client gets a fresh `snapshot`.
 - Each client has a bounded send queue with its own writer task; when full, the oldest audio frame is dropped first, then the oldest message.
 - `status` from the hub every 5 s and on every change: `info.adapters`, `info.convex` (`disabled`, `connecting`, `online`, `offline`), `info.queue_depth`, `info.clients`, `info.registry_version`.
 
@@ -148,11 +149,11 @@ Pure and deterministic: time comes only from event timestamps and `tick(now)`, a
 - The registry loads `config/objects.cache.json` if present, else `config/objects.seed.json`.
 - With Convex configured, `GET /api/registry` is polled every 2 s; a new `version` rewrites the cache and broadcasts `registry_update`.
 - A `label` updates the registry at once (new `object_id` from the name: lowercase, `[a-z0-9_]`, deduplicated with `_2`; or rename the object that has the tag), writes the cache, broadcasts `registry_update`, and queues `POST /api/label` plus a `label` hub_event.
-- `POST /ingest` batches hub_events (`placed`, `removed`, `pickup`, `unknown_tag`, plus forwarded `pickup_result`, `chirp`, `label`, `trial_start`, `trial_end`) with the latest `state_update` per object.
+- `POST /ingest` batches hub_events (`placed`, `removed`, `pickup`, `unknown_tag` (both only from the hub's own state engine; a `pickup` sent by a bus client is broadcast but never sent to Convex), plus forwarded `pickup_result`, `chirp`, `label`, `trial_start`, `trial_end`, and `stored` when a `place_item` says where an item was left) with the latest `state_update` per object.
   `placed`/`removed` data is `{spot, tag, source}`; other kinds carry the originating bus message.
-- Events and labels go through a durable queue (`var/hub/queue.jsonl`), are sent strictly in order with a 3 s timeout and exponential backoff, and survive restarts.
+- Events and labels go through a durable queue (`var/hub/queue.jsonl`), are sent strictly in order with the `convex.timeout_s` timeout (8 s) and exponential backoff, and survive restarts.
   Each event has a UUID `event_id`, so retries after a lost response are harmless.
-  401/403/404/408/429 and 5xx are retried; other 4xx answers drop that item with an error log that contains the dropped data.
+  401/403/404/408/409/425/429 and 5xx are retried; other 4xx answers drop that item with an error log that contains the dropped data.
 
 ### Trials (`scripts/trial.py`, `earmark_hub/trial.py`)
 

@@ -22,7 +22,6 @@ from earmark_contracts import (
     StatusMsg,
     TrialEnd,
     TrialStart,
-    UnknownTag,
     to_dict,
 )
 
@@ -37,7 +36,9 @@ from .state import Placed, Removed, StateEngine, Stored
 
 log = logging.getLogger("earmark.hub")
 
-FORWARDED = (TrialStart, TrialEnd, PickupResult, Chirp, UnknownTag, Pickup)
+# Client messages that go on to Convex. Pickup and UnknownTag are not here: only the state engine's own
+# (via _apply) reach Convex, so a bus client cannot fake a pickup that counts toward adherence.
+FORWARDED = (TrialStart, TrialEnd, PickupResult, Chirp)
 
 
 class Hub:
@@ -47,7 +48,8 @@ class Hub:
         self.cfg = cfg
         self.clock = clock or SystemClock()
         self.adapters = adapters or []
-        self.space = SpaceIndex.load(cfg.path("space", root))
+        self._space_path = cfg.path("space", root)
+        self.space = SpaceIndex.load(self._space_path)
         self.registry = RegistryStore(cfg.path("cache", root), cfg.path("seed", root))
         self.engine = StateEngine(self.space, self.registry.objects, placement_reads=cfg.debounce.placement_reads,
                                   removal_s=cfg.debounce.removal_s)
@@ -76,17 +78,26 @@ class Hub:
 
     # ------------------------------------------------------------ lifecycle
 
+    def _spawn(self, coro, name: str) -> None:
+        task = asyncio.create_task(coro, name=name)
+        task.add_done_callback(self._task_done)
+        self._tasks.append(task)
+
+    @staticmethod
+    def _task_done(task: asyncio.Task) -> None:
+        if not task.cancelled() and task.exception() is not None:
+            log.error("background task crashed", extra={"task": task.get_name()}, exc_info=task.exception())
+
     async def start(self) -> None:
         await self.bus.start()
         for a in self.adapters:
             a.attach(self)
-            self._tasks.append(asyncio.create_task(self._run_adapter(a), name=f"adapter:{a.name}"))
-        self._tasks.append(asyncio.create_task(self._tick_loop(), name="tick"))
-        self._tasks.append(asyncio.create_task(self._health_loop(), name="health"))
+            self._spawn(self._run_adapter(a), f"adapter:{a.name}")
+        self._spawn(self._tick_loop(), "tick")
+        self._spawn(self._health_loop(), "health")
         if self.sync is not None:
-            self._tasks.append(asyncio.create_task(self.sync.run(), name="convex-flush"))
-            self._tasks.append(asyncio.create_task(self.sync.poll_registry(self._on_remote_registry),
-                                                   name="convex-registry"))
+            self._spawn(self.sync.run(), "convex-flush")
+            self._spawn(self.sync.poll_registry(self._on_remote_registry), "convex-registry")
         else:
             log.info("Convex sync disabled; running fully offline", extra={"reason": self.offline_reason})
         log.info("hub started", extra={"adapters": [a.name for a in self.adapters], "port": self.bus.port})
@@ -214,6 +225,10 @@ class Hub:
                 await asyncio.wait_for(a.on_reset(), 3.0)
             except Exception as e:
                 log.warning("adapter reset failed", extra={"adapter": a.name, "error": str(e)})
+        try:
+            self.space.reload(self._space_path)  # re-measured positions without a restart
+        except Exception as e:
+            log.warning("space.json reload failed; keeping the old layout", extra={"error": str(e)})
         self.registry.reload()
         self._apply(self.engine.reset(self.registry.objects, now=self.clock.now()))
         snap = self.snapshot()

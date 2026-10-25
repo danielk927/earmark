@@ -78,10 +78,9 @@ OnHello = Callable[[Client], Awaitable[None]]
 
 class BusServer:
     def __init__(self, host: str, port: int, *, on_message: OnMessage, on_hello: OnHello,
-                 on_change: Callable[[], None] | None = None, queue_max: int = 1000) -> None:
+                 queue_max: int = 1000) -> None:
         self.host, self._port = host, port
         self.on_message, self.on_hello = on_message, on_hello
-        self.on_change = on_change or (lambda: None)
         self.queue_max = queue_max
         self.clients: set[Client] = set()
         self._server = None
@@ -121,7 +120,6 @@ class BusServer:
         self.clients.add(client)
         writer = asyncio.create_task(self._writer(client))
         log.info("client connected", extra={"client": client.label, "remote": str(ws.remote_address)})
-        self.on_change()
         try:
             async for raw in ws:
                 await self._receive(client, raw)
@@ -131,7 +129,6 @@ class BusServer:
             self.clients.discard(client)
             writer.cancel()
             log.info("client disconnected", extra={"client": client.label, "dropped": client.queue.dropped})
-            self.on_change()
 
     async def _writer(self, client: Client) -> None:
         try:
@@ -152,7 +149,6 @@ class BusServer:
             log.info("hello", extra={"client": client.label,
                                      "subscribe": sorted(client.subscribe) if client.subscribe is not None else None})
             await self.on_hello(client)
-            self.on_change()
             return
         if not client.hello:
             log.warning("message before hello; using default subscriptions", extra={"client": client.label,

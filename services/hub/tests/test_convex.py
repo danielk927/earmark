@@ -8,6 +8,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import httpx
 import pytest
 from earmark_contracts import (
     IngestRequest,
@@ -15,6 +16,7 @@ from earmark_contracts import (
     LabelRequest,
     LabelResponse,
     ObjectState,
+    Pickup,
     Registry,
     TrialStart,
 )
@@ -305,6 +307,47 @@ async def test_a_new_item_named_by_voice_is_added_then_placed(fake, hub_cfg, hub
         stored = [fake.events[k] for k in fake.order if fake.events[k]["kind"] == "stored"]
         assert stored[0]["object_id"] == "glasses"
         assert any(o.object_id == "glasses" for o in hub.registry.registry.objects)
+        await c.close()
+    finally:
+        await hub.stop()
+
+
+async def test_registry_poller_survives_a_reply_that_is_not_json(tmp_path):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="<html>not convex</html>")
+
+    sync = ConvexSync(ConvexClient(ConvexEnv("http://x.invalid", SECRET), 1.0, transport=httpx.MockTransport(handler)),
+                      tmp_path / "q.jsonl", fast_cfg())
+    poller = asyncio.create_task(sync.poll_registry(lambda reg: asyncio.sleep(0)))
+    await asyncio.sleep(0.4)
+    assert not poller.done()
+    poller.cancel()
+    await sync.client.aclose()
+
+
+async def test_crashed_background_task_is_logged(hub_cfg, hub_root, caplog):
+    hub = Hub(hub_cfg, root=hub_root)
+
+    async def boom():
+        raise RuntimeError("kaput")
+
+    hub._spawn(boom(), "boom")
+    await asyncio.sleep(0.05)
+    assert any("background task crashed" in r.getMessage() for r in caplog.records)
+
+
+async def test_pickup_sent_by_a_bus_client_is_not_forwarded_to_convex(fake, hub_cfg, hub_root):
+    fake.start()
+    hub_cfg.convex = fast_cfg()
+    hub = Hub(hub_cfg, root=hub_root, convex_env=ConvexEnv(fake.url, SECRET))
+    await hub.start()
+    try:
+        c = await BusClient.connect("cli", subscribe=[], url=f"ws://127.0.0.1:{hub.bus.port}")
+        await c.send(Pickup(object_id="bp_meds", from_spot=2, t=time.time()))
+        await c.send(TrialStart(trial_id="trial-y", mode="baseline", target_object_id="sugar", tester="tester-A"))
+        await wait_for(lambda: len(fake.order) >= 1)
+        await asyncio.sleep(0.3)
+        assert [e["kind"] for e in fake.events.values()] == ["trial_start"]
         await c.close()
     finally:
         await hub.stop()
