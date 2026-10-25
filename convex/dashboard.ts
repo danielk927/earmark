@@ -2,7 +2,9 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { objectRow, toObjectRow } from "./objects";
 import { householdInfo, listObjects, MAX_OBJECTS, MAX_SPOTS } from "./lib/registry";
-import { objectStateFields, vec3 } from "./lib/validators";
+import { anchorFields, objectStateFields, vec3, wearerPoseFields } from "./lib/validators";
+
+const MAX_ANCHORS = 16;
 
 const { source: _source, ...stateRowFields } = objectStateFields;
 
@@ -19,6 +21,8 @@ export const liveMap = query({
     objects: v.array(objectRow),
     states: v.array(v.object(stateRowFields)),
     unknownTags: v.array(v.object({ tag: v.string(), spot: v.union(v.number(), v.null()), t: v.number() })),
+    anchors: v.array(v.object(anchorFields)),
+    wearer: v.union(v.object(wearerPoseFields), v.null()),
   }),
   handler: async (ctx) => {
     const objects = await listObjects(ctx);
@@ -27,6 +31,8 @@ export const liveMap = query({
     const areas = await ctx.db.query("areas").withIndex("by_area").take(MAX_SPOTS);
     const states = await ctx.db.query("objectState").take(MAX_OBJECTS);
     const unknownTags = await ctx.db.query("unknownTags").withIndex("by_t").order("desc").take(50);
+    const anchors = await ctx.db.query("anchors").withIndex("by_anchorId").take(MAX_ANCHORS);
+    const wearer = await ctx.db.query("wearerPose").first();
     return {
       household: await householdInfo(ctx),
       spots: spots.map((s) => ({ spot: s.spot, label: s.label, position: s.position })),
@@ -49,6 +55,15 @@ export const liveMap = query({
           t: s.t,
         })),
       unknownTags: unknownTags.map((u) => ({ tag: u.tag, spot: u.spot, t: u.t })),
+      anchors: anchors.map((a) => ({
+        anchorId: a.anchorId,
+        label: a.label,
+        position: a.position,
+        online: a.online,
+        lastDistanceM: a.lastDistanceM,
+        lastSeenT: a.lastSeenT,
+      })),
+      wearer: wearer ? { position: wearer.position, mode: wearer.mode, source: wearer.source, t: wearer.t } : null,
     };
   },
 });

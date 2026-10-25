@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import {
+  anchorFields,
   doseStatus,
   eventKind,
   nullableNumber,
@@ -9,6 +10,7 @@ import {
   objectStateFields,
   trialFields,
   vec3,
+  wearerPoseFields,
 } from "./lib/validators";
 
 export default defineSchema({
@@ -39,6 +41,12 @@ export default defineSchema({
     label: v.string(),
     position: v.union(vec3, v.null()),
   }).index("by_receiver", ["receiver"]),
+
+  /** UWB anchor iPhones: positions from config, health from the hub's /ingest `anchors`. */
+  anchors: defineTable(anchorFields).index("by_anchorId", ["anchorId"]),
+
+  /** The ONE live wearer pose (overwritten in place when newer). No history is ever kept. */
+  wearerPose: defineTable(wearerPoseFields),
 
   /** Append-only hub events (POST /ingest), unique by eventId. */
   events: defineTable({

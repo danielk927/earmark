@@ -167,7 +167,27 @@ export interface IngestState {
   t: number;
 }
 
+export interface IngestAnchor {
+  anchorId: string;
+  label: string;
+  position: Vec3;
+  online: boolean;
+  lastDistanceM: number | null;
+  lastSeenT: number | null;
+}
+
+const POSE_MODES = ["tracked", "frozen", "lost", "fixed"] as const;
+const POSE_SOURCES = ["uwb", "sound", "sim", "none"] as const;
+
+export interface IngestPose {
+  position: Vec3;
+  mode: (typeof POSE_MODES)[number];
+  source: (typeof POSE_SOURCES)[number];
+  t: number;
+}
+
 export const MAX_INGEST_EVENTS = 500;
+export const MAX_INGEST_ANCHORS = 16;
 export const MAX_INGEST_STATES = 500;
 
 const upperTag = (tag: string | null) => (tag === null ? null : tag.trim().toUpperCase() || null);
@@ -275,18 +295,65 @@ export function parseState(x: unknown, path: string): IngestState {
   };
 }
 
-export function parseIngestRequest(body: unknown): { events: IngestEvent[]; states: IngestState[] } {
+function vec3Of(o: Json, key: string, path: string): Vec3 {
+  has(o, key, path);
+  const p = o[key];
+  if (!Array.isArray(p) || p.length !== 3 || !p.every(isNum)) fail(`${path}.${key}`, "must be [x, y, z]");
+  return [p[0], p[1], p[2]];
+}
+
+function bool(o: Json, key: string, path: string): boolean {
+  has(o, key, path);
+  if (typeof o[key] !== "boolean") fail(`${path}.${key}`, "must be a boolean");
+  return o[key] as boolean;
+}
+
+function parseAnchor(x: unknown, path: string): IngestAnchor {
+  const a = obj(x, path);
+  onlyKeys(a, ["anchor", "label", "position", "online", "last_distance_m", "last_seen_t"], path);
+  return {
+    anchorId: str(a, "anchor", path, 1),
+    label: str(a, "label", path, 1),
+    position: vec3Of(a, "position", path),
+    online: bool(a, "online", path),
+    lastDistanceM: nullableNum(a, "last_distance_m", path),
+    lastSeenT: nullableNum(a, "last_seen_t", path),
+  };
+}
+
+function parsePose(x: unknown, path: string): IngestPose {
+  const p = obj(x, path);
+  onlyKeys(p, ["position", "mode", "source", "t"], path);
+  return {
+    position: vec3Of(p, "position", path),
+    mode: oneOf(p, "mode", path, POSE_MODES),
+    source: oneOf(p, "source", path, POSE_SOURCES),
+    t: num(p, "t", path),
+  };
+}
+
+export function parseIngestRequest(body: unknown): {
+  events: IngestEvent[];
+  states: IngestState[];
+  anchors: IngestAnchor[];
+  pose: IngestPose | null;
+} {
   const b = obj(body, "body");
-  onlyKeys(b, ["events", "states"], "body");
+  onlyKeys(b, ["events", "states", "anchors", "pose"], "body");
   has(b, "events", "body");
   has(b, "states", "body");
   if (!Array.isArray(b.events)) fail("body.events", "must be an array");
   if (!Array.isArray(b.states)) fail("body.states", "must be an array");
   if (b.events.length > MAX_INGEST_EVENTS) fail("body.events", `must have at most ${MAX_INGEST_EVENTS} items`);
   if (b.states.length > MAX_INGEST_STATES) fail("body.states", `must have at most ${MAX_INGEST_STATES} items`);
+  const rawAnchors = "anchors" in b ? b.anchors : [];
+  if (!Array.isArray(rawAnchors)) fail("body.anchors", "must be an array");
+  if (rawAnchors.length > MAX_INGEST_ANCHORS) fail("body.anchors", `must have at most ${MAX_INGEST_ANCHORS} items`);
   return {
     events: b.events.map((e, i) => parseHubEvent(e, `body.events[${i}]`)),
     states: b.states.map((s, i) => parseState(s, `body.states[${i}]`)),
+    anchors: rawAnchors.map((a, i) => parseAnchor(a, `body.anchors[${i}]`)),
+    pose: "pose" in b ? parsePose(b.pose, "body.pose") : null,
   };
 }
 

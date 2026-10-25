@@ -69,7 +69,7 @@ export function createFixtureBackend(data: FixtureData, opts: FixtureBackendOpti
 
   const map = data.liveMap;
   const queries: Record<string, (args: Args) => unknown> = {
-    "dashboard:liveMap": () => ({ ...map, objects: [...map.objects], states: [...map.states], unknownTags: [...map.unknownTags] }),
+    "dashboard:liveMap": () => ({ ...map, objects: [...map.objects], states: [...map.states], unknownTags: [...map.unknownTags], anchors: [...map.anchors] }),
     "objects:list": () => [...map.objects],
     "events:recent": (a) => data.events.slice(0, typeof a.limit === "number" ? a.limit : 50),
     "medications:list": () => [...data.medications],

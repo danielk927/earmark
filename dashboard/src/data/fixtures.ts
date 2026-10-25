@@ -233,6 +233,12 @@ export function makeFixtures(now: number, opts: { trials?: "example" | "none" } 
       objects,
       states,
       unknownTags: [{ tag: UNKNOWN_TAG, spot: 1, t: now - 180 }],
+      anchors: [
+        { anchorId: "uwb_1", label: "UWB Reader/Emitter 1", position: [-0.9, 0.75, -0.25], online: true, lastDistanceM: 2.4, lastSeenT: now - 1 },
+        { anchorId: "uwb_2", label: "UWB Reader/Emitter 2", position: [0.9, 0.75, -0.25], online: true, lastDistanceM: 2.6, lastSeenT: now - 1 },
+        { anchorId: "uwb_3", label: "UWB Reader/Emitter 3", position: [0.0, -2.4, -0.25], online: true, lastDistanceM: 1.1, lastSeenT: now - 1 },
+      ],
+      wearer: { position: [0.12, -1.85, 0], mode: "tracked", source: "uwb", t: now - 1 },
     },
     events,
     medications: [{ objectId: "bp_meds", name: "blood pressure pills", scheduleTimes: ["08:00", "20:00"], windowMinutes: 60 }],

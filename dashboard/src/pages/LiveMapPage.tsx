@@ -4,7 +4,7 @@ import { fn, type LiveMap, type ObjectStateRow } from "@contracts/convexFunction
 import { useBackend } from "../data/backend";
 import { describeChanges } from "../lib/changes";
 import { formatAgo, formatWhen } from "../lib/time";
-import { capitalize, statusText, theSpot, whereText, type StatusKey } from "../lib/words";
+import { anchorWords, capitalize, poseSourceWords, poseWords, statusText, theSpot, whereText, type StatusKey } from "../lib/words";
 import { Loading, Notice, Page, StatusText, TableScroll, useHref, useNow, type Tone } from "../components/common";
 import type { IconName } from "../components/Icon";
 import { MapField } from "./MapField";
@@ -91,10 +91,13 @@ export function LiveMapPage() {
               </h2>
               <MapField map={map} />
               <p className="map-caption">
-                Seen from above. The listener sits at the bottom, facing the spots. Rings mark distance from their head.
+                {map.anchors.length > 0
+                  ? "Seen from above. The dot is the person; the triangles are the UWB anchors."
+                  : "Seen from above. The listener sits at the bottom, facing the spots. Rings mark distance from their head."}
               </p>
             </section>
             <aside className="map-aside" aria-label="Off the spots and recent changes">
+              <WalkingGuidance map={map} now={now} />
               <OffSpot map={map} now={now} />
               <section aria-labelledby="changes-heading">
                 <h2 id="changes-heading">Recent changes</h2>
@@ -126,6 +129,45 @@ function sentence(text: string): string {
 
 function stateOf(map: LiveMap, objectId: string): ObjectStateRow | undefined {
   return map.states.find((s) => s.objectId === objectId);
+}
+
+/** Text equivalent of the anchors and the person on the map. Only shown when walking guidance is set up. */
+function WalkingGuidance({ map, now }: { map: LiveMap; now: number }) {
+  const { anchors, wearer } = map;
+  if (anchors.length === 0 && !wearer) return null;
+  const lost = wearer?.mode === "lost";
+  return (
+    <section aria-labelledby="uwb-heading">
+      <h2 id="uwb-heading">The person and UWB anchors</h2>
+      <ul className="uwb-list">
+        <li>
+          {wearer ? (
+            <>
+              <StatusText icon={lost ? "alert" : wearer.mode === "tracked" ? "roaming" : "onSpot"} tone={lost ? "bad" : "idle"}>
+                The person: {poseWords[wearer.mode].toLowerCase()}
+              </StatusText>
+              <p className="quiet">
+                {lost ? "Showing the last known position. " : ""}
+                {poseSourceWords[wearer.source]}, updated {formatAgo(wearer.t, now)}.
+              </p>
+            </>
+          ) : (
+            <StatusText icon="pending" tone="idle">
+              The person: not being tracked right now
+            </StatusText>
+          )}
+        </li>
+        {anchors.map((a) => (
+          <li key={a.anchorId}>
+            <StatusText icon={a.online ? "live" : "offline"} tone={a.online ? "ok" : "bad"}>
+              {anchorWords(a)}
+            </StatusText>
+            {!a.online && a.lastSeenT != null && <p className="quiet">Last heard {formatAgo(a.lastSeenT, now)}.</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }
 
 function OffSpot({ map, now }: { map: LiveMap; now: number }) {

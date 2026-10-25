@@ -1,4 +1,4 @@
-import type { DistanceClass, LiveMap, ObjectRow, ObjectStateRow, SpotRow } from "@contracts/convexFunctions";
+import type { AnchorRow, DistanceClass, ListenerMode, LiveMap, ObjectRow, ObjectStateRow, SpotRow, WearerPoseRow } from "@contracts/convexFunctions";
 
 /** "blood pressure pills" -> "Blood pressure pills". Stored names stay as typed. */
 export function capitalize(text: string): string {
@@ -79,4 +79,25 @@ export function splitAliases(text: string): string[] {
     }
   }
   return out;
+}
+
+/** The person's mode in plain words (never color alone). */
+export const poseWords: Record<ListenerMode, string> = {
+  tracked: "Walking toward the counter",
+  frozen: "At the counter",
+  lost: "Location lost",
+  fixed: "Seated at the listening spot",
+};
+
+export const poseSourceWords: Record<WearerPoseRow["source"], string> = {
+  uwb: "Position from the UWB anchors",
+  sound: "Position from sound only",
+  sim: "Simulated position",
+  none: "No position source",
+};
+
+/** "UWB Reader/Emitter 1: online, 2.4 m from the person." (no sentence stop here; callers add it). */
+export function anchorWords(a: AnchorRow): string {
+  if (!a.online) return `${a.label}: offline`;
+  return `${a.label}: online, ${a.lastDistanceM != null ? `${a.lastDistanceM.toFixed(1)} m from the person` : "distance not measured yet"}`;
 }

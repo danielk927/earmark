@@ -82,6 +82,9 @@ describe("POST /ingest", () => {
 
   test("contract examples are accepted, then recognized as duplicates", async () => {
     for (const req of examples("ingest_request")) {
+      // Examples may share event ids, so each one starts from a fresh deployment.
+      t = setup();
+      await seed(t);
       expectSchema("ingest_request", req);
       const first = await post(t, "/ingest", req);
       expect(first.status).toBe(200);
@@ -204,6 +207,107 @@ describe("POST /ingest", () => {
     const bad = { event_id: "e-bad-00001", kind: "pickup", object_id: null, t: NOW, data: { from_spot: 2 } };
     expect((await post(t, "/ingest", { events: [good, bad], states: [] })).status).toBe(400);
     expect((await post(t, "/ingest", { events: [good], states: [] })).body.accepted_events).toBe(1);
+  });
+});
+
+describe("POST /ingest anchors and pose", () => {
+  let t: T;
+  beforeEach(async () => {
+    t = setup();
+    await seed(t);
+  });
+
+  const anchor = (id: string, over: Record<string, unknown> = {}) => ({
+    anchor: id,
+    label: `UWB Reader/Emitter ${id.slice(-1)}`,
+    position: [-0.9, 0.75, -0.25],
+    online: true,
+    last_distance_m: 2.41,
+    last_seen_t: NOW,
+    ...over,
+  });
+  const pose = (tt: number, over: Record<string, unknown> = {}) => ({
+    position: [0.12, -1.85, 0],
+    mode: "tracked",
+    source: "uwb",
+    t: tt,
+    ...over,
+  });
+  const rows = (table: "anchors" | "wearerPose") => t.run(async (ctx) => await ctx.db.query(table).collect());
+
+  test("example 03 stores its anchors and pose, and liveMap serves them", async () => {
+    const [, , ex3] = examples("ingest_request");
+    expect((await post(t, "/ingest", ex3)).status).toBe(200);
+    const map = await t.query(api.dashboard.liveMap, {});
+    expect(map.anchors.map((a) => [a.anchorId, a.online, a.lastDistanceM])).toEqual([
+      ["uwb_1", true, 2.41],
+      ["uwb_2", false, null],
+    ]);
+    expect(map.wearer).toEqual({ position: [0.12, -1.85, 0], mode: "tracked", source: "uwb", t: 1761350400.12 });
+  });
+
+  test("anchors are upserted by id and listed sorted by anchorId", async () => {
+    await post(t, "/ingest", { events: [], states: [], anchors: [anchor("uwb_3"), anchor("uwb_1")] });
+    await post(t, "/ingest", {
+      events: [],
+      states: [],
+      anchors: [anchor("uwb_1", { online: false, last_distance_m: null, last_seen_t: null })],
+    });
+    expect(await rows("anchors")).toHaveLength(2);
+    const map = await t.query(api.dashboard.liveMap, {});
+    expect(map.anchors.map((a) => [a.anchorId, a.online])).toEqual([
+      ["uwb_1", false],
+      ["uwb_3", true],
+    ]);
+  });
+
+  test("the pose is one overwritten row; the newest t wins; an older pose is ignored", async () => {
+    await post(t, "/ingest", { events: [], states: [], pose: pose(NOW) });
+    await post(t, "/ingest", { events: [], states: [], pose: pose(NOW + 5, { mode: "frozen", position: [1, 2, 0] }) });
+    await post(t, "/ingest", { events: [], states: [], pose: pose(NOW + 1, { mode: "lost" }) });
+    const stored = await rows("wearerPose");
+    expect(stored).toHaveLength(1);
+    expect(stored[0]).toMatchObject({ mode: "frozen", position: [1, 2, 0], t: NOW + 5 });
+    expect((await t.query(api.dashboard.liveMap, {})).wearer).toMatchObject({ mode: "frozen", t: NOW + 5 });
+  });
+
+  test("a pose never creates an event or any other history", async () => {
+    const before = await t.run(async (ctx) => (await ctx.db.query("events").collect()).length);
+    for (let i = 0; i < 5; i++) await post(t, "/ingest", { events: [], states: [], pose: pose(NOW + i) });
+    expect(await t.run(async (ctx) => (await ctx.db.query("events").collect()).length)).toBe(before);
+    expect(await rows("wearerPose")).toHaveLength(1);
+  });
+
+  test("without anchors or pose the map shows none", async () => {
+    const map = await t.query(api.dashboard.liveMap, {});
+    expect(map.anchors).toEqual([]);
+    expect(map.wearer).toBeNull();
+  });
+
+  test.each([
+    ["anchors not an array", { anchors: {} }],
+    ["anchor missing online", { anchors: [(({ online: _o, ...r }) => r)(anchor("uwb_1"))] }],
+    ["anchor with empty id", { anchors: [anchor("")] }],
+    ["anchor with empty label", { anchors: [anchor("uwb_1", { label: "" })] }],
+    ["anchor with a 2D position", { anchors: [anchor("uwb_1", { position: [1, 2] })] }],
+    ["anchor with a string distance", { anchors: [anchor("uwb_1", { last_distance_m: "2" })] }],
+    ["anchor with a numeric online", { anchors: [anchor("uwb_1", { online: 1 })] }],
+    ["anchor with an extra key", { anchors: [anchor("uwb_1", { rssi: -50 })] }],
+    ["too many anchors", { anchors: Array.from({ length: 17 }, (_, i) => anchor(`uwb_${i}`)) }],
+    ["pose null", { pose: null }],
+    ["pose with a bad mode", { pose: pose(NOW, { mode: "dancing" }) }],
+    ["pose with a bad source", { pose: pose(NOW, { source: "camera" }) }],
+    ["pose with a 2D position", { pose: pose(NOW, { position: [1, 2] }) }],
+    ["pose with a NaN-like position", { pose: pose(NOW, { position: [1, "2", 3] }) }],
+    ["pose without t", { pose: (({ t: _t, ...r }) => r)(pose(NOW)) }],
+    ["pose with an extra key", { pose: pose(NOW, { velocity: 1 }) }],
+  ])("400 for %s, and nothing is written", async (_name, extra) => {
+    const r = await post(t, "/ingest", { events: [pickupEvent("salt", 2, NOW - 5, "e-good-0002")], states: [], ...extra });
+    expect(r.status).toBe(400);
+    expectSchema("error_response", r.body);
+    expect(await rows("anchors")).toHaveLength(0);
+    expect(await rows("wearerPose")).toHaveLength(0);
+    expect(await t.query(api.events.recent, { limit: 200 })).not.toContainEqual(expect.objectContaining({ eventId: "e-good-0002" }));
   });
 });
 

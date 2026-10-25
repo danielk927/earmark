@@ -12,6 +12,7 @@ The last sections map these choices to Microsoft's Responsible AI principles and
 | No cameras in the home | Yes: detection is NFC tags and Bluetooth fobs; the camera adapter is an empty interface | Privacy and security |
 | Labeling photos deleted right after use; only text kept | Yes, in Convex, tested with a mocked model | Privacy and security |
 | Store only item names, spots, and timestamps | Yes | Privacy and security |
+| UWB walking guidance keeps only the person's current position, never a trail | Yes: one overwritten row, at most 2 updates a second, never written to events | Privacy and security |
 | Caregiver access controls | Partly: shared secrets on HTTP routes; dashboard functions have no auth yet | Privacy and security, accountability |
 | No medical advice | Yes, in the concierge; planned in the memory agent | Reliability and safety |
 | Identity from tags, never from appearance; ask when unsure | Yes | Reliability and safety, transparency |
@@ -28,6 +29,9 @@ The last sections map these choices to Microsoft's Responsible AI principles and
   If a camera adapter is ever added, it must be opt-in, run on-device, and send only object positions, never images.
 - The cost of this choice: Earmark only knows tagged items, and an item away from every spot is known only by its last sighting.
   We accept that, and Earmark says so out loud (section 6).
+- UWB walking guidance adds no camera either.
+  The UWB anchors are phones used as radios: each one only measures its distance to the wearer's phone.
+  They are not sensors of the room, and they never record who or what else is there.
 
 ## 3. One-time caregiver photos
 
@@ -49,7 +53,7 @@ Residual exposure: the photo is processed by Bitdeer, whose retention terms we h
 ## 4. Data minimization
 
 What Earmark stores: item names, aliases, family-written notes and descriptions, NFC tag IDs, home spot numbers, and timestamps of placements, removals, pickups, labels, and chirps.
-What it does not store: images, audio, video, the person's location, or any health data beyond the medication item's schedule and its pickup times.
+What it does not store: images, audio, video, a history of where the person has been, or any health data beyond the medication item's schedule and its pickup times.
 Family members choose item names, so a medication can be called "evening pills" instead of a drug name.
 
 Two gaps we know about:
@@ -58,6 +62,18 @@ Two gaps we know about:
 - The concierge sends the transcript plus item names, aliases, and notes to Bitdeer to choose a tool.
 
 The full storage and retention table is in `docs/PRODUCTION.md` 6.1.
+
+### 4.1 The wearer's position (UWB walking guidance)
+
+When walking guidance is on, the dashboard's Live map shows where the person is right now.
+That is the only place the position is kept, and it is transient by construction:
+- Convex holds one `wearerPose` row. Each update overwrites it in place, and only if it is newer. The hub sends at most 2 updates a second.
+- The pose is never written to `events`, and no pose history, trail, or heat map exists in any table, log, or export.
+  A reset clears the row.
+- The `anchors` table holds each anchor's fixed position (set by us when we set up the space) and whether it is online.
+  Anchors are radios, not sensors of the room: a distance reading to the wearer's phone is all they produce.
+- Position is shown to caregivers only as the current dot and its mode in words (for example "At the counter" or "Location lost").
+  Changes in position are not announced to screen readers, so a caregiver is not flooded; an anchor going offline is.
 
 ## 5. Caregiver access controls
 

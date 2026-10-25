@@ -88,3 +88,24 @@ export const doseRow = v.object({
   takenT: nullableNumber,
   evidenceEventId: nullableString,
 });
+
+export const listenerMode = v.union(v.literal("tracked"), v.literal("frozen"), v.literal("lost"), v.literal("fixed"));
+export const poseSource = v.union(v.literal("uwb"), v.literal("sound"), v.literal("sim"), v.literal("none"));
+
+/** anchors row fields (UWB anchor iPhones, upserted by anchorId). */
+export const anchorFields = {
+  anchorId: v.string(),
+  label: v.string(),
+  position: vec3,
+  online: v.boolean(),
+  lastDistanceM: nullableNumber,
+  lastSeenT: nullableNumber,
+};
+
+/** wearerPose row fields: the ONE live pose, overwritten in place, never a history. */
+export const wearerPoseFields = {
+  position: vec3,
+  mode: listenerMode,
+  source: poseSource,
+  t: v.number(),
+};
