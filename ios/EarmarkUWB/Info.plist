@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Merged with the keys Xcode generates (GENERATE_INFOPLIST_FILE = YES in project.yml).
+  Strings are from UWB-PRD 7.1. NSAllowsLocalNetworking: since iOS 17, ATS blocks plain connections to IP
+  addresses by default, and the bus is ws://<mac-ip>:8765.
+-->
+<dict>
+	<key>NSNearbyInteractionUsageDescription</key>
+	<string>Earmark measures distance to the Earmark anchors in this room to guide you by sound.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Earmark connects to the Earmark hub on this network.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Earmark checks whether you are walking or standing still to steady its guidance.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Earmark sends your voice to the Earmark hub while you hold the Talk button.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
