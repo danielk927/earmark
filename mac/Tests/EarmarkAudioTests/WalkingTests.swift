@@ -75,9 +75,38 @@ import Testing
 
 @Suite struct CalibrationTests {
     @Test func centimetersFollowCalibratePyConvention() {
-        // forward = +y, side = +x (right), height = +z (above ear level); meters, rounded to mm.
-        #expect(Calibration.position(forwardCm: 75, sideCm: -90, heightCm: -25) == [-0.9, 0.75, -0.25])
+        // forward = +y, side = +x (right), height = +z (above the floor); meters, rounded to mm.
+        #expect(Calibration.position(forwardCm: 75, sideCm: -90, heightCm: 190) == [-0.9, 0.75, 1.9])
         #expect(Calibration.position(forwardCm: -180.04, sideCm: -140, heightCm: 0) == [-1.4, -1.8, 0])
+    }
+
+    @Test func formRoundTripsFloorHeights() throws {
+        let json = """
+        { "listener": { "label": "c", "origin_note": "n" }, "spots": [], "areas": [], "receivers": [],
+          "anchors": [ { "anchor": "uwb_1", "label": "A", "position": [-0.9, 0.75, 1.9] },
+                       { "anchor": "uwb_2", "label": "B", "position": [0.9, 0.75, 1.3] } ],
+          "tracking": { "phone_z": -0.35, "head_offset_m": 0.2, "ear_z_m": 1.6, "mark_z_m": 0.8 } }
+        """
+        let space = try BusCoding.decoder.decode(Space.self, from: Data(json.utf8))
+        var form = Calibration.form(from: space)
+        #expect(form.anchors.map(\.heightCm) == [190, 130])        // floor heights, unchanged
+        #expect(form.anchors[0].forwardCm == 75 && form.anchors[0].sideCm == -90)
+        #expect(form.earZCm == 160 && form.markZCm == 80 && form.phoneZCm == -35)
+        #expect(form.phoneAboveFloorCm == 125)
+
+        #expect(Calibration.apply(form, to: space) == space)         // unchanged form round-trips
+        form.earZCm = 150; form.markZCm = 95; form.phoneZCm = -30; form.anchors[1].heightCm = 210
+        let saved = Calibration.apply(form, to: space)
+        #expect(saved.anchors?.map(\.position) == [[-0.9, 0.75, 1.9], [0.9, 0.75, 2.1]])
+        #expect(saved.tracking == Tracking(phoneZ: -0.3, headOffsetM: 0.2, earZM: 1.5, markZM: 0.95))
+        #expect(saved.listener == space.listener)
+    }
+
+    @Test func formDefaultsWhenSpaceHasNoTracking() {
+        let form = Calibration.form(from: nil)
+        #expect(form.earZCm == 155 && form.markZCm == 90 && form.phoneZCm == -35)   // phone_z stays ear-relative
+        #expect(form.anchors.allSatisfy { $0.heightCm == 130 })
+        #expect(form.phoneAboveFloorCm == 120)
     }
 
     @Test func verdictUsesMedianAndMaxTargets() throws {

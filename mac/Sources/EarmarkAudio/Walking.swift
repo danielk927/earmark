@@ -99,8 +99,12 @@ public enum Calibration {
     public static let medianTargetM = 0.20
     public static let maxTargetM = 0.35
     /// PRD section 5 defaults (also the hub's).
+    /// Phone height RELATIVE TO THE EARS (schema rule: tracking.phone_z).
     public static let defaultPhoneZ = -0.35
     public static let defaultHeadOffsetM = 0.20
+    /// Room frame (floor = 0): ear height and tap-marked table-top height, meters above the floor.
+    public static let defaultEarZM = 1.55
+    public static let defaultMarkZM = 0.9
 
     public struct Mark: Identifiable, Sendable, Equatable {
         public var id: String
@@ -142,17 +146,74 @@ public enum Calibration {
         return points.reduce(EarmarkPoint.zero, +) / Double(points.count)
     }
 
-    /// PRD 9.1 placeholders, used until the anchors are measured.
+    /// PRD 9.1 placeholders, used until the anchors are measured. z is meters above the floor.
     public static func defaultAnchors() -> [Anchor] {
-        [Anchor(anchor: "uwb_1", label: "UWB Reader/Emitter 1", position: [-0.9, 0.75, -0.25]),
-         Anchor(anchor: "uwb_2", label: "UWB Reader/Emitter 2", position: [0.9, 0.75, -0.25]),
-         Anchor(anchor: "uwb_3", label: "UWB Reader/Emitter 3", position: [-1.4, -1.8, -0.25])]
+        [Anchor(anchor: "uwb_1", label: "UWB Reader/Emitter 1", position: [-0.9, 0.75, 1.3]),
+         Anchor(anchor: "uwb_2", label: "UWB Reader/Emitter 2", position: [0.9, 0.75, 1.3]),
+         Anchor(anchor: "uwb_3", label: "UWB Reader/Emitter 3", position: [-1.4, -1.8, 1.3])]
     }
 
-    /// Same as scripts/calibrate.py: cm from the origin mark, forward = +y (behind is negative),
-    /// side = +x to the right (left is negative), height = +z vs ear level (below is negative). Rounded to mm.
+    /// Same as scripts/calibrate.py: cm from the floor origin mark, forward = +y (behind is negative),
+    /// side = +x to the right (left is negative), height = +z ABOVE THE FLOOR (room frame). Rounded to mm.
     public static func position(forwardCm: Double, sideCm: Double, heightCm: Double) -> [Double] {
         [sideCm, forwardCm, heightCm].map { ($0 * 10).rounded() / 1000 }
+    }
+
+    /// One anchor as shown in the form: centimeters, height above the floor.
+    public struct AnchorRow: Identifiable, Equatable, Sendable {
+        public var id: String
+        public var label: String
+        public var forwardCm: Double
+        public var sideCm: Double
+        public var heightCm: Double
+        public init(id: String, label: String, forwardCm: Double, sideCm: Double, heightCm: Double) {
+            self.id = id; self.label = label; self.forwardCm = forwardCm; self.sideCm = sideCm; self.heightCm = heightCm
+        }
+    }
+
+    /// Everything the calibration form edits, in centimeters.
+    public struct Form: Equatable, Sendable {
+        public var anchors: [AnchorRow]
+        /// Phone height relative to the ears (negative = below), as tracking.phone_z.
+        public var phoneZCm: Double
+        public var headOffsetCm: Double
+        /// Ear and table-top height above the floor.
+        public var earZCm: Double
+        public var markZCm: Double
+        public init(anchors: [AnchorRow], phoneZCm: Double, headOffsetCm: Double, earZCm: Double, markZCm: Double) {
+            self.anchors = anchors; self.phoneZCm = phoneZCm; self.headOffsetCm = headOffsetCm
+            self.earZCm = earZCm; self.markZCm = markZCm
+        }
+        /// Phone height above the floor implied by the ear height and the relative phone height.
+        public var phoneAboveFloorCm: Double { ((earZCm + phoneZCm) * 10).rounded() / 10 }
+    }
+
+    static func cm(_ m: Double) -> Double { (m * 1000).rounded() / 10 }
+
+    /// Fills the form from a space (nil or missing parts fall back to the defaults). Anchor z is already floor-based.
+    public static func form(from space: Space?) -> Form {
+        let list = (space?.anchors).flatMap { $0.isEmpty ? nil : $0 } ?? defaultAnchors()
+        let rows = list.map { a -> AnchorRow in
+            let p = Geometry.point(a.position) ?? .zero
+            return AnchorRow(id: a.anchor, label: a.label, forwardCm: cm(p.y), sideCm: cm(p.x), heightCm: cm(p.z))
+        }
+        let t = space?.tracking
+        return Form(anchors: rows, phoneZCm: cm(t?.phoneZ ?? defaultPhoneZ),
+                    headOffsetCm: cm(t?.headOffsetM ?? defaultHeadOffsetM),
+                    earZCm: cm(t?.earZM ?? defaultEarZM), markZCm: cm(t?.markZM ?? defaultMarkZM))
+    }
+
+    /// Writes the form into a space (other fields untouched). Anchor z = height above the floor; phone_z stays ear-relative.
+    public static func apply(_ form: Form, to space: Space) -> Space {
+        var out = space
+        out.anchors = form.anchors.map {
+            Anchor(anchor: $0.id, label: $0.label,
+                   position: position(forwardCm: $0.forwardCm, sideCm: $0.sideCm, heightCm: $0.heightCm))
+        }
+        func m(_ c: Double) -> Double { (c * 10).rounded() / 1000 }
+        out.tracking = Tracking(phoneZ: m(form.phoneZCm), headOffsetM: m(form.headOffsetCm),
+                                earZM: m(form.earZCm), markZM: m(form.markZCm))
+        return out
     }
 
     /// Pretty, sorted, snake_case JSON (the hub reads space.json with the same field names as the bus).

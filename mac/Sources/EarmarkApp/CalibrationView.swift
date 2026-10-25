@@ -8,13 +8,7 @@ import SwiftUI
 /// `reload()` re-reads config/space.json every time the sheet opens.
 @MainActor
 final class CalibrationModel: ObservableObject {
-    struct AnchorRow: Identifiable, Equatable {
-        var id: String
-        var label: String
-        var forwardCm: Double
-        var sideCm: Double
-        var heightCm: Double
-    }
+    typealias AnchorRow = Calibration.AnchorRow
 
     struct MarkResult: Equatable {
         var solved: EarmarkPoint
@@ -28,6 +22,8 @@ final class CalibrationModel: ObservableObject {
     @Published var anchors: [AnchorRow] = []
     @Published var phoneZCm = Calibration.defaultPhoneZ * 100
     @Published var headOffsetCm = Calibration.defaultHeadOffsetM * 100
+    @Published var earZCm = Calibration.defaultEarZM * 100
+    @Published var markZCm = Calibration.defaultMarkZM * 100
     @Published private(set) var results: [String: MarkResult] = [:]
     @Published private(set) var measuring: String?
     @Published private(set) var message: String?
@@ -53,17 +49,14 @@ final class CalibrationModel: ObservableObject {
         } else {
             loadError = "Could not find the Earmark repo, so Save is off. Set EARMARK_REPO_ROOT to the repo folder (or build with build_app.sh), then reopen this screen."
         }
-        let list = (space?.anchors).flatMap { $0.isEmpty ? nil : $0 } ?? Calibration.defaultAnchors()
-        anchors = list.map { a in
-            let p = Geometry.point(a.position) ?? .zero
-            return AnchorRow(id: a.anchor, label: a.label, forwardCm: Self.cm(p.y), sideCm: Self.cm(p.x), heightCm: Self.cm(p.z))
-        }
-        phoneZCm = Self.cm(space?.tracking?.phoneZ ?? Calibration.defaultPhoneZ)
-        headOffsetCm = Self.cm(space?.tracking?.headOffsetM ?? Calibration.defaultHeadOffsetM)
+        let form = Calibration.form(from: space)
+        anchors = form.anchors
+        phoneZCm = form.phoneZCm
+        headOffsetCm = form.headOffsetCm
+        earZCm = form.earZCm
+        markZCm = form.markZCm
         saveMessage = nil
     }
-
-    private static func cm(_ m: Double) -> Double { (m * 1000).rounded() / 10 }
 
     // MARK: Verify
 
@@ -136,14 +129,9 @@ final class CalibrationModel: ObservableObject {
             return
         }
         do {
-            var space = try Calibration.read(fileURL)
-            space.anchors = anchors.map {
-                Anchor(anchor: $0.id, label: $0.label,
-                       position: Calibration.position(forwardCm: $0.forwardCm, sideCm: $0.sideCm, heightCm: $0.heightCm))
-            }
-            // earZM / markZM are set elsewhere (hub config); keep whatever space.json already has.
-            space.tracking = Tracking(phoneZ: (phoneZCm * 10).rounded() / 1000, headOffsetM: (headOffsetCm * 10).rounded() / 1000,
-                                      earZM: space.tracking?.earZM, markZM: space.tracking?.markZM)
+            let form = Calibration.Form(anchors: anchors, phoneZCm: phoneZCm, headOffsetCm: headOffsetCm,
+                                        earZCm: earZCm, markZCm: markZCm)
+            let space = Calibration.apply(form, to: try Calibration.read(fileURL))
             try Calibration.write(space, to: fileURL)
             if core.busConnected {
                 core.sendReset()
@@ -216,7 +204,7 @@ struct CalibrationView: View {
 
     private var anchorsCard: some View {
         Card("1. Anchor positions") {
-            Text("Measure each UWB Reader/Emitter from the origin floor mark, in centimeters: forward toward the counter (behind is negative), side to the right (left is negative), height relative to ear level (below is negative).")
+            Text("The origin is a floor mark under the front-center edge of the table (or the mat). Measure each UWB Reader/Emitter from it, in centimeters: forward toward the table (behind is negative), side to the right (left is negative), height above the floor, to the top of the phone where the cameras are.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -232,7 +220,7 @@ struct CalibrationView: View {
                     HStack(spacing: 12) {
                         field("Forward cm", value: $row.forwardCm, spoken: "\(row.label) forward, centimeters")
                         field("Side cm", value: $row.sideCm, spoken: "\(row.label) side, centimeters, right is positive")
-                        field("Height cm", value: $row.heightCm, spoken: "\(row.label) height versus ear level, centimeters")
+                        field("Height cm above the floor", value: $row.heightCm, spoken: "\(row.label) height above the floor, centimeters, to the top of the phone")
                     }
                 }
                 .padding(.vertical, 4)
@@ -281,11 +269,22 @@ struct CalibrationView: View {
     private var wearerCard: some View {
         Card("2. Wearer phone") {
             HStack(spacing: 16) {
-                field("Phone height cm", value: $cal.phoneZCm, spoken: "Phone height versus ear level, centimeters, below is negative")
+                field("Ear height cm above the floor", value: $cal.earZCm, spoken: "Ear height above the floor, centimeters")
+                field("Table-top height cm above the floor", value: $cal.markZCm, spoken: "Table-top height above the floor, centimeters")
+                Spacer()
+            }
+            HStack(spacing: 16) {
+                field("Phone height cm relative to ears (below is negative)", value: $cal.phoneZCm,
+                      spoken: "Phone height relative to the ears, centimeters, below is negative")
                 field("Head offset cm", value: $cal.headOffsetCm, spoken: "Head offset behind the phone, centimeters")
                 Spacer()
             }
-            Text(String(format: "Defaults: phone %.0f cm (chest height, below the ears), head %.0f cm behind the phone.",
+            Text(String(format: "Phone is about %.0f cm above the floor (ear height plus the relative phone height).",
+                        (cal.earZCm + cal.phoneZCm).rounded()))
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityLabel(String(format: "Phone is about %.0f centimeters above the floor", (cal.earZCm + cal.phoneZCm).rounded()))
+            Text(String(format: "Defaults: phone %.0f cm relative to the ears (chest height), head %.0f cm behind the phone.",
                         Calibration.defaultPhoneZ * 100, Calibration.defaultHeadOffsetM * 100))
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textSecondary)
