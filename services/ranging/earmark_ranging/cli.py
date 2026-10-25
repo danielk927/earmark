@@ -1,4 +1,4 @@
-"""earmark-ranging serve | sim"""
+"""earmark-ranging serve | sim | listen"""
 from __future__ import annotations
 
 import argparse
@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import socket
+import sys
 
 from websockets.asyncio.server import serve
 
@@ -75,15 +76,158 @@ async def _sim(args) -> None:
     await asyncio.gather(*(p.run(url, stop) for p in phones))
 
 
+def _only(anchors: dict, only: list[str] | None) -> dict:
+    if not only:
+        return anchors
+    want = {int("".join(ch for ch in o if ch.isdigit())) for o in only}
+    missing = want - set(anchors)
+    if missing:
+        raise SystemExit(f"--only names beacons not in the config: {sorted(missing)} (have {sorted(anchors)})")
+    return {k: v for k, v in anchors.items() if k in want}
+
+
+def _listen_instructions(beacons: dict, known: dict, at, labels: dict) -> str:
+    if at is not None:
+        return (f"Hold the phone still at x {at[0]:.2f}  y {at[1]:.2f}  z {at[2]:.2f} m (bottom edge toward the beacons), "
+                "then press Enter.")
+    (k, d), = known.items()
+    where = f"beacon B{k} ({labels[k]})" if labels.get(k) else f"beacon B{k}"
+    return f"Hold the phone still at exactly {d:.2f} m from {where}, bottom edge toward it, then press Enter."
+
+
+async def _listen(args) -> None:
+    from .listen import known_distances, speed_of_sound
+    from .service_listen import ListenService
+
+    anchors = _only(load_anchors(args.beacons), args.only)
+    labels = _labels(args.beacons)
+    if not anchors:
+        raise SystemExit("no beacons configured")
+    at = tuple(args.calibrate_at) if args.calibrate_at else None
+    if at is None and args.calibrate_distance is None:
+        if len(anchors) == 1:
+            args.calibrate_distance = 1.0
+        else:
+            raise SystemExit("with more than one beacon give --calibrate-at X Y Z "
+                             "(or pick one with --only B1 and --calibrate-distance)")
+    known = known_distances(anchors, args.calibrate_distance, at)
+    c = speed_of_sound(args.temperature)
+    spec = ChirpSpec(args.band[0], args.band[1])
+    bus = None if args.no_bus else os.environ.get("EARMARK_BUS_URL", "ws://127.0.0.1:8765")
+    svc = ListenService(
+        anchors, known, spec, c=c, calibration_s=args.calibration_seconds, cycle_s=args.cycle, slot_s=args.slot,
+        publisher=BusPublisher(bus), log_path=args.log, min_snr=args.min_snr,
+    )
+
+    def clock(wall: float | None) -> str:
+        from datetime import datetime
+
+        return datetime.fromtimestamp(wall).strftime("%H:%M:%S.%f")[:-3] if wall is not None else "--:--:--.---"
+
+    def on_heard(det, beacon, wall) -> None:
+        if beacon is None:
+            return  # a chirp shape no configured beacon makes, or noise
+        what = "calibrating" if svc.state == "calibrating" else "not calibrated, press Enter when the phone is at the spot"
+        print(f"{clock(wall)}  B{beacon}  heard   snr {det.snr:5.1f}   ({what})")
+
+    def on_range(r, wall) -> None:
+        print(f"{clock(wall)}  B{r.beacon}  d {r.distance_m:6.3f} m  snr {r.snr:5.1f}  cycle {r.cycle}")
+
+    def on_fix(fix, pose) -> None:
+        x, y, z = pose.position
+        print(f"fix  x {x:6.2f}  y {y:6.2f}  z {z:5.2f}   {pose.quality:<8} {fix.used} beacons   fit {fix.rms_m * 100:4.1f} cm")
+
+    def on_report(rep) -> None:
+        print("\n".join(rep.lines()))
+        if rep.ok:
+            print("tracking. Walk around; one line per chirp. Press Enter to calibrate again.")
+        elif svc.tracker is not None:
+            print("keeping the previous calibration. Press Enter to try again.")
+        else:
+            print("fix the problem, put the phone back at the spot and press Enter to try again.")
+
+    svc.on_heard, svc.on_range, svc.on_fix, svc.on_report = on_heard, on_range, on_fix, on_report
+    stop = asyncio.Event()
+    tasks = []
+    async with serve(svc.handler, "0.0.0.0", args.port, max_size=2**22):
+        print(f"listen service ready. The user's phone connects to:  ws://{lan_ip()}:{args.port}")
+        print(f"chirp band {spec.f_lo:.0f} to {spec.f_hi:.0f} Hz, cycle {args.cycle} s, slot {args.slot} s, c {c:.1f} m/s")
+        print(f"beacons: {', '.join(f'B{k} at {v}' for k, v in sorted(anchors.items()))} (self-timed, they do not connect)")
+        print("Start the beacon phones in beacon mode. " + _listen_instructions(anchors, known, at, labels))
+        auto = args.calibrate_after
+        if args.sim:
+            from .sim_listen import SelfTimedWorld, VirtualTargetPhone, calibration_spot, still_then_walk
+            import time
+
+            auto = 2.0 if auto is None else auto
+            spot = calibration_spot(anchors, args.calibrate_distance, at)
+            t0 = time.time()
+            path = still_then_walk(spot, t0 + 1.0 + auto + args.calibration_seconds + 1.5)
+            world = SelfTimedWorld(anchors, path, spec, t0, c=c, seed=args.seed, echo=args.sim_echo)
+            phone = VirtualTargetPhone(world, t0 + 0.5, seed=args.seed, noise_rms=args.sim_noise, dropout=args.sim_dropout)
+            here = tuple(round(v, 2) for v in spot)
+            print(f"SIMULATION: a virtual phone stands at {here}, calibrates after {auto:.0f} s, then walks.")
+            tasks.append(asyncio.create_task(phone.run(f"ws://127.0.0.1:{args.port}", stop)))
+        if auto is not None:
+            print(f"calibration starts by itself {auto:.0f} s after the first audio arrives (or press Enter sooner).")
+
+        def on_enter() -> None:
+            sys.stdin.readline()
+            if svc.target is None:
+                print("no phone connected yet")
+                return
+            print(f"calibrating for {args.calibration_seconds:.0f} s: keep the phone still...")
+            svc.start_calibration()
+
+        loop = asyncio.get_running_loop()
+        try:
+            loop.add_reader(sys.stdin.fileno(), on_enter)
+        except (ValueError, OSError, NotImplementedError):
+            print("(no console: calibration only starts with --calibrate-after)")
+        tasks.append(asyncio.create_task(svc.run(auto)))
+
+        async def beat() -> None:
+            n = 0
+            while True:
+                await asyncio.sleep(1.0)
+                n += 1
+                if svc.state == "calibrating":
+                    print(f"   calibrating... {svc.calibration_remaining():4.1f} s left, keep still")
+                elif n % 2 == 0:
+                    await svc.publisher.send(svc.status())
+                    print(svc.status_line())
+                    if args.save_audio:
+                        svc.save_audio(args.save_audio)
+
+        tasks.append(asyncio.create_task(beat()))
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            stop.set()
+
+
+def _labels(path) -> dict[int, str]:
+    import json
+    import re
+
+    try:
+        data = json.loads(open(path).read())
+        return {int(re.search(r"(\d+)$", str(b["id"])).group(1)): str(b.get("label", "")) for b in data["beacons"]}
+    except Exception:  # noqa: BLE001 - labels are decoration only
+        return {}
+
+
 def main() -> None:
     p = argparse.ArgumentParser(prog="earmark-ranging")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("serve", "sim"):
+    for name in ("serve", "sim", "listen"):
         s = sub.add_parser(name)
         s.add_argument("--port", type=int, default=8766)
         s.add_argument("--beacons", default=str(DEFAULT_BEACONS), help="where the fixed phones are (beacons.json or space.json)")
-        s.add_argument("--band", type=float, nargs=2, default=(17000.0, 20000.0), metavar=("LO", "HI"))
-        s.add_argument("--audible", action="store_true", help="use the 2000 to 4500 Hz band instead of the quiet high one")
+        s.add_argument("--band", type=float, nargs=2, default=(12000.0, 16000.0) if name == "listen" else (17000.0, 20000.0),
+                       metavar=("LO", "HI"))
+        if name != "listen":
+            s.add_argument("--audible", action="store_true", help="use the 2000 to 4500 Hz band instead of the quiet high one")
     sv = sub.choices["serve"]
     sv.add_argument("--volume", type=float, default=1.0, help="chirp loudness, 0 to 1 (use less when the phones are close)")
     sv.add_argument("--no-bus", action="store_true", help="do not publish to the Earmark bus")
@@ -95,10 +239,31 @@ def main() -> None:
     sm.add_argument("--z", type=float, default=1.2)
     sm.add_argument("--noise", type=float, default=0.002)
     sm.add_argument("--seed", type=int, default=1)
+    li = sub.choices["listen"]
+    li.add_argument("--cycle", type=float, default=0.5, help="seconds between a beacon's chirps")
+    li.add_argument("--slot", type=float, default=0.125, help="seconds between beacon 1's chirp and beacon 2's")
+    li.add_argument("--only", nargs="+", metavar="B1", help="use only these beacons from the config, e.g. --only B1")
+    li.add_argument("--calibrate-distance", type=float, metavar="D",
+                    help="meters from the phone to the (single) beacon while calibrating")
+    li.add_argument("--calibrate-at", type=float, nargs=3, metavar=("X", "Y", "Z"), help="where the phone is while calibrating")
+    li.add_argument("--calibration-seconds", type=float, default=10.0)
+    li.add_argument("--calibrate-after", type=float, metavar="S",
+                    help="start calibrating S seconds after the first audio arrives")
+    li.add_argument("--temperature", type=float, default=20.0, help="room temperature in C, for the speed of sound")
+    li.add_argument("--min-snr", type=float, default=4.5, help="how clearly a chirp must stand out to count")
+    li.add_argument("--log", metavar="FILE", help="append every distance to this CSV file")
+    li.add_argument("--no-bus", action="store_true", help="do not publish to the Earmark bus")
+    li.add_argument("--save-audio", metavar="DIR", help="keep the last few seconds the phone heard as a WAV file (for checking)")
+    li.add_argument("--sim", action="store_true", help="no phones: a virtual phone and virtual beacons run the whole path")
+    li.add_argument("--sim-noise", type=float, default=0.1)
+    li.add_argument("--sim-echo", action="store_true", help="the virtual room has echoes")
+    li.add_argument("--sim-dropout", type=float, default=0.0, help="fraction of audio chunks the virtual phone loses")
+    li.add_argument("--seed", type=int, default=1)
     args = p.parse_args()
     logging.basicConfig(level=logging.WARNING)
+    runner = {"serve": _serve, "sim": _sim, "listen": _listen}[args.cmd]
     try:
-        asyncio.run(_serve(args) if args.cmd == "serve" else _sim(args))
+        asyncio.run(runner(args))
     except KeyboardInterrupt:
         pass
 

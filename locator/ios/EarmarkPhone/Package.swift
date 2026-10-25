@@ -16,6 +16,7 @@ let package = Package(
         .executableTarget(name: "phone-cli", dependencies: ["PhoneCore"]),
         // The same SwiftUI screens the iPhone project uses; building it here only checks that they compile.
         .executableTarget(name: "PhoneApp", dependencies: ["PhoneCore"], path: "App"),
+        .testTarget(name: "PhoneCoreTests", dependencies: ["PhoneCore"]),
     ],
     swiftLanguageModes: [.v5]
 )

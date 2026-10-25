@@ -29,8 +29,13 @@ class Detector:
         c = correlate(audio, self.templates[direction], mode="valid", method="fft")
         return np.abs(hilbert(c))
 
-    def find(self, audio: np.ndarray) -> list[Event]:
-        """Every chirp in `audio` (any slot), strongest first within each shape, in time order overall."""
+    def find(self, audio: np.ndarray, prefer: str = "strongest") -> list[Event]:
+        """Every chirp in `audio` (any slot), in time order.
+
+        Peaks closer together than about a chirp length are one event. `prefer` says which of them stands for it:
+        the strongest, or (for self-timed beacons, where an echo is always late) the earliest unless a later peak
+        is more than twice as strong, which marks the earlier one as a sidelobe or noise.
+        """
         x = np.asarray(audio, dtype=np.float64)
         if len(x) < len(self.templates["up"]) * 2:
             return []
@@ -54,7 +59,7 @@ class Detector:
         kept: list[Event] = []
         for ev in events:
             if kept and ev.t - kept[-1].t < self._min_gap / self.fs:
-                if ev.score > kept[-1].score:
+                if ev.score > kept[-1].score * (2.0 if prefer == "earliest" else 1.0):
                     kept[-1] = ev
                 continue
             kept.append(ev)

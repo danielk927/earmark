@@ -114,6 +114,8 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 
 ## Decisions
 
+- 2026-10-24 (evening): positioning uses self-timed beacon phones plus a listen-only target phone with a 10 s calibration on the mat (see "How the user's position is found" in `docs/project/NEXT_STEPS.md`). Beacons are told apart by time slot in one shared band. The UWB branch (`uwb-prd`) and the ESP32 buzzer firmware are fallbacks, not merged. The parked `spec-b-core` branch is the same idea in Swift with no app around it; its tracker may be borrowed later.
+
 - 2026-10-24: the human authorized fully autonomous work overnight; Phase 0 and Phase 2 checkpoints are recorded here rather than blocking.
 - 2026-10-24: one uv project per Python service (no shared workspace lockfile) so parallel builders never conflict; each depends on `contracts/python` by path.
 - 2026-10-24: all wire and disk JSON is snake_case; Convex tables and Convex client functions are camelCase.

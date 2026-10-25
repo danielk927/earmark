@@ -12,7 +12,7 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 | Moss | Works (warm it up once before any demo: the first start takes minutes) |
 | Cartesia (voice) | Key set; speech works |
 | AirPods 3D sound and head tracking | Tested on real AirPods and works |
-| Beacons, phone locator app | Not built yet. A teammate's laptop-speaker test: an iPhone heard a 19 kHz tone at 2 m in a loud place. Still to test: the real buzzer, at 4 m |
+| Beacons, phone position | Phones-as-beacons app and Mac service built. Real test: two iPhones measured their distance to a few centimeters at about 1 m in the 12 to 16 kHz band. Calibrate-then-listen mode added 2026-10-24 evening; not yet run on real phones |
 
 ## A real test you can do today (no hardware)
 
@@ -25,14 +25,25 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 
 The setup we agreed on (empty map, a teammate stands on the mat, the Mac works out where the beacons are, then place objects by walking and speaking) is written up in `docs/project/ROOM_SETUP.md`. It is planned, not built. We are waiting for the UI changes to be pulled first.
 
-## Two ways to track where the user walks (pick one)
+## How the user's position is found (decided 2026-10-24 evening)
 
-- **Phones as beacons (no wiring, built):** five spare iPhones sit around the room and chirp; the user's phone listens. Needs 6 iPhones and Xcode. Setup: `locator/docs/PHONE_BEACONS.md`. The Mac side is tested with virtual phones; nothing has run on real iPhones yet.
-- **Buzzers on a small board (needs wiring):** described below.
+Spare iPhones around the room are the beacons; the judge carries one more iPhone. Sound does the measuring. Rules:
 
-First thing to find out either way: can a phone hear the quiet high pitch across the room? For phones, run the app's "Play test sweep" on one and record it on another.
+- **Beacons chirp on their own, with no network.** Each beacon plays a 40 ms sweep every 0.5 s on its own clock, in its own time slot (beacon 1 at 0 ms, beacon 2 at 125 ms, beacon 3 at 250 ms, beacon 4 at 375 ms). Odd beacons sweep up, even beacons sweep down. Wi-Fi never touches the timing, so Wi-Fi jitter cannot cause distance error.
+- **The judge's phone only listens.** It streams its microphone to the Mac. The Mac finds each chirp in the recording to a fraction of a sample.
+- **Calibration replaces clock sync.** Before the blindfold goes on, the judge's phone sits still for 10 s at a known spot (the mat). From the chirps heard there, the Mac fits each beacon's schedule on the phone's timeline: a start offset and the exact period. After that, every chirp heard gives a distance directly: distance = speed of sound x (heard time - scheduled time).
+- **Beacons are told apart by time slot, not by pitch.** All beacons use the same band (12 to 16 kHz, the band real phones could produce and hear). Splitting the band per beacon would blunt the timing.
+- **Position updates after every chirp**, 8 times a second with four beacons, using the newest distance plus the latest one from each other beacon. Height is not tracked; the judge's head height is a fixed number. Items keep their own 3D positions in `config/space.json`.
+- The older two-way mode (Mac tells phones when to chirp, every phone records) stays in the code as a fallback; it was the first thing to measure a real distance between two iPhones.
 
-## Buzzer hardware: how to start (in this order, each step must pass before the next)
+### Test plan, in order (each step must pass before the next)
+
+1. **Live distance, one beacon and one target phone.** Beacon at 0 on a tape measure (an iPhone in "Beacon (no Mac)" mode, or the Mac's own speaker via `phone-cli --beacon 1`). Target held at exactly 1.00 m during the 10 s calibration, bottom edges facing each other. Then hold at 0.5, 1, 2, 3 m for 20 s each and walk slowly between them. Pass: a printed distance after nearly every chirp (about 2 per second), within 5 cm standing still, following smoothly while walking. Commands: `services/ranging/README.md`, section "Calibrate-then-listen mode".
+2. **Position, four beacons.** Four beacon phones at taped positions in `config/beacons.json`, all at about the same height on tables or chairs. Calibrate standing on the mat. Stand on five taped floor marks. Pass: within 30 cm on every mark, a position at least once a second.
+3. **Walking.** Walk slowly between the marks; the dashboard `/room` page should follow without jumps.
+4. **AirPods end to end.** Blindfold, AirPods on, ask for the salt, walk to it. Its audio half can be rehearsed any time with the keyboard walking simulator on the `/room` page.
+
+## Fallback only: buzzer hardware, how to start (in this order, each step must pass before the next)
 
 You need three tools first: `brew install arduino-cli` (to put the program on the ESP32), Xcode from the App Store (for the iPhone app), and `brew install xcodegen`.
 
