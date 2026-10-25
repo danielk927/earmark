@@ -36,7 +36,8 @@ def free_port() -> int:
 
 
 class Stack:
-    def __init__(self, tmp: Path) -> None:
+    def __init__(self, tmp: Path, *, uwb: bool | None = None) -> None:
+        """`uwb`: force `uwb.enabled` in the temp hub.json (True/False); None keeps config/hub.json's value."""
         self.port = free_port()
         self.url = f"ws://127.0.0.1:{self.port}"
         self.tmp = tmp
@@ -44,6 +45,9 @@ class Stack:
         cfg["adapters"] = ["camera_stub"]
         cfg["bus"]["port"] = self.port
         cfg.setdefault("paths", {})["cache"] = str(tmp / "objects.cache.json")
+        if uwb is not None:
+            cfg.setdefault("uwb", {})["enabled"] = uwb
+        self.cfg = cfg
         (tmp / "hub.json").write_text(json.dumps(cfg))
         self.env = dict(os.environ, EARMARK_BUS_PORT=str(self.port), EARMARK_BUS_URL=self.url,
                         HUB_LOG_DIR=str(tmp), CONCIERGE_SAY_CMD="true",
@@ -118,14 +122,23 @@ class Stack:
         return msgs
 
 
-@pytest.fixture
-def stack(tmp_path):
-    s = Stack(tmp_path)
+def _running(s: Stack):
     s.start()
     try:
         yield s
     finally:
         s.stop()
+
+
+@pytest.fixture
+def stack(tmp_path):
+    yield from _running(Stack(tmp_path))
+
+
+@pytest.fixture
+def uwb_stack(tmp_path):
+    """Hub with UWB tracking enabled (listener_pose from uwb_range + motion_state)."""
+    yield from _running(Stack(tmp_path, uwb=True))
 
 
 def of(msgs: list[dict], *types: str) -> list[dict]:

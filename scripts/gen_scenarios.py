@@ -9,11 +9,17 @@ Spot readers are modeled as polling firmware: every spot reports every TICK seco
 That is the raw signal the hub's debounce (2 matching reads to place, ~1.5 s of
 continuous absence to remove) is designed for.
 
+`uwb_walk` adds the wearer iPhone (docs/UWB-PRD.md 8.6): `uwb_range` to every anchor
+in config/space.json at UWB_HZ and `motion_state` (on change plus a 1 s heartbeat),
+computed with the hub's slant geometry (earmark_hub/uwb/tracker.wearer_geometry).
+
 Usage: python3 scripts/gen_scenarios.py   (writes scenarios/*.jsonl)
 """
 from __future__ import annotations
 
 import json
+import math
+import random
 from pathlib import Path
 
 TICK = 0.5
@@ -26,7 +32,17 @@ TAG = {
     "unknown": "04A1B2C3D4E5FF",
 }
 HOME = {2: "salt", 3: "sugar", 4: "bp_meds"}
-OUT = Path(__file__).resolve().parent.parent / "scenarios"
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "scenarios"
+
+# uwb_walk: the wearer's head walks this polyline (the hub's uwb_sim.path in config/hub.json:
+# the start mark ~3 m behind the origin -> the listening position) at UWB_SPEED_MPS.
+UWB_HZ = 10
+UWB_PATH = ((0.4, -3.0), (0.1, -1.5), (0.0, 0.0))
+UWB_SPEED_MPS = 0.6
+UWB_NOISE_M = 0.03  # small Gaussian range noise; seeded, so the file is reproducible
+UWB_SEED = 7
+FORWARD = (0.0, 1.0)  # facing the counter
 
 
 def spot_reads(duration, changes, initial=None, overrides=None):
@@ -88,6 +104,62 @@ def keys_far_to_near(start, end):
     return lines
 
 
+def wearer_setup():
+    """(anchors {id: [x, y, z]}, phone_z, head_offset_m), resolved like the hub's
+    tracker.wearer_geometry: space.json `tracking` overrides the hub.json `uwb` defaults."""
+    space = json.loads((ROOT / "config" / "space.json").read_text())
+    uwb = json.loads((ROOT / "config" / "hub.json").read_text())["uwb"]
+    tracking = space.get("tracking") or {}
+    phone_z = tracking.get("phone_z")
+    head_offset = tracking.get("head_offset_m")
+    anchors = {a["anchor"]: a["position"] for a in space["anchors"]}
+    return (anchors, uwb["phone_z"] if phone_z is None else phone_z,
+            uwb["head_offset_m"] if head_offset is None else head_offset)
+
+
+def walk_at(t, start, points=UWB_PATH, speed=UWB_SPEED_MPS):
+    """(head [x, y], facing unit vector, moving) at scenario time t for a wearer who stands on
+    points[0] until `start`, walks the polyline at `speed`, then stands at the end facing the counter."""
+    if t < start:
+        return points[0], FORWARD, False
+    s = (t - start) * speed
+    for a, b in zip(points, points[1:]):
+        seg = math.dist(a, b)
+        if s < seg:
+            k = s / seg
+            return ((a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k),
+                    ((b[0] - a[0]) / seg, (b[1] - a[1]) / seg), True)
+        s -= seg
+    return points[-1], FORWARD, False
+
+
+def walk_time(points=UWB_PATH, speed=UWB_SPEED_MPS):
+    return sum(math.dist(a, b) for a, b in zip(points, points[1:])) / speed
+
+
+def uwb_stream(duration, walk_start):
+    """The wearer phone's messages for 0..duration: `uwb_range` per anchor per tick (3D distance
+    from the phone, held head_offset_m in front of the head at phone_z, plus seeded noise) and
+    `motion_state` on change and as a 1 s heartbeat."""
+    anchors, phone_z, head_offset = wearer_setup()
+    rng = random.Random(UWB_SEED)
+    lines = []
+    motion, next_motion_t = None, -math.inf
+    for k in range(int(round(duration * UWB_HZ)) + 1):
+        t = round(k / UWB_HZ, 3)
+        head, facing, moving = walk_at(t, walk_start)
+        phone = (head[0] + facing[0] * head_offset, head[1] + facing[1] * head_offset, phone_z)
+        for aid in sorted(anchors):
+            d = math.dist(phone, anchors[aid]) + rng.gauss(0.0, UWB_NOISE_M)
+            lines.append({"type": "uwb_range", "anchor": aid, "distance_m": round(max(d, 0.0), 3),
+                          "seq": k, "t": t})
+        state = "moving" if moving else "still"
+        if state != motion or t >= next_motion_t - 1e-9:
+            lines.append({"type": "motion_state", "state": state, "t": t})
+            motion, next_motion_t = state, t + 1.0
+    return lines
+
+
 def scenarios():
     s = {}
     s["normal_pickup"] = spot_reads(20, [(5.0, 3, None), (12.0, 3, "sugar")])
@@ -144,6 +216,23 @@ def scenarios():
     ]
     full += [fob_lost(0.0)] + keys_far_to_near(50.0, 75.0)
     s["full_demo"] = full
+
+    # UWB walking guidance (docs/UWB-PRD.md 8.6 and 12.1 e2e):
+    #  1. standing on the start mark, ranging: "Where's the sugar?"  -> tracked: meters phrasing
+    #  2. walks to the counter at 0.6 m/s and stops at the origin    -> frozen: "You're at the counter."
+    #  3. stays still well past still_for_s + average_window_s, then the wrong-jar flow:
+    #     salt lifted (NFC re-anchor check + correction), salt back, sugar lifted ("Got it"), sugar back.
+    # Hub timing (still_for_s, freshness, speed gate) is wall-clock: replay at --speed 1.
+    walk_start = 3.0
+    lift = math.ceil(walk_start + walk_time()) + 3.0  # first jar lifted ~4 s after stopping
+    end = lift + 17.0
+    uwb = spot_reads(end, [
+        (lift, 2, None), (lift + 5.0, 2, "salt"),
+        (lift + 9.0, 3, None), (lift + 14.0, 3, "sugar"),
+    ])
+    uwb += [say(2.0, "Where's the sugar?")]
+    uwb += uwb_stream(end, walk_start)
+    s["uwb_walk"] = uwb
     return s
 
 

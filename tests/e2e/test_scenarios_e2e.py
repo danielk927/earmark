@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
+import re
 import urllib.request
 from datetime import date, timedelta
 from pathlib import Path
@@ -90,6 +92,59 @@ def test_full_demo(stack):
     assert text.count("Got it, that's the sugar.") == 2
     assert any("salt" in t and "pepper" in t and t.endswith("?") for t in text)
     assert of(msgs, "chirp")
+
+
+def _collapse(items: list) -> list:
+    return [x for i, x in enumerate(items) if i == 0 or x != items[i - 1]]
+
+
+def test_uwb_walk(uwb_stack):
+    """UWB-PRD 12.1 e2e: walk from the start mark (tracked, meters phrasing), freeze at the counter
+    ("You're at the counter."), then the unchanged wrong-jar correction and "Got it" confirmation.
+    Replayed at 1x: the hub's still/freshness/speed-gate timing is wall-clock."""
+    msgs = run(uwb_stack, "uwb_walk", speed=1.0)
+    uwb = uwb_stack.cfg["uwb"]
+
+    poses = of(msgs, "listener_pose")
+    modes = _collapse([p["mode"] for p in poses])
+    assert modes in (["tracked", "frozen"], ["fixed", "tracked", "frozen"]), modes
+    tracked = [p for p in poses if p["mode"] == "tracked"]
+    frozen = [p for p in poses if p["mode"] == "frozen"]
+    assert {p["source"] for p in tracked + frozen} == {"sim"}
+    assert tracked[0]["position"][1] < -2.5, "tracking starts on the start mark, ~3 m back"
+    span = tracked[-1]["t"] - tracked[0]["t"]
+    assert len(tracked) / span >= 5.0, "listener_pose rate while tracked must be >= 5 Hz"
+    landing = frozen[0]["position"]
+    assert math.dist(landing[:2], uwb["counter_ref"]) <= 0.35, f"froze away from the origin: {landing}"
+
+    # The answer to "Where's the sugar?" is given on the start mark: plain words and meters.
+    text = spoken(msgs)
+    answer = next(t for t in text if t.startswith("The sugar is"))
+    assert answer == "The sugar is ahead of you, about 3 and a half meters.", answer
+    # Freezing during guidance announces itself once, then the clock face.
+    at_counter = [t for t in text if t.startswith("You're at the counter.")]
+    assert len(at_counter) == 1, at_counter
+    assert re.fullmatch(r"You're at the counter\. The sugar is at your (twelve|one) o'clock, [a-z' ]+\.",
+                        at_counter[0]), at_counter[0]
+    idx = {id(m): i for i, m in enumerate(msgs)}
+    first_frozen = idx[id(frozen[0])]
+    said = [(i, m.get("text", "")) for i, m in enumerate(msgs) if m["type"] in ("speak_text", "speak_cached", "speak")]
+    assert max(i for i, t in said if t == answer) < first_frozen, "meters answer must precede the freeze"
+    assert min(i for i, t in said if t == at_counter[0]) > first_frozen
+
+    # The existing wrong-jar flow, unchanged by UWB.
+    guides = of(msgs, "guide_start")
+    assert guides and guides[0]["object_id"] == "sugar" and guides[0]["target_position"] == SPOTS[3]
+    pickups = of(msgs, "pickup")
+    assert [(m["object_id"], m["from_spot"]) for m in pickups] == [("salt", 2), ("sugar", 3)]
+    assert [m["correct"] for m in of(msgs, "pickup_result")] == [False, True]
+    assert "That's the salt. The sugar is one spot to your right." in text
+    assert "Got it, that's the sugar." in text
+    assert [m["reason"] for m in of(msgs, "guide_stop")] == ["found"]
+
+    # NFC re-anchor: from the salt pickup on, the frozen listener is within reach of spot 2.
+    after = [p for p in frozen if idx[id(p)] > idx[id(pickups[0])]]
+    assert after and all(math.dist(p["position"][:2], SPOTS[2][:2]) <= uwb["reach_max_m"] + 1e-3 for p in after)
 
 
 def _dotenv(name: str) -> str | None:
