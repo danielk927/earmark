@@ -94,8 +94,14 @@ PLIST
         echo "    bundled $(find "$app/Contents/Resources/phrases" -name '*.wav' | wc -l | tr -d ' ') cached phrases"
     fi
     cp "$REPO/config/space.json" "$app/Contents/Resources/space.json"
-    codesign --force --options runtime --timestamp=none --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$app" 2>&1 \
-        | grep -v "replacing existing signature" || true
+    # Finder/iCloud attributes on files in Documents can appear mid-build and make signing fail, so clear and retry.
+    for try in 1 2 3; do
+        xattr -cr "$app"
+        codesign --force --options runtime --timestamp=none --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$app" 2>&1 \
+            | grep -v "replacing existing signature" || true
+        codesign --verify --strict "$app" 2>/dev/null && break
+        sleep 1
+    done
     codesign --verify --strict --verbose=2 "$app"
 }
 
