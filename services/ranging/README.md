@@ -121,3 +121,24 @@ back and forth at 0.5 m/s. `--sim-noise`, `--sim-echo` and `--sim-dropout` make 
   distances will then drift slowly with time. Recalibrate.
 - The schedule is only as good as the phones' clocks stay steady; after a long time, or if a phone's audio engine
   restarts, recalibrate.
+
+## Recording a run and replaying it
+
+Add `--record FILE.wav` to any `listen` command to keep everything the user's phone heard, for the whole run.
+The file is playable even if the run is stopped with Ctrl-C, and `FILE.wav.json` beside it remembers the band,
+the beacons, the calibration distance and the exact moments calibration started and finished.
+The status line also shows `lost audio N chunks` when Wi-Fi dropped part of the stream.
+
+```
+uv run earmark-ranging listen --only B1 --calibrate-distance 1.0 --no-bus --record runs/one_beacon.wav
+```
+
+Replay runs the same pipeline over the file, offline, and prints the same lines plus a summary:
+
+```
+uv run earmark-ranging replay runs/one_beacon.wav --only B1 --truth B1 1.0
+uv run earmark-ranging replay runs/one_beacon.wav --only B1 --quiet --min-snr 8 --calibrate-from 12
+```
+
+Settings default to what the live run used; pass them to try something different on the same audio.
+A good test recording to send for analysis: 30 s still at exactly 1.00 m (calibrate during it), then 30 s still at 0.30 m.
