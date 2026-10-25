@@ -430,6 +430,23 @@ public struct ListenerCommand: Codable, Sendable, Equatable {
     public init(action: Action, t: Double = BusCoding.now) { self.action = action; self.t = t }
 }
 
+/// Wearer iPhone or concierge -> hub. The phone was tapped next to an object; carries no data.
+public struct ObjectTap: Codable, Sendable, Equatable {
+    public var t: Double
+    public init(t: Double = BusCoding.now) { self.t = t }
+}
+
+/// Hub -> bus, the answer to object_tap: where the phone was (room frame), or ok == false.
+public struct TapPosition: Codable, Sendable, Equatable {
+    public var ok: Bool
+    public var position: Vec3?
+    public var source: PoseSource
+    public var t: Double
+    public init(ok: Bool, position: Vec3? = nil, source: PoseSource, t: Double = BusCoding.now) {
+        self.ok = ok; self.position = position; self.source = source; self.t = t
+    }
+}
+
 // MARK: - Union
 
 public enum BusMessage: Sendable {
@@ -458,6 +475,8 @@ public enum BusMessage: Sendable {
     case uwbRange(UwbRange)
     case motionState(MotionState)
     case listenerCommand(ListenerCommand)
+    case objectTap(ObjectTap)
+    case tapPosition(TapPosition)
     /// A valid bus type this app does not act on (detection, chirp, trial_*, label, unknown_tag).
     case other(type: String)
 
@@ -488,6 +507,8 @@ public enum BusMessage: Sendable {
         case .uwbRange: "uwb_range"
         case .motionState: "motion_state"
         case .listenerCommand: "listener_command"
+        case .objectTap: "object_tap"
+        case .tapPosition: "tap_position"
         case .other(let type): type
         }
     }
@@ -525,6 +546,8 @@ extension BusMessage: Codable {
         case "uwb_range": self = .uwbRange(try one.decode(UwbRange.self))
         case "motion_state": self = .motionState(try one.decode(MotionState.self))
         case "listener_command": self = .listenerCommand(try one.decode(ListenerCommand.self))
+        case "object_tap": self = .objectTap(try one.decode(ObjectTap.self))
+        case "tap_position": self = .tapPosition(try one.decode(TapPosition.self))
         default: self = .other(type: type)
         }
     }
@@ -558,6 +581,8 @@ extension BusMessage: Codable {
         case .uwbRange(let m): try m.encode(to: encoder)
         case .motionState(let m): try m.encode(to: encoder)
         case .listenerCommand(let m): try m.encode(to: encoder)
+        case .objectTap(let m): try m.encode(to: encoder)
+        case .tapPosition(let m): try m.encode(to: encoder)
         case .other: break
         }
     }

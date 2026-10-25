@@ -56,6 +56,8 @@ export type BusMessage =
   | UwbRange
   | MotionState
   | ListenerCommand
+  | ObjectTap
+  | TapPosition
   | Reset;
 /**
  * Concierge -> hub. The user said where they put an item. Either `area` (an id from space.areas: "I put my keys in the drawer") or `position` (room frame, from the locator: "I'm leaving my keys here"). The hub records the item there and logs a `stored` event.
@@ -883,6 +885,35 @@ export interface MotionState {
 export interface ListenerCommand {
   type: "listener_command";
   action: "freeze" | "recenter";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Wearer iPhone (a knock of the phone next to the object, or the Mark button) or concierge (the user said "here") -> hub. Carries no data: it marks the moment. The hub answers with tap_position.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "ObjectTap".
+ */
+export interface ObjectTap {
+  type: "object_tap";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. UWB: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D). Otherwise the last beacon listener_pose. ok false (no position) when no tracker has a fresh fix.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "TapPosition".
+ */
+export interface TapPosition {
+  type: "tap_position";
+  ok: boolean;
+  position?: Vec32;
+  source: "beacons" | "uwb" | "sound" | "steps" | "sim" | "manual" | "none";
   /**
    * Unix seconds.
    */

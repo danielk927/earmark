@@ -421,12 +421,24 @@ class ListenerCommand(_Msg):
     action: Literal["freeze", "recenter"]
 
 
+class ObjectTap(_Msg):
+    """The phone was tapped next to an object (or the user said "here"). No data: the hub supplies the position."""
+    type: Literal["object_tap"] = "object_tap"
+
+
+class TapPosition(_Msg):
+    type: Literal["tap_position"] = "tap_position"
+    ok: bool
+    position: Vec3 | None = None
+    source: PoseSource
+
+
 BusMessage = Annotated[
     Union[
         Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, PlaceItem, Ptt, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
-        UwbToken, UwbRange, MotionState, ListenerPose, ListenerCommand,
+        UwbToken, UwbRange, MotionState, ListenerPose, ListenerCommand, ObjectTap, TapPosition,
     ],
     Field(discriminator="type"),
 ]

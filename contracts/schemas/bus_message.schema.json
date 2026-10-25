@@ -98,6 +98,12 @@
       "$ref": "#/$defs/listener_command"
     },
     {
+      "$ref": "#/$defs/object_tap"
+    },
+    {
+      "$ref": "#/$defs/tap_position"
+    },
+    {
       "$ref": "#/$defs/reset"
     }
   ],
@@ -1219,6 +1225,59 @@
           "enum": [
             "freeze",
             "recenter"
+          ]
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "object_tap": {
+      "description": "Wearer iPhone (a knock of the phone next to the object, or the Mark button) or concierge (the user said \"here\") -> hub. Carries no data: it marks the moment. The hub answers with tap_position.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "object_tap"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "tap_position": {
+      "description": "Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. UWB: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D). Otherwise the last beacon listener_pose. ok false (no position) when no tracker has a fresh fix.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "ok",
+        "source",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "tap_position"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "source": {
+          "enum": [
+            "beacons",
+            "uwb",
+            "sound",
+            "steps",
+            "sim",
+            "manual",
+            "none"
           ]
         },
         "t": {
