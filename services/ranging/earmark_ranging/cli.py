@@ -29,7 +29,7 @@ async def _serve(args) -> None:
     anchors = load_anchors(args.beacons)
     lo, hi = AUDIBLE_BAND if args.audible else (args.band[0], args.band[1])
     bus = None if args.no_bus else os.environ.get("EARMARK_BUS_URL", "ws://127.0.0.1:8765")
-    svc = RangingService(anchors, ChirpSpec(lo, hi), publisher=BusPublisher(bus))
+    svc = RangingService(anchors, ChirpSpec(lo, hi, amplitude=args.volume), publisher=BusPublisher(bus))
 
     def show(fix, pose) -> None:
         x, y, z = pose.position
@@ -85,6 +85,7 @@ def main() -> None:
         s.add_argument("--band", type=float, nargs=2, default=(17000.0, 20000.0), metavar=("LO", "HI"))
         s.add_argument("--audible", action="store_true", help="use the 2000 to 4500 Hz band instead of the quiet high one")
     sv = sub.choices["serve"]
+    sv.add_argument("--volume", type=float, default=1.0, help="chirp loudness, 0 to 1 (use less when the phones are close)")
     sv.add_argument("--no-bus", action="store_true", help="do not publish to the Earmark bus")
     sv.add_argument("--save-audio", metavar="DIR", help="keep the last few seconds each phone heard as WAV files (for checking)")
     sv.add_argument("--verbose", action="store_true", help="every 2 s, show what each phone heard (for setting up)")

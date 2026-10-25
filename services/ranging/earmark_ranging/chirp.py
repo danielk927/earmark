@@ -12,8 +12,8 @@ SPEED_OF_SOUND_M_S = 343.0  # at about 20 C
 class ChirpSpec:
     f_lo: float = 17000.0
     f_hi: float = 20000.0
-    length_ms: float = 12.0
-    amplitude: float = 0.8  # 0..1 of full scale
+    length_ms: float = 40.0
+    amplitude: float = 1.0  # 0..1 of full scale
 
     def as_dict(self) -> dict:
         return {"f_lo": self.f_lo, "f_hi": self.f_hi, "length_ms": self.length_ms, "amplitude": self.amplitude}

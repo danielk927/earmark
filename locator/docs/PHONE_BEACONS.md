@@ -37,6 +37,12 @@ The Mac works out where the user is and tells the rest of Earmark.
 - Does the quiet high pitch work on these phones? Press "Play test sweep" on one phone while another phone records it in Voice Memos, then follow the band test in `locator/docs/BRINGUP.md` step B3.
 - Add `--save-audio /tmp/heard` to keep what each phone heard as sound files.
 
+## Settings that worked in the first real test (2 iPhones on a hotspot)
+- Start the Mac side with: `cd services/ranging && uv run earmark-ranging serve --verbose --band 12000 16000 --volume 0.5`
+- At about 1 m apart this got a distance in about 45% of rounds, steady to a few centimeters. Phones 1.75 m apart worked about 1 round in 4. Keep the beacons within about 1.5 m of where the judge stands.
+- The quiet band (17000 to 20000) was too weak. Lower bands are stronger but you can hear them. `--volume` makes it quieter when phones are close.
+- The measured gap was 1.05 m when the team had estimated 0.7 m; nobody measured it with a tape, so a fixed offset has not been ruled out. Measure once with a tape and compare.
+
 ## What it can and cannot do
 - Works out the user's position about twice a second, to a few centimeters in simulation.
 - Not yet tried with real phones. The first real test is what decides the pitch and how loud the speakers need to be.

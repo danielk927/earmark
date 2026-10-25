@@ -18,7 +18,7 @@ class Event:
 
 
 class Detector:
-    def __init__(self, spec: ChirpSpec, fs: float, min_snr: float = 6.0) -> None:
+    def __init__(self, spec: ChirpSpec, fs: float, min_snr: float = 4.5) -> None:
         self.spec, self.fs, self.min_snr = spec, fs, min_snr
         self.templates = {d: synth(spec, fs, d, amplitude=1.0) for d in ("up", "down")}
         lo, hi = max(spec.f_lo - 600.0, 200.0), min(spec.f_hi + 600.0, fs / 2 - 200.0)
