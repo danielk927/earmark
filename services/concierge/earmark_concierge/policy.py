@@ -5,6 +5,7 @@ messages. Every sentence is computed here, never by an LLM.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from earmark_contracts import RegistryObject
@@ -56,6 +57,7 @@ class Plan:
     label: LabelAction | None = None
     place: PlaceAction | None = None
     stop: bool = False
+    tap: bool = False  # emit ObjectTap (the voice stand-in for the phone tap)
     listener_command: str | None = None  # freeze | recenter -> listener_command on the bus
     clarify: list[str] = field(default_factory=list)
     clarify_tool: str | None = None
@@ -253,6 +255,38 @@ def put_here(obj: RegistryObject, listener: list[float]) -> Plan:
     spot = [round(listener[0], 2), round(listener[1], 2), HAND_HEIGHT_M]
     return Plan(text=f"Got it, I'll remember where you left {the(obj.name)}.",
                 place=PlaceAction(obj.object_id, position=spot), object_id=obj.object_id)
+
+
+def mark_ask_name() -> Plan:
+    return Plan(text="What object are you adding?")
+
+
+def mark_set_down(name: str, known: RegistryObject | None) -> Plan:
+    """Two-step tap-to-mark, step 2. A new object is registered first, under a synthetic tag."""
+    label = None
+    if known is None:
+        slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "object"
+        # ponytail: a synthetic tag keeps registry, hub and Convex unchanged; drop it if Label's tag becomes optional.
+        label = LabelAction(tag=f"voice:{slug}", name=name, aliases=[], spot=None)
+    return Plan(text=f"Set {the(name)} down and tap your phone next to it.", label=label,
+                object_id=known.object_id if known else None)
+
+
+def mark_placed(object_id: str, name: str, position: list[float]) -> Plan:
+    return Plan(text=f"Got it. I'll remember where you left {the(name)}.",
+                place=PlaceAction(object_id, position=list(position)), object_id=object_id)
+
+
+def mark_retry(name: str) -> Plan:
+    return Plan(text=f"I couldn't tell where your phone is. Hold it still next to {the(name)} and tap again.")
+
+
+def mark_lost(name: str) -> Plan:
+    return Plan(text=f"Sorry, I lost track of {the(name)}. Tap your phone next to it again.")
+
+
+def mark_cancelled() -> Plan:
+    return Plan(text="Okay, cancelled.")
 
 
 def ask_place(world: World, obj: RegistryObject) -> Plan:

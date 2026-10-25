@@ -328,3 +328,149 @@ async def test_arrival_for_something_else_is_ignored(h):
     h.clear()
     await h.feed(GuideFeedback(object_id="keys", event="arrived", turn=None, error_deg=0.0))
     assert not h.of("guide_stop") and not h.spoken(h.out)
+
+
+# ---------------------------------------------------------------- tap-to-mark
+
+def tap(ok=True, position=(1.2, -0.4, 0.8)):
+    from earmark_contracts import TapPosition
+    return TapPosition(ok=ok, position=list(position) if ok else None, source="uwb")
+
+
+async def _registered(h, name, tag):
+    """What the hub does after Label: add the object to the registry and broadcast it."""
+    from conftest import OBJECTS
+    from earmark_contracts import RegistryObject
+    obj = RegistryObject(object_id=name, name=name, aliases=[], notes="", description="", tag=tag,
+                         home_spot=None, is_medication=False, fob_id=None)
+    await h.feed(RegistryUpdate(objects=[*OBJECTS, obj], registry_version=2))
+
+
+async def test_mark_new_object_asks_name_labels_then_places_at_the_tap(h):
+    out = await h.say("add an object")
+    assert h.spoken(out) == ["What object are you adding?"]
+    assert h.core.marking.stage == "name"
+    out = await h.say("my prescription")
+    [lb] = h.of("label", out)
+    assert (lb["tag"], lb["name"], lb["aliases"], lb["spot"]) == ("voice:prescription", "prescription", [], None)
+    assert h.spoken(out) == ["Set the prescription down and tap your phone next to it."]
+    await _registered(h, "prescription", "voice:prescription")
+    h.clear()
+    await h.feed(tap(position=(1.2, -0.4, 0.8)))
+    [pl] = h.of("place_item")
+    assert (pl["object_id"], pl["position"]) == ("prescription", [1.2, -0.4, 0.8]) and "area" not in pl
+    assert h.spoken(h.out) == ["Got it. I'll remember where you left the prescription."]
+    assert h.core.marking is None
+
+
+async def test_mark_existing_object_skips_label(h):
+    out = await h.say("I'm putting down my keys")
+    assert not h.of("label", out)
+    assert h.spoken(out) == ["Set the keys down and tap your phone next to it."]
+    h.clear()
+    await h.feed(tap())
+    assert [m["object_id"] for m in h.of("place_item")] == ["keys"]
+
+
+async def test_mark_with_a_new_name_in_one_breath_labels_it(h):
+    out = await h.say("add my wallet")
+    assert [m["tag"] for m in h.of("label", out)] == ["voice:wallet"]
+    out = await h.say("add my reading glasses")
+    assert [m["tag"] for m in h.of("label", out)] == ["voice:reading-glasses"]
+
+
+async def test_find_after_a_mark_guides_to_the_marked_position(h):
+    await h.say("add my wallet")
+    await _registered(h, "wallet", "voice:wallet")
+    await h.feed(tap(position=(0.0, 3.0, 1.0)))
+    pl = h.of("place_item")[-1]
+    # The hub turns the PlaceItem into a stored state at that exact position.
+    from earmark_contracts import Location, ObjectState
+    await h.feed(ObjectState(object_id="wallet", location=Location(position=pl["position"]), precision="exact",
+                             status="roaming", home_spot=None, last_seen_t=time.time(), source="none"))
+    h.clear()
+    out = await h.say("where is my wallet")
+    [g] = h.of("guide_start", out)
+    assert (g["object_id"], g["target_position"]) == ("wallet", [0.0, 3.0, 1.0])
+
+
+async def test_failed_tap_asks_again_and_keeps_waiting(h):
+    await h.say("I'm putting down my keys")
+    h.clear()
+    await h.feed(tap(ok=False))
+    assert h.spoken(h.out) == ["I couldn't tell where your phone is. Hold it still next to the keys and tap again."]
+    assert not h.of("place_item") and h.core.marking.stage == "tap"
+    await h.feed(tap())
+    assert h.of("place_item")
+
+
+async def test_tap_for_a_still_unknown_object_apologises_and_keeps_waiting(h):
+    await h.say("add my wallet")
+    h.clear()
+    await h.feed(tap())
+    assert not h.of("place_item") and h.spoken(h.out)[0].startswith("Sorry, I lost track of the wallet.")
+    assert h.core.marking is not None
+
+
+async def test_tap_position_is_ignored_unless_waiting_for_a_tap(h):
+    await h.feed(tap())
+    assert not h.out
+    await h.say("add an object")  # waiting for the name, not a tap
+    h.clear()
+    await h.feed(tap())
+    assert not h.out
+
+
+async def test_here_while_marking_taps_by_voice_and_does_not_freeze(h):
+    await h.say("I'm putting down my keys")
+    for word in ("here", "I'm here", "done"):
+        out = await h.say(word)
+        assert [m["type"] for m in out if m["type"] in ("object_tap", "listener_command")] == ["object_tap"]
+        assert h.core.marking is not None
+
+
+async def test_im_here_when_not_marking_still_freezes(h):
+    out = await h.say("I'm here")
+    assert h.of("listener_command", out)[0]["action"] == "freeze" and not h.of("object_tap", out)
+
+
+async def test_stop_cancels_marking_in_both_stages(h):
+    await h.say("add an object")
+    out = await h.say("cancel")
+    assert h.spoken(out) == ["Okay, cancelled."] and h.core.marking is None
+    await h.say("add my keys")
+    out = await h.say("never mind")
+    assert h.spoken(out) == ["Okay, cancelled."] and h.core.marking is None
+    h.clear()
+    await h.feed(tap())
+    assert not h.of("place_item")
+
+
+async def test_other_utterance_cancels_marking_and_runs_normally(h):
+    await h.say("add my keys")
+    out = await h.say("Where's the sugar?")
+    assert h.of("guide_start", out)[0]["object_id"] == "sugar" and h.core.marking is None
+    h.clear()
+    await h.feed(tap())
+    assert not h.out
+
+
+async def test_marking_expires(h):
+    await h.say("add my keys")
+    h.core.marking.t -= h.settings.mark_window_s + 1
+    h.clear()
+    await h.feed(tap())
+    assert not h.out and h.core.marking is not None  # ignored, state lingers until the next utterance
+    out = await h.say("here")  # expired: "here" is no longer a voice tap
+    assert not h.of("object_tap", out) and h.core.marking is None
+    await h.say("add an object")
+    h.core.marking.t -= h.settings.mark_window_s + 1
+    out = await h.say("Where's the sugar?")  # expired name stage: a normal request, not a name
+    assert h.of("guide_start", out)[0]["object_id"] == "sugar" and not h.of("label", out)
+
+
+def test_mark_object_llm_tool_is_exposed_and_validated(h):
+    from earmark_concierge.tools import tool_schemas, validate_llm_call
+    assert "mark_object" in {t["function"]["name"] for t in tool_schemas(h.core.world)}
+    assert validate_llm_call("mark_object", "{}", h.core.world).args == {}
+    assert validate_llm_call("mark_object", '{"name": "The Wallet."}', h.core.world).args == {"query": "wallet"}

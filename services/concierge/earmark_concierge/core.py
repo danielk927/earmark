@@ -15,8 +15,8 @@ from dataclasses import dataclass
 
 from earmark_contracts import (
     Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, ListenerCommand, ListenerPose,
-    MicAudio, ObjectState, Pickup, PickupResult, PlaceItem, Playback, RegistryObject, RegistryUpdate, Reset,
-    Snapshot, StatusMsg, SttMode, Transcript, TrialEnd, TrialStart, UnknownTag,
+    MicAudio, ObjectState, ObjectTap, Pickup, PickupResult, PlaceItem, Playback, RegistryObject, RegistryUpdate, Reset,
+    Snapshot, StatusMsg, SttMode, TapPosition, Transcript, TrialEnd, TrialStart, UnknownTag,
 )
 
 from . import grammar, policy
@@ -28,7 +28,7 @@ from .policy import GuideTarget, Plan
 from .resolver import Resolver
 from .speech import Speaker
 from .stt import CartesiaStt
-from .tools import ToolCall
+from .tools import ToolCall, clean_name
 from .world import World
 
 log = logging.getLogger(__name__)
@@ -54,6 +54,16 @@ class Pending:
     t: float
 
 
+@dataclass
+class Marking:
+    """Tap-to-mark dialog: 'name' waits for the object's name, 'tap' for the phone tap (a TapPosition)."""
+    stage: str
+    t: float
+    name: str = ""
+    object_id: str | None = None  # an object that already existed
+    tag: str | None = None  # the synthetic tag of an object registered for this marking
+
+
 Emit = Callable[[object], Awaitable[None]]
 
 
@@ -76,6 +86,7 @@ class Concierge:
         self.guiding: Guiding | None = None
         self.chirping: dict[str, float] = {}
         self.pending: Pending | None = None
+        self.marking: Marking | None = None
         self.silent_trial: str | None = None
         self.last_object: str | None = None
         self.last_decision: Decision | None = None
@@ -161,6 +172,8 @@ class Concierge:
                 reported = (msg.info or {}).get("stt_engine")
                 if reported in ("cartesia", "apple") and reported != self.stt.engine:
                     await self.emit(SttMode(engine=self.stt.engine, reason=f"resync: {self.stt.reason}"))
+        elif isinstance(msg, TapPosition):
+            await self._on_tap_position(msg)
         elif isinstance(msg, ListenerPose):
             await self._on_listener_pose(msg)
         elif isinstance(msg, HeadPose):
@@ -223,7 +236,9 @@ class Concierge:
             if self.silent_trial is not None:
                 self.latency.log("tool", turn=turn["id"], tool="silent_baseline_trial")
                 return
-            plan = await self._clarification(text, turn)
+            plan = await self._marking_turn(text)
+            if plan is None:
+                plan = await self._clarification(text, turn)
             if plan is None:
                 t0 = time.perf_counter()
                 d = await self.router.decide(text, self.world)
@@ -235,6 +250,60 @@ class Concierge:
                 plan = await self._execute(d.call, text, turn)
             await self._apply(plan, turn)
             await self.publish_status(only_if_changed=True)
+
+    # ------------------------------------------------------------ tap-to-mark
+
+    def _begin_mark(self, name: str, known: RegistryObject | None) -> Plan:
+        plan = policy.mark_set_down(name, known)
+        self.marking = Marking("tap", time.time(), name, known.object_id if known else None,
+                               plan.label.tag if plan.label else None)
+        return plan
+
+    async def _marking_turn(self, text: str) -> Plan | None:
+        """While marking: the name, the voice stand-in for the tap, or a cancel. None = process normally."""
+        m = self.marking
+        if m is None:
+            return None
+        if time.time() - m.t > self.s.mark_window_s:
+            self.marking = None
+            return None
+        g = grammar.parse(text)
+        if g is not None and g.name == "stop_guidance":
+            self.marking = None
+            return policy.mark_cancelled()
+        if m.stage == "tap":
+            if grammar.is_tap(text):
+                return Plan(tap=True)
+            self.marking = None
+            return None
+        name = clean_name(text)
+        if not name:
+            self.marking = None
+            return None
+        return self._begin_mark(name, await self._known(name))
+
+    async def _known(self, name: str) -> RegistryObject | None:
+        """The one registered object this name means, else None (then it is registered as a new one)."""
+        res = await self.resolver.resolve(name, strict=True)
+        return self.world.objects[res.object_ids[0]] if res.kind == "one" else None
+
+    def _marked_object(self, m: Marking) -> RegistryObject | None:
+        objs = self.world.objects.values()
+        by_id = next((o for o in objs if o.object_id == m.object_id or (m.tag and o.tag == m.tag)), None)
+        return by_id or next((o for o in objs if o.name.lower() == m.name.lower()), None)
+
+    async def _on_tap_position(self, msg: TapPosition) -> None:
+        m = self.marking
+        if m is None or m.stage != "tap" or time.time() - m.t > self.s.mark_window_s:
+            return
+        if not msg.ok or msg.position is None:
+            plan = policy.mark_retry(m.name)
+        elif (obj := self._marked_object(m)) is None:
+            plan = policy.mark_lost(m.name)
+        else:
+            self.marking = None
+            plan = policy.mark_placed(obj.object_id, obj.name, msg.position)
+        await self._apply(plan, None)
 
     async def _clarification(self, text: str, turn: dict) -> Plan | None:
         """Resolve a follow-up against the pending candidates, or None to process normally."""
@@ -291,6 +360,12 @@ class Concierge:
                 tag = fresh.tag
             spot = fresh.spot if fresh is not None and fresh.tag == tag else None
             return policy.label(tag, call.args["name"], call.args.get("aliases", []), spot)
+        if call.name == "mark_object":
+            name = call.args.get("query", "")
+            if not name:
+                self.marking = Marking("name", time.time())
+                return policy.mark_ask_name()
+            return self._begin_mark(name, await self._known(name))
         if call.name == "freeze_listener":
             return policy.freeze_listener(self.guiding is not None)
         if call.name == "recenter_listener":
@@ -332,6 +407,8 @@ class Concierge:
             self.last_object = plan.object_id
             if self.guiding and plan.guide is None and plan.object_id != self.guiding.object_id:
                 await self._stop_guidance("cancelled")
+        if plan.tap:
+            await self.emit(ObjectTap())
         if plan.listener_command:
             await self.emit(ListenerCommand(action=plan.listener_command))
         if plan.guide:
@@ -383,6 +460,7 @@ class Concierge:
             await self.emit(Chirp(fob_id=fob, action="stop"))
         self.chirping.clear()
         self.pending = None
+        self.marking = None
 
     async def _retarget(self, st: ObjectState) -> None:
         """The guided object moved to a new exact position: update the ping."""

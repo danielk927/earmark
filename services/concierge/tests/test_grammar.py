@@ -1,6 +1,6 @@
 import pytest
 
-from earmark_concierge.grammar import parse
+from earmark_concierge.grammar import is_tap, parse
 
 
 @pytest.mark.parametrize("text,tool,args", [
@@ -33,6 +33,19 @@ from earmark_concierge.grammar import parse
     ("Did I take my pills today?", "last_seen", {"query": "pills"}),
     ("When did I last take my medicine?", "last_seen", {"query": "medicine"}),
     ("when were the keys last moved", "last_seen", {"query": "keys"}),
+    ("add my prescription", "mark_object", {"query": "prescription"}),
+    ("Add the blue wallet.", "mark_object", {"query": "blue wallet"}),
+    ("I'm putting down my keys", "mark_object", {"query": "keys"}),
+    ("putting my keys down", "mark_object", {"query": "keys"}),
+    ("Remember where I put my wallet", "mark_object", {"query": "wallet"}),
+    ("add an object", "mark_object", {}),
+    ("I want to add a new item", "mark_object", {}),
+    ("I put my keys in the drawer", "put_in_place", {"query": "keys", "place": "drawer"}),
+    ("I'm putting my keys in the drawer", "put_in_place", {"query": "keys", "place": "drawer"}),
+    ("I'm leaving my keys here", "put_in_place", {"query": "keys", "place": ""}),
+    ("I'm here", "freeze_listener", {}),
+    ("this is my wallet", "label_object", {"tag": "", "name": "wallet", "aliases": []}),
+    ("Where did I put my wallet?", "locate_object", {"query": "wallet"}),
     ("What do you know?", "list_objects", {}),
     ("list everything", "list_objects", {}),
 ])
@@ -54,3 +67,11 @@ def test_no_match(text):
 
 def test_where_beats_stop_word_inside_a_request():
     assert parse("where is the bus stop card").name == "locate_object"
+
+
+@pytest.mark.parametrize("text,tap", [
+    ("here", True), ("Done.", True), ("tapped", True), ("now", True), ("I'm here", True), ("okay I tapped it", True),
+    ("keys", False), ("here is my wallet", False),
+])
+def test_is_tap(text, tap):
+    assert is_tap(text) is tap
