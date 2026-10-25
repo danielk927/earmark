@@ -288,6 +288,11 @@ export function simulatorSelect(p: Positioning | null, now: number): Msg | null 
   return p?.active === "sound" ? null : { type: "positioning_select", active: "sound", t: now };
 }
 
+/** When the simulator stops: put the audio back on the system it replaced, unless the operator has switched since (null if nothing to do). */
+export function simulatorRestore(was: System | undefined, p: Positioning | null, now: number): Msg | null {
+  return was && p?.active === "sound" ? { type: "positioning_select", active: was, t: now } : null;
+}
+
 /** Floor size in meters: wide enough for every phone and place with a margin, never smaller than the 3.5 m default. */
 export function roomSize(phones: Phone[], places: Place[]): { w: number; d: number } {
   if (phones.length === 0) return { w: 3.5, d: 3.5 };

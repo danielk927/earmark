@@ -1,7 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { compare, initialState, reduce, roomSize, simulatorSelect, type RoomState } from "../src/room/model";
-import { PositioningCard } from "../src/room/RoomPage";
+import { compare, initialState, reduce, roomSize, simulatorRestore, simulatorSelect, tick, type RoomState } from "../src/room/model";
+import { PositioningCard, RoomPage } from "../src/room/RoomPage";
+import { useBus } from "../src/room/useBus";
+
+vi.mock("../src/room/useBus", () => ({ useBus: vi.fn() }));
 
 const snapshot = {
   type: "snapshot",
@@ -65,5 +68,47 @@ describe("the walking simulator", () => {
     expect(simulatorSelect(null, 5)).toEqual({ type: "positioning_select", active: "sound", t: 5 });
     expect(simulatorSelect(run(pos("uwb", null, null)).positioning, 5)).toMatchObject({ active: "sound" });
     expect(simulatorSelect(run(pos("sound", null, null)).positioning, 5)).toBeNull();
+  });
+
+  it("gives the audio back to the previous system, unless the operator switched meanwhile", () => {
+    const on = (a: string) => run(pos(a, null, null)).positioning;
+    expect(simulatorRestore("uwb", on("sound"), 9)).toEqual({ type: "positioning_select", active: "uwb", t: 9 });
+    expect(simulatorRestore("uwb", on("uwb"), 9)).toBeNull(); // operator already moved it
+    expect(simulatorRestore(undefined, on("sound"), 9)).toBeNull(); // it did not switch anything
+    expect(simulatorRestore("uwb", null, 9)).toBeNull();
+  });
+
+  describe("in the room page", () => {
+    const withFix = () => run(snapshot, pos("uwb", null, null), { type: "listener_pose", position: [1, 1, 1.5], quality: "ok", beacons_heard: 3, source: "uwb" });
+    const [echo, local] = [vi.fn(), vi.fn()]; // stable, like the real hook's callbacks
+    const setup = (s: RoomState, send = vi.fn()) => {
+      vi.mocked(useBus).mockReturnValue({ state: s, send, echo, local });
+      return send;
+    };
+    const box = () => screen.getByRole("checkbox") as HTMLInputElement;
+
+    it("unticks itself when a real fix arrives, so a dropout cannot restart it", () => {
+      const send = setup(run(pos("uwb", null, null)));
+      const { rerender } = render(<RoomPage />);
+      fireEvent.click(box());
+      expect(box().checked).toBe(true);
+      expect(send).toHaveBeenCalledWith(expect.objectContaining({ type: "positioning_select", active: "sound" }));
+      const live = withFix();
+      const onSound = { active: "sound" as const, uwb: null, sound: null };
+      setup({ ...initialState(), positioning: onSound }, send); // the hub reports Sound
+      rerender(<RoomPage />);
+      setup({ ...live, positioning: onSound }, send); // then a real fix arrives
+      rerender(<RoomPage />);
+      expect(box().checked).toBe(false);
+      expect(send).toHaveBeenLastCalledWith(expect.objectContaining({ type: "positioning_select", active: "uwb" }));
+      // the fix drops out: the simulator stays off
+      const dropped = tick({ ...live, now: 100 }, 110);
+      expect(dropped.userLive).toBe(false);
+      setup({ ...dropped, positioning: { active: "uwb", uwb: null, sound: null } }, send);
+      send.mockClear();
+      rerender(<RoomPage />);
+      expect(box().checked).toBe(false);
+      expect(send).not.toHaveBeenCalled();
+    });
   });
 });

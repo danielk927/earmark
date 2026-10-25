@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { clockHour, compare, horizontalDistance, roomSize, simulatorSelect, SYSTEM_NAME, type LogLine, type RoomState, type System, type Turn, type Vec3 } from "./model";
+import { clockHour, compare, horizontalDistance, roomSize, simulatorRestore, simulatorSelect, SYSTEM_NAME, type LogLine, type RoomState, type System, type Turn, type Vec3 } from "./model";
 import { RoomModel, webglAvailable, type Beacon } from "./scene3d";
 import { useBus } from "./useBus";
 import "@fontsource/stix-two-text/latin-400.css";
@@ -30,6 +30,12 @@ export function RoomPage() {
   const simPos = useRef<Vec3>([0, 0, 1.55]);
   const realFix = state.userLive && ["beacons", "sound", "uwb", "sim"].includes(state.userSource);
   const walking = simulate && !realFix; // real phone positions take over from the simulator
+  // Only the user turns the simulator on: once a real fix takes over, untick it so a later dropout cannot restart it.
+  if (realFix && simulate) setSimulate(false);
+  const positioningRef = useRef(state.positioning);
+  useEffect(() => {
+    positioningRef.current = state.positioning;
+  }, [state.positioning]);
   const phones: Beacon[] = state.phones;
   const room = useMemo(() => roomSize(state.phones, state.places), [state.phones, state.places]);
   const roomRef = useRef(room);
@@ -62,6 +68,7 @@ export function RoomPage() {
     simPos.current = [state.user[0], state.user[1], 1.55];
     const select = simulatorSelect(state.positioning, Date.now() / 1000);
     if (select) send(select); // the hub only follows these poses while Sound drives the audio
+    const was = select ? state.positioning?.active : undefined; // what to give the audio back to
     const pub = () => {
       const msg = { type: "listener_pose", position: simPos.current.map((v) => Math.round(v * 1000) / 1000), quality: "ok", beacons_heard: 0, source: "manual" };
       send(msg);
@@ -102,6 +109,8 @@ export function RoomPage() {
       clearInterval(beat);
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      const back = simulatorRestore(was, positioningRef.current, Date.now() / 1000);
+      if (back) send(back);
     };
     // state.user and state.positioning are read once, when walking starts
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,7 +261,7 @@ function WhereUser({ state, simulate, setSimulate, realFix }: { state: RoomState
       </p>
       <label className="room-toggle">
         <input type="checkbox" checked={simulate} disabled={realFix} onChange={(e) => setSimulate(e.target.checked)} />
-        <span>{realFix ? "Phones are tracking you" : "Simulate walking (arrow keys, or click the floor)"}</span>
+        <span>{realFix ? "Phones are tracking you" : "Simulate walking (arrow keys, or click the floor). Switches the audio to Sound while on."}</span>
       </label>
     </section>
   );
