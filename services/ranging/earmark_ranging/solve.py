@@ -61,6 +61,11 @@ def locate(
     d = np.array([distances[n] for n in names], dtype=float)
     x0 = np.array(start if start is not None else a.mean(axis=0), dtype=float)
     p, rms = _solve(a, d, x0, z_prior)
+    # The height guess only has to pick between the two mirror-image answers; once it has, let the distances
+    # alone decide (starting from the guessed answer finds the right one). Keep the guess if that goes wild.
+    p2, rms2 = _solve(a, d, p, None)
+    if Z_RANGE[0] <= p2[2] <= Z_RANGE[1] and np.linalg.norm(p2 - p) < 1.0:
+        p, rms = p2, rms2
     dropped: tuple[str, ...] = ()
 
     def plausible(q: np.ndarray) -> bool:

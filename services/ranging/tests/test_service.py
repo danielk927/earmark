@@ -27,8 +27,9 @@ async def running(listener, seconds_ignored=None, spec=None, noise=0.002, bus_ur
     async with serve(svc.handler, "127.0.0.1", 0, max_size=2**22) as server:
         port = server.sockets[0].getsockname()[1]
         tasks = [asyncio.create_task(svc.run())]
+        slots = [0, *sorted(anchors)]
         url = f"ws://127.0.0.1:{port}"
-        for s in range(6):
+        for s in slots:
             phone = VirtualPhone(s, world, spec, seed=3, noise_rms=noise, **phone_kw)
             tasks.append(asyncio.create_task(phone.run(url, stop)))
         try:
@@ -51,7 +52,7 @@ async def test_standing_still_is_found_to_a_few_centimeters():
     assert len(fixes) >= 5, f"only {len(fixes)} fixes"
     errs = [math.dist(f.position, me) for _, f, _ in fixes[2:]]
     assert np.median(errs) < 0.05, errs
-    assert all(p.quality in ("ok", "degraded") and p.beacons_heard >= 4 for _, _, p in fixes)
+    assert all(p.quality in ("ok", "degraded") and p.beacons_heard >= 3 for _, _, p in fixes)
     assert fixes[-1][2].position == pytest.approx(ear(fixes[-1][1].position), abs=0.002)
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from .chirp import ChirpSpec
 
 REPO = Path(__file__).resolve().parents[3]
-DEFAULT_BEACONS = REPO / "locator" / "config" / "beacons.json"
+DEFAULT_BEACONS = REPO / "config" / "beacons.json"  # the beacon phones (the buzzer plan uses locator/config/beacons.json)
 EAR_OFFSET_M = (0.0, 0.0, 0.35)  # the phone is held below the ear
 HEIGHT_PRIOR = (1.25, 0.25)  # a held phone is about this high (mean, spread), meters
 AUDIBLE_BAND = (2000.0, 4500.0)  # fallback if the phones cannot make or hear the quiet high pitch

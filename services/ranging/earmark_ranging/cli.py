@@ -68,8 +68,8 @@ async def _sim(args) -> None:
     world = World({0: me, **anchors})
     stop = asyncio.Event()
     url = f"ws://127.0.0.1:{args.port}"
-    phones = [VirtualPhone(s, world, spec, seed=args.seed, noise_rms=args.noise) for s in range(6)]
-    print(f"6 virtual phones joining {url}; the user is really at {me}")
+    phones = [VirtualPhone(s, world, spec, seed=args.seed, noise_rms=args.noise) for s in [0, *sorted(anchors)]]
+    print(f"{len(anchors) + 1} virtual phones joining {url}; the user is really at {me}")
     await asyncio.gather(*(p.run(url, stop) for p in phones))
 
 

@@ -225,7 +225,7 @@ class RangingService:
         self.last_fix, self.last_fix_at, self._lost_sent = fix, now, False
         self.fixes += 1
         pos = [round(fix.position[i] + self.ear_offset[i], 3) for i in range(3)]
-        quality = "ok" if fix.used >= 4 and fix.rms_m <= 0.10 else "degraded"
+        quality = "ok" if fix.used >= 3 and fix.rms_m <= 0.10 else "degraded"
         pose = ListenerPose(position=pos, quality=quality, beacons_heard=fix.used, source="beacons")
         await self.publisher.send(pose)
         listener = self.phones.get(0)
