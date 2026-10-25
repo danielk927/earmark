@@ -75,7 +75,7 @@ async def test_never_connected_falls_back_to_apple_then_recovers(tmp_path, ink):
     assert await wait_until(lambda: h.of("stt_mode"))
     [m] = h.of("stt_mode")
     assert m["engine"] == "apple" and "not connected" in m["reason"]
-    assert await wait_until(lambda: any(x.get("phrase_id") == "stt_fallback" for x in h.out))
+    assert not any(x.get("phrase_id") == "stt_fallback" for x in h.out)  # the switch is silent
     assert h.core.stt.engine == "apple"
     # Apple transcripts are accepted in fallback
     h.clear()

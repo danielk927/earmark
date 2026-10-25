@@ -210,8 +210,6 @@ class Concierge:
     async def on_stt_engine(self, engine: str, reason: str) -> None:
         await self.emit(SttMode(engine=engine, reason=reason))
         await self.publish_status()
-        if engine == "apple" and self.s.cartesia_enabled:
-            self.spawn(self.speaker.say(self._id("u"), phrase_id=policy.PHRASE_STT_FALLBACK))
 
     # ------------------------------------------------------------ turns
 
@@ -283,7 +281,7 @@ class Concierge:
             return plan
         here = self.world.listener_position()
         if here is None:
-            return plan
+            return policy.no_position_yet()
         return policy.new_item_here(call.args["query"], here, set(self.world.objects))
 
     async def _execute(self, call: ToolCall | None, text: str, turn: dict) -> Plan:

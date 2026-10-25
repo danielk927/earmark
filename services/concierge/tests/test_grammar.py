@@ -25,6 +25,7 @@ from earmark_concierge.grammar import parse
     ("I'm putting the glasses in the bag.", "put_in_place", {"query": "glasses", "place": "bag"}),
     ("I left my keys on the counter", "put_in_place", {"query": "keys", "place": "counter"}),
     ("I'm leaving my keys here", "put_in_place", {"query": "keys", "place": ""}),
+    ("im leaving my keys here", "put_in_place", {"query": "keys", "place": ""}),
     ("Where did I put my keys before?", "place_history", {"query": "keys"}),
     ("where were my glasses earlier", "place_history", {"query": "glasses"}),
     ("Make my keys beep", "chirp_fob", {"query": "keys"}),

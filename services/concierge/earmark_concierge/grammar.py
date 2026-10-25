@@ -25,7 +25,7 @@ _CHIRP = (
     re.compile(r"\bmake\s+" + _DET + r"(?P<x>.+?)\s+(?:beep|chirp|ring|buzz|make a sound|make noise|sound)\b"),
     re.compile(r"\b(?:beep|chirp|ring|buzz|ping)\s+" + _DET + r"(?P<x>.+)$"),
 )
-_SAY = r"^(?:(?:ok|okay|so|and|now|hey earmark)\s+)*(?:i(?:'m| am| just)?\s+)?"
+_SAY = r"^(?:(?:ok|okay|so|and|now|hey earmark)\s+)*(?:i(?:'m|’m|m| am| just)?\s+)?"
 _PUT_VERB = r"(?:put|placed|left|leaving|stored|putting|placing|set|stuck)\s+"
 _PUT_IN = re.compile(
     _SAY + _PUT_VERB + _DET + r"(?P<x>.+?)\s+(?:in|into|on|at|inside|under|behind|by|near)\s+"

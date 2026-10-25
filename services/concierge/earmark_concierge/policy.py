@@ -255,6 +255,10 @@ def ask_place(world: World, obj: RegistryObject) -> Plan:
                      f"{labels[0] if labels else 'the drawer'}.{hint}", object_id=obj.object_id)
 
 
+def no_position_yet() -> Plan:
+    return Plan(text="I can't tell where you are yet, so I can't save a spot. Finish the room setup first.")
+
+
 def unknown_place(world: World) -> Plan:
     labels = [world.area_label(a) for a in world.area_ids()]
     return Plan(text=f"I don't know that place. I know {join_and(labels)}." if labels
