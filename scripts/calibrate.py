@@ -53,6 +53,7 @@ DEFAULT_MARK_Z = 0.9
 DEFAULT_HEAD_OFFSET_M = 0.20
 HDOP_TRIO_MAX = 2.0
 HDOP_PAIR_MAX = 4.0
+PAIR_BAD_FRACTION = 0.20  # warn when more than this share of the area has pair DOP > HDOP_PAIR_MAX
 AREA_MARGIN = 0.3
 
 
@@ -111,7 +112,10 @@ def geometry_report(anchors: list[dict], area: Area, phone_z_room: float, step: 
     above the floor; it gives each anchor's vertical offset `dz` (the slant
     the tracker removes before solving). Returns None unless uwb_1..3 exist.
 
-    Keys: trio_max, trio_worst, trio_median, pairs {missing: {pair, max, worst}}, dz, area.
+    Keys: trio {max, worst, median, p90}; pairs {missing: {pair, max, worst,
+    median, p90, bad_frac}} (bad_frac = fraction of grid points with DOP >
+    HDOP_PAIR_MAX); dz; area. A pair's DOP is infinite on the line through its
+    two anchors, so max alone says little; bad_frac says how much area is hurt.
     """
     pos = {a["anchor"]: a["position"] for a in anchors}
     names = ["uwb_1", "uwb_2", "uwb_3"]
@@ -124,21 +128,27 @@ def geometry_report(anchors: list[dict], area: Area, phone_z_room: float, step: 
         d = math.hypot(dx, dy)
         return (dx / d, dy / d) if d > 1e-6 else (0.0, 0.0)
 
-    def scan(use: list[str]) -> tuple[float, tuple[float, float], list[float]]:
-        vals = [_dop([unit(p, n) for n in use]) for p in pts]
-        i = max(range(len(pts)), key=lambda k: vals[k])
-        return vals[i], pts[i], vals
+    def dops(use: list[str]) -> list[float]:
+        return [_dop([unit(p, n) for n in use]) for p in pts]
 
-    tmax, tworst, tvals = scan(names)
-    ordered = sorted(tvals)
-    mid = len(ordered) // 2
-    median = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    def stats(vals: list[float], bad_above: float | None = None) -> dict:
+        ordered = sorted(vals)
+
+        def pct(q: float) -> float:
+            return ordered[min(len(ordered) - 1, max(0, math.ceil(q * len(ordered)) - 1))]
+
+        i = max(range(len(vals)), key=lambda k: vals[k])
+        out = {"max": vals[i], "worst": pts[i], "median": pct(0.5), "p90": pct(0.9)}
+        if bad_above is not None:
+            out["bad_frac"] = sum(1 for v in vals if v > bad_above) / len(vals)
+        return out
+
+    trio = stats(dops(names))
     pairs = {}
     for k in names:
         use = [n for n in names if n != k]
-        mx, worst, _ = scan(use)
-        pairs[k] = {"pair": use, "max": mx, "worst": worst}
-    return {"trio_max": tmax, "trio_worst": tworst, "trio_median": median, "pairs": pairs,
+        pairs[k] = {"pair": use, **stats(dops(use), HDOP_PAIR_MAX)}
+    return {"trio": trio, "pairs": pairs,
             "dz": {n: pos[n][2] - phone_z_room for n in names}, "area": area}
 
 
@@ -150,14 +160,17 @@ def anchor_warnings(anchors: list[dict], area: Area | None = None,
         return [] if not anchors else ["the hub expects three anchors: uwb_1, uwb_2, uwb_3"]
     rep = geometry_report(anchors, area or default_area(anchors), phone_z_room)
     out = []
-    if rep["trio_max"] > HDOP_TRIO_MAX:
-        x, y = rep["trio_worst"]
-        out.append(f"poor geometry near ({x:+.2f}, {y:+.2f}): HDOP {rep['trio_max']:.1f} > {HDOP_TRIO_MAX:g}")
+    t = rep["trio"]
+    if t["p90"] > HDOP_TRIO_MAX:
+        x, y = t["worst"]
+        out.append(f"poor geometry near ({x:+.2f}, {y:+.2f}): HDOP max {t['max']:.1f}, "
+                   f"90th percentile {t['p90']:.1f} > {HDOP_TRIO_MAX:g}")
     for k, r in rep["pairs"].items():
-        if r["max"] > HDOP_PAIR_MAX:
+        if r["bad_frac"] > PAIR_BAD_FRACTION:
             i, j = r["pair"]
             x, y = r["worst"]
-            out.append(f"if {k} is blocked, {i} and {j} are nearly in line near ({x:+.2f}, {y:+.2f})")
+            out.append(f"if {k} is blocked, {i} and {j} are nearly in line over {r['bad_frac'] * 100:.0f}% "
+                       f"of the walking area (worst near ({x:+.2f}, {y:+.2f}))")
     return out
 
 
@@ -199,12 +212,14 @@ def describe(space: dict, area: Area | None = None) -> str:
         lines.append(f"Walking area: x {area[0]:+.2f}..{area[1]:+.2f}, y {area[2]:+.2f}..{area[3]:+.2f} m")
         rep = geometry_report(anchors, area, phone_room)
         if rep:
-            tx, ty = rep["trio_worst"]
-            lines.append(f"  HDOP, all three: max {rep['trio_max']:.2f} at ({tx:+.2f}, {ty:+.2f}),"
-                         f" median {rep['trio_median']:.2f}")
+            t = rep["trio"]
+            lines.append(f"  HDOP, all three: max {t['max']:.2f} at ({t['worst'][0]:+.2f}, {t['worst'][1]:+.2f}),"
+                         f" median {t['median']:.2f}, p90 {t['p90']:.2f}")
             for k, r in rep["pairs"].items():
-                px, py = r["worst"]
-                lines.append(f"  HDOP, {k} blocked: max {r['max']:.2f} at ({px:+.2f}, {py:+.2f})")
+                lines.append(
+                    f"  HDOP, {k} blocked: {r['bad_frac'] * 100:.0f}% of the area above {HDOP_PAIR_MAX:g},"
+                    f" median {r['median']:.2f}, p90 {r['p90']:.2f}"
+                    f" (info: max {r['max']:.0f} at ({r['worst'][0]:+.2f}, {r['worst'][1]:+.2f}))")
     lines += [f"  Warning: {w}" for w in anchor_warnings(anchors, area, phone_room)]
     return "\n".join(lines)
 

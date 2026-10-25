@@ -92,8 +92,19 @@ def test_good_triangle_has_low_hdop_and_no_warnings():
     anchors = anchors_at((-3.0, -2.0), (3.0, -2.0), (0.0, 3.5))
     area = (-0.5, 0.5, -0.5, 0.5)
     rep = cal.geometry_report(anchors, area, 1.2)
-    assert rep["trio_max"] < 2.0
-    assert all(p["max"] < 4.0 for p in rep["pairs"].values())
+    assert rep["trio"]["max"] < 2.0
+    assert all(p["bad_frac"] <= 0.2 for p in rep["pairs"].values())
+    assert cal.anchor_warnings(anchors, area, 1.2) == []
+
+
+def test_surrounding_triangle_crossing_pair_lines_has_no_warnings():
+    # The area crosses the lines through anchor pairs (pair DOP max is large there),
+    # but only a sliver of the area is affected, so nothing fires.
+    anchors = anchors_at((-2.0, 1.0), (2.0, 1.0), (0.0, -3.0))
+    area = (-0.5, 0.5, -1.5, 0.0)
+    rep = cal.geometry_report(anchors, area, 1.2)
+    assert max(p["max"] for p in rep["pairs"].values()) > 4.0
+    assert all(p["bad_frac"] <= 0.2 for p in rep["pairs"].values())
     assert cal.anchor_warnings(anchors, area, 1.2) == []
 
 
@@ -110,8 +121,18 @@ def test_pair_nearly_in_line_warns():
     anchors = anchors_at((0.0, 2.0), (0.0, 4.0), (3.0, -0.5))
     area = (-0.1, 0.1, -1.0, 0.0)
     warnings = cal.anchor_warnings(anchors, area, 1.2)
-    assert any("if uwb_3 is blocked, uwb_1 and uwb_2 are nearly in line near" in w for w in warnings)
+    assert any("if uwb_3 is blocked, uwb_1 and uwb_2 are nearly in line over" in w
+               and "of the walking area (worst near (" in w for w in warnings)
     assert not any(w.startswith("poor geometry") for w in warnings)
+
+
+def test_trio_warning_needs_p90_above_limit():
+    anchors = anchors_at((0.0, 1.0), (0.05, 2.0), (0.0, 3.0))
+    rep = cal.geometry_report(anchors, (-0.5, 0.5, -2.0, 0.0), 1.2)
+    assert rep["trio"]["p90"] > 2.0
+    # a good layout has p90 under the limit, so no trio warning even though max >= p90
+    good = cal.geometry_report(anchors_at((-3.0, -2.0), (3.0, -2.0), (0.0, 3.5)), (-0.5, 0.5, -0.5, 0.5), 1.2)
+    assert good["trio"]["p90"] <= good["trio"]["max"] < 2.0
 
 
 def test_missing_anchor_warning():
