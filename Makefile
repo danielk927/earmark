@@ -141,6 +141,10 @@ ranging-test: fix-venvs ## Phone position service, with virtual phones
 ranging: fix-venvs ## Phone position service (phones connect to it; see locator/docs/PHONE_BEACONS.md)
 	cd services/ranging && uv run --quiet earmark-ranging serve
 
+.PHONY: session
+session: ## EVERYTHING in one terminal: hub, voice, room page, Mac app, room setup. MODE=setup|recalibrate|sim, ONLY="B1 B2"
+	scripts/session.sh $(or $(MODE),setup) "$(ONLY)"
+
 .PHONY: room-setup
 room-setup: fix-venvs ## Room setup, no tape measure (ONLY="B1 B2" when fewer than all beacons are out): stand on each floor mark; the Mac places the beacons (docs/project/ROOM_SETUP.md)
 	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
