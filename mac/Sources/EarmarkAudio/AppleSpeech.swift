@@ -27,7 +27,13 @@ public final class AppleSpeechRecognizer: TranscriberInput {
     private var converter: PCMResampler?
     private var taskStart: Double = 0
     private var vocabulary: [String] = []
-    public private(set) var authorized = false
+    private let authLock = NSLock()
+    private var _authorized = false
+    /// Written on main, read on the recognizer queue.
+    public private(set) var authorized: Bool {
+        get { authLock.withLock { _authorized } }
+        set { authLock.withLock { _authorized = newValue } }
+    }
 
     /// Roll over to a new task at 50 s (Apple: plan for a one-minute limit).
     public static let rolloverSeconds = 50.0

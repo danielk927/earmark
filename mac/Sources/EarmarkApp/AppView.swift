@@ -265,7 +265,7 @@ private struct GuidanceCard: View {
 
     private func detail(_ s: GuidanceState) -> String {
         let hour = Geometry.clockHour(azimuthDeg: s.errorDeg)
-        let dist = core.guideTarget.map { Int((simdLength($0) * 100).rounded()) } ?? 0
+        let dist = (core.targetDistanceM ?? core.guideTarget.map(simdLength)).map { Int(($0 * 100).rounded()) } ?? 0
         return "At your \(hour) o'clock, about \(dist) cm away\nPing every \(Int((s.pingIntervalSec * 1000).rounded())) ms"
     }
 

@@ -19,7 +19,7 @@ mac/build_app.sh                                   # swift build -c release, bun
 mac/build_app.sh --open spike -- --mock-head       # build, then launch the spike via `open -n`
 mac/build_app.sh --open app                        # build, then launch Earmark.app (real AirPods, real mic)
 mac/build_app.sh --open app -- --mock-head --no-mic
-cd mac && swift test                               # 70 Swift Testing tests (no XCTest on this Mac)
+cd mac && swift test                               # 80 Swift Testing tests (no XCTest on this Mac)
 ```
 
 - The script signs with the first `Apple Development` identity in the keychain, so permissions survive rebuilds.
@@ -54,6 +54,7 @@ Environment: `EARMARK_BUS_URL`, `EARMARK_PHRASES_DIR` (cached phrase WAVs), `EAR
 
 - `R`: recenter (both apps).
 - `Space` (hold): push to talk.
+- Push to talk lets go by itself when the window or app loses focus, and after 30 s.
 - Left and right arrows: turn the virtual head 15 deg (Shift: 5 deg) when the mock head is on.
 - These never fire while typing in a text field.
 
@@ -65,7 +66,7 @@ open -n mac/build/Earmark.app --args --mock-head --no-mic --silent --bus-url=ws:
 ```
 
 `mac/tools/fake_bus.py` sends a snapshot, `guide_start` (sugar), `speak_text`, a streamed `speak` (pcm_f32le, 48 kHz), a `guide_start` behind the listener, `speak_cached`, and `guide_stop`.
-It checks that the app sent `hello` subscribing to `speak`, a `status` with every required `info` key, `playback` started and finished for all three speech kinds, exactly one `guide_feedback` behind (turn right), and `head_pose` at 10 Hz or less, then exits 0 or 1.
+It checks that the app sent `hello` subscribing to `speak`, a `status` with every required `info` key, `playback` started and finished for all three speech kinds, exactly one `guide_feedback` behind (turn right, for the keys), and `head_pose` at 10 Hz or less, then exits 0 or 1.
 Use `--hold` to keep guidance active (for screenshots).
 `mac/tools/window_id.swift` prints a window id for `screencapture -l`.
 
@@ -189,6 +190,12 @@ AudioRouteController: input rule, device watcher, debounced restarts -> EarmarkC
 - Cues are synthesized procedurally and precomputed: a 70 ms 1 kHz blip with soft attack (or a broadband blip plus high-passed noise), a two-note locked chime, and a low, muffled 190 ms behind thud.
 - `Guidance`: signed azimuth error (head yaw vs `atan2(x, y)`), ping interval 900 ms at 90 deg or more down to 150 ms under 10 deg (smoothstep), locked under 8 deg for more than 300 ms (unlock above 12 deg), behind above 100 deg (front again under 95 deg) with the shorter turn.
 - `EarmarkCore` is the only place that knows the bus; it is what the bus-handling tests drive with mocks.
+- `listener_pose` (locator fix, room frame): the target handed to the renderer is the target minus where the user stands, so the sound keeps pointing at it as the user walks.
+  Pings get faster and louder as the user nears the target, and within 0.5 m the Mac plays the locked tone, sends `guide_feedback` `arrived`, and stops guiding.
+  A `lost` fix is ignored, and a fix older than 5 s is dropped: the user is then assumed to be back on the mat (distance-based pings and arrival stop).
+  The map and the guidance card ("about X cm away") use the fix while it is fresh.
+- Audio route changes restart the cue and speech engines; forward is only reset when head tracking had to be restarted, never while guiding.
+- Transcripts made while the bus is down (Apple Speech fallback) are queued by `BusClient` for 10 s and delivered on reconnect; other messages are dropped.
 
 ## Decisions
 
@@ -236,4 +243,4 @@ AudioRouteController: input rule, device watcher, debounced restarts -> EarmarkC
 
 ## Tests
 
-`swift test` covers: the coordinate mapping and its determinant; offline-rendered conventions through the production renderer for HRTF-HQ and auto (+x target louder in the right ear, head turned left puts a front target in the right ear, head turned right puts it in the left ear, a front target is centered, the production ping is lateralized in both timbres), stereo-pan conventions and ducking depth; the PHASE listener and source transforms (PHASE has no offline rendering); guidance curve endpoints, monotonicity, smoothness, lock dwell and hysteresis, behind detection with the shorter turn, wrap-around at +-180, and elevation not affecting the error; `speak` decoding for both PCM formats including odd chunk boundaries; WAV loading and phrase lookup; speech playback events through the real player graph offline; the voice gate (silence, pre-roll, trailing audio, clicks, pauses, push to talk, noise floor); 48 kHz float to 16 kHz Int16 conversion; routing policy and the HFP detector; debouncing; the gate logger and tally; launch flags; and bus handling with a mock renderer and head tracker (guide_start, guide_stop, reset, stt_mode switching, exactly one behind feedback with jitter, locked tone, head_pose rate, status keys, ducking, captions, snapshot, the fallback ladder).
+`swift test` covers: the coordinate mapping and its determinant; offline-rendered conventions through the production renderer for HRTF-HQ and auto (+x target louder in the right ear, head turned left puts a front target in the right ear, head turned right puts it in the left ear, a front target is centered, the production ping is lateralized in both timbres), stereo-pan conventions and ducking depth; the PHASE listener and source transforms (PHASE has no offline rendering); guidance curve endpoints, monotonicity, smoothness, lock dwell and hysteresis, behind detection with the shorter turn, wrap-around at +-180, and elevation not affecting the error; `speak` decoding for both PCM formats including odd chunk boundaries; WAV loading and phrase lookup; speech playback events through the real player graph offline; the voice gate (silence, pre-roll, trailing audio, clicks, pauses, push to talk, noise floor); 48 kHz float to 16 kHz Int16 conversion; routing policy and the HFP detector; debouncing; the gate logger and tally; launch flags; and push-to-talk cap and release; bus handling with a mock renderer and head tracker (restart and recenter policy, transcripts queued while the bus is down, target relative to the listener after a renderer switch, guide_start, guide_stop, reset, stt_mode switching, exactly one behind feedback with jitter, locked tone, head_pose rate, status keys, ducking, captions, snapshot, the fallback ladder).

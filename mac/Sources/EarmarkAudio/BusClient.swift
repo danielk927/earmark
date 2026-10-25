@@ -90,6 +90,7 @@ public final class BusClient: NSObject, BusSink, URLSessionWebSocketDelegate {
     public func stop() {
         queue.async {
             self.running = false
+            self.pingTimer?.cancel(); self.pingTimer = nil
             self.task?.cancel(with: .goingAway, reason: nil)
             self.task = nil
             self.setConnected(false, .idle)

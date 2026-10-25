@@ -175,7 +175,8 @@ public final class PHASECueRenderer: SpatialRenderer {
                 active[key] = ev
                 ev.start { [weak self] _ in
                     guard let self else { return }
-                    self.lock.withLock { _ = self.active.removeValue(forKey: key) }
+                    // Async: PHASE may call this synchronously while `fire` still holds the (non-reentrant) lock.
+                    DispatchQueue.global().async { self.lock.withLock { _ = self.active.removeValue(forKey: key) } }
                 }
             } catch {
                 Log.audio("PHASE cue failed: \(error.localizedDescription)")

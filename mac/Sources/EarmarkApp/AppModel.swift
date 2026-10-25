@@ -140,6 +140,8 @@ final class AppModel: ObservableObject {
         appleSpeech.onTranscript = { [weak self] text, final in self?.core.appleTranscript(text, final: final) }
         appleSpeech.onStatus = { [weak self] s in self?.appleStatus = s }
         core.onAppleSpeechNeeded = { [weak self] in self?.ensureAppleSpeech() }
+        // The mic route was set in init, before this callback existed: ask now if it already needs Apple Speech.
+        if core.micRoute == .apple { ensureAppleSpeech() }
         pipeline.onOutput = { [weak self] out in self?.core.ingestGate(out) }
         startMic()
 
@@ -222,6 +224,12 @@ final class AppModel: ObservableObject {
         keys.on(.left) { [weak self] down, _, shift in self?.nudge(down, shift ? -5 : -15) ?? false }
         keys.on(.right) { [weak self] down, _, shift in self?.nudge(down, shift ? 5 : 15) ?? false }
         keys.start()
+        // A key-up never arrives once the window or app loses focus, so release push-to-talk then.
+        for name in [NSApplication.didResignActiveNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setPTT(false) }
+            }
+        }
     }
 
     private func nudge(_ down: Bool, _ d: Double) -> Bool {

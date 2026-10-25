@@ -31,6 +31,8 @@ public struct VoiceGateConfig: Sendable, Equatable {
     public var holdHysteresisDb = 4.0
     /// Hard cap on one always-listening utterance (chunks), so background noise cannot stream forever.
     public var maxUtteranceChunks = 300
+    /// Hard cap on one push-to-talk utterance (chunks): a key-up that never arrives cannot stream forever.
+    public var maxPushToTalkChunks = 300
     /// The noise floor is the quietest chunk level of the last `floorWindowChunks` (3 s): speech always has
     /// short dips, steady noise does not, so the floor follows room noise without a separate "is it speech" guess.
     public var floorWindowChunks = 30
@@ -61,6 +63,8 @@ public struct VoiceGate: Sendable {
     private var trailingLeft = 0
     private var utteranceChunks = 0
     private var pttHeld = false
+    /// The push-to-talk cap ended the utterance; the key must be released before it can open again.
+    private var pttCapped = false
     private var forceClose = false
     private var needsQuietBeforeReopen = false
 
@@ -73,7 +77,10 @@ public struct VoiceGate: Sendable {
     public var noiseFloorDb: Double { min(max(levels.min() ?? -60, -90), -30) }
     public var speechThresholdDb: Double { max(config.minSpeechDb, noiseFloorDb + config.startMarginDb) }
 
-    public mutating func setPushToTalk(held: Bool) { pttHeld = held }
+    public mutating func setPushToTalk(held: Bool) {
+        pttHeld = held
+        if !held { pttCapped = false }
+    }
 
     public mutating func process(_ chunk: [Int16]) -> [GateOutput] {
         let db = PCM.rmsDBFS(chunk)
@@ -115,8 +122,9 @@ public struct VoiceGate: Sendable {
     }
 
     private mutating func processPTT(_ chunk: [Int16], _ out: inout [GateOutput]) {
+        let held = pttHeld && !pttCapped
         if !isOpen {
-            if pttHeld {
+            if held {
                 remember(chunk)
                 open(&out)
                 trailingLeft = config.trailingChunks
@@ -126,7 +134,11 @@ public struct VoiceGate: Sendable {
             return
         }
         out.append(.audio(chunk))
-        if pttHeld {
+        utteranceChunks += 1
+        if pttHeld && utteranceChunks >= config.maxPushToTalkChunks {
+            out.append(.ended); close()
+            pttCapped = true
+        } else if held {
             trailingLeft = config.trailingChunks
         } else {
             trailingLeft -= 1

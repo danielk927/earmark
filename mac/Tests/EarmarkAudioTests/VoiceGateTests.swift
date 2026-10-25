@@ -67,6 +67,21 @@ private func audioCount(_ out: [GateOutput]) -> Int { out.filter { if case .audi
         #expect(run(&g, Array(repeating: quiet, count: 5)).isEmpty)
     }
 
+    @Test func pushToTalkIsCappedAndNeedsReleaseToReopen() {
+        var cfg = VoiceGateConfig()
+        cfg.maxPushToTalkChunks = 20
+        var g = VoiceGate(mode: .pushToTalk, config: cfg)
+        g.setPushToTalk(held: true)
+        let out = run(&g, Array(repeating: quiet, count: 40))   // key never released
+        #expect(out.filter { $0 == .began }.count == 1)
+        #expect(out.filter { $0 == .ended }.count == 1)
+        #expect(audioCount(out) == 20)
+        #expect(!g.isOpen)
+        g.setPushToTalk(held: false)
+        g.setPushToTalk(held: true)
+        #expect(run(&g, [quiet, quiet]).first == .began)         // a fresh press works again
+    }
+
     @Test func switchingModeClosesAnOpenUtterance() {
         var g = VoiceGate(mode: .pushToTalk)
         g.setPushToTalk(held: true)

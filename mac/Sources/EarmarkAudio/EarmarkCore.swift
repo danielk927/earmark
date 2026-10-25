@@ -200,7 +200,7 @@ public final class EarmarkCore {
         r.setMasterGain(masterGain)
         r.setTimbre(timbre)
         r.setDucked(isSpeaking)
-        r.setTarget(guideTarget)
+        r.setTarget(guideTarget.map(relativeTarget))
         let (yaw, pitch) = listenerAngles()
         r.setListener(yawDeg: yaw, pitchDeg: pitch)
         if let s = guidanceState {
@@ -209,7 +209,8 @@ public final class EarmarkCore {
         }
     }
 
-    /// Restart after a route or configuration change, then re-check head tracking and recenter.
+    /// Restart after a route or configuration change, then re-check head tracking. Forward is only reset when the
+    /// head tracker had to be restarted, and never while guiding: an unrelated device change must not move "forward".
     public func restartAudio(reason: String) {
         Log.route("restarting audio: \(reason)")
         if let r = renderer {
@@ -219,11 +220,13 @@ public final class EarmarkCore {
             }
         }
         do { try speech.restart() } catch { Log.speech("speech restart failed: \(error)") }
+        var headRestarted = false
         if !head.state.isTracking && head.state != .notAuthorized && head.state != .notAvailable {
             head.stop()
             head.start()
+            headRestarted = true
         }
-        head.recenter()
+        if headRestarted && guide == nil { head.recenter() }
         changed()
     }
 
@@ -574,7 +577,8 @@ public final class EarmarkCore {
     // MARK: Helpers
 
     private func send(_ m: BusMessage, log: Bool = true) {
-        guard bus.isConnected else { return }
+        // While the bus is down only transcripts go to the sink: BusClient queues those and delivers them on reconnect.
+        if !bus.isConnected { guard case .transcript = m else { return } }
         bus.send(m)
         if log && m.type != "mic_audio" { note("-> \(summary(m))") }
     }

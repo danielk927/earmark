@@ -13,11 +13,14 @@ struct MapScene {
     var loose: [LooseItem] = []
     var target: EarmarkPoint?
     var targetName: String?
+    /// Where the locator puts the user; the mat origin without a fresh fix.
+    var listener = EarmarkPoint(0, 0, 0)
 
     init(core: EarmarkCore) {
         let names = Dictionary(core.objects.map { ($0.objectId, $0.name) }, uniquingKeysWith: { a, _ in a })
         let targetID = core.guide?.objectId
         target = core.guideTarget
+        listener = core.listenerPosition
         targetName = core.guide?.name
         var bySpot: [Int: [String]] = [:]
         var looseItems: [LooseItem] = []
@@ -95,6 +98,7 @@ struct MapView: View {
     private func frame(_ size: CGSize) -> Frame {
         var pts = scene.spots.compactMap { Geometry.point($0.spot.position) }
         if let t = scene.target { pts.append(t) }
+        pts.append(scene.listener)
         var top = pts.map(\.y).max() ?? 0.6
         for l in scene.loose { if let p = l.position { pts.append(p); top = max(top, p.y + Self.proximityRadius(l.detail) + 0.08) } }
         let maxX = max(0.45, pts.map { abs($0.x) }.max() ?? 0)
@@ -110,6 +114,7 @@ struct MapView: View {
 
     private func draw(_ ctx: GraphicsContext, _ size: CGSize) {
         let f = frame(size)
+        let you = f.pt(scene.listener)
 
         // Range rings every 25 cm, labeled on the right at ear level (away from the forward axis).
         for r in [0.25, 0.5, 0.75, 1.0] {
@@ -132,11 +137,11 @@ struct MapView: View {
 
         if let t = scene.target {
             var line = Path()
-            line.move(to: f.origin); line.addLine(to: f.pt(t))
+            line.move(to: you); line.addLine(to: f.pt(t))
             ctx.stroke(line, with: .color(Theme.target.opacity(0.85)), style: StrokeStyle(lineWidth: 2.5, dash: [8, 6]))
         }
 
-        drawHead(ctx, f)
+        drawHead(ctx, f, at: you)
 
         // Box width from the closest pair of spots in the same row, so neighbors never overlap.
         let pts = scene.spots.compactMap { Geometry.point($0.spot.position) }
@@ -153,25 +158,25 @@ struct MapView: View {
                      at: CGPoint(x: c.x, y: c.y + 24))
         }
 
-        ctx.fill(Path(ellipseIn: CGRect(x: f.origin.x - 17, y: f.origin.y - 17, width: 34, height: 34)), with: .color(Theme.head))
-        ctx.draw(Text("You").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.background), at: f.origin)
+        ctx.fill(Path(ellipseIn: CGRect(x: you.x - 17, y: you.y - 17, width: 34, height: 34)), with: .color(Theme.head))
+        ctx.draw(Text("You").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.background), at: you)
     }
 
-    private func drawHead(_ ctx: GraphicsContext, _ f: Frame) {
+    private func drawHead(_ ctx: GraphicsContext, _ f: Frame, at origin: CGPoint) {
         let r = CGFloat(pose.facingBack ? Self.backConeLength : 0.8) * f.scale
         let yaw = pose.yaw
         var cone = Path()
-        cone.move(to: f.origin)
-        cone.addArc(center: f.origin, radius: r, startAngle: .degrees(yaw - 28 - 90), endAngle: .degrees(yaw + 28 - 90), clockwise: false)
+        cone.move(to: origin)
+        cone.addArc(center: origin, radius: r, startAngle: .degrees(yaw - 28 - 90), endAngle: .degrees(yaw + 28 - 90), clockwise: false)
         cone.closeSubpath()
         let a = yaw * .pi / 180
-        let tip = CGPoint(x: f.origin.x + r * CGFloat(sin(a)), y: f.origin.y - r * CGFloat(cos(a)))
+        let tip = CGPoint(x: origin.x + r * CGFloat(sin(a)), y: origin.y - r * CGFloat(cos(a)))
         ctx.fill(cone, with: .linearGradient(Gradient(colors: [Theme.head.opacity(pose.tracking ? 0.30 : 0.12), Theme.head.opacity(0.03)]),
-                                             startPoint: f.origin, endPoint: tip))
+                                             startPoint: origin, endPoint: tip))
         ctx.stroke(cone, with: .color(Theme.head.opacity(0.5)), style: StrokeStyle(lineWidth: 1.2, dash: pose.tracking ? [] : [5, 5]))
         var nose = Path()
-        nose.move(to: f.origin)
-        nose.addLine(to: CGPoint(x: f.origin.x + r * 0.9 * CGFloat(sin(a)), y: f.origin.y - r * 0.9 * CGFloat(cos(a))))
+        nose.move(to: origin)
+        nose.addLine(to: CGPoint(x: origin.x + r * 0.9 * CGFloat(sin(a)), y: origin.y - r * 0.9 * CGFloat(cos(a))))
         ctx.stroke(nose, with: .color(Theme.head), style: StrokeStyle(lineWidth: 3, lineCap: .round))
     }
 

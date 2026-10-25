@@ -107,6 +107,34 @@ import Testing
         #expect(core.micRoute == .cartesia)
     }
 
+    @Test func transcriptsReachTheBusWhileItIsDownButNothingElseDoes() {
+        busSink.clear()
+        busSink.isConnected = false
+        core.appleTranscript("where's the sugar", final: true)
+        core.ingestGate(.began)
+        core.ingestGate(.ended)
+        run(0.5)
+        #expect(busSink.ofType("transcript").count == 1)     // BusClient queues it for reconnect
+        #expect(busSink.sent.count == busSink.ofType("transcript").count)
+    }
+
+    @Test func unrelatedAudioRestartKeepsForwardWhileTrackingOrGuiding() {
+        head.setRawPose(yawDeg: 40)
+        core.restartAudio(reason: "device list")
+        #expect(head.latestPose.yawDeg == 40)                // tracking: forward untouched
+        core.handle(example("guide_start", "01"))
+        head.stop()                                          // tracker had to be restarted, but we are guiding
+        core.restartAudio(reason: "device list")
+        #expect(head.latestPose.yawDeg == 40)
+    }
+
+    @Test func restartedHeadTrackerRecentersWhenIdle() {
+        head.setRawPose(yawDeg: 40)
+        head.stop()
+        core.restartAudio(reason: "airpods connected")
+        #expect(head.latestPose.yawDeg == 0)
+    }
+
     @Test func behindTransitionEmitsExactlyOneGuideFeedback() {
         core.handle(example("guide_start", "01"))       // target ~15 deg right
         run(0.2)
@@ -224,6 +252,13 @@ import Testing
         #expect(core.guide == nil)
         #expect(busSink.feedback.contains { $0.event == .arrived && $0.objectId == "keys" })
         #expect(renderer.played.contains(.locked))
+    }
+
+    @Test func switchingRendererKeepsTheTargetRelativeToTheListener() throws {
+        guideKeys()
+        pose(0, 1)
+        core.applyRenderer(.mock)                            // configure() runs on the new renderer
+        #expect(renderer.target == EarmarkPoint(0, 2, 1))
     }
 
     @Test func noFixForFiveSecondsMeansBackOnTheMat() throws {

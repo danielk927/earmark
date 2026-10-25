@@ -151,7 +151,7 @@ class Session:
             "playback started+finished for speak_text u-1": all(any(m.get("type") == "playback" and m.get("utterance_id") == "u-1" and m.get("event") == e for m in self.received) for e in ("started", "finished")),
             "playback started+finished for streamed speak u-2": all(any(m.get("type") == "playback" and m.get("utterance_id") == "u-2" and m.get("event") == e for m in self.received) for e in ("started", "finished")),
             "playback finished for speak_cached u-4": any(m.get("type") == "playback" and m.get("utterance_id") == "u-4" and m.get("event") == "finished" for m in self.received),
-            "exactly one guide_feedback behind (turn right) for the keys": [ (m.get("event"), m.get("turn")) for m in self.received if m.get("type") == "guide_feedback" and m.get("object_id") == "keys"][:1] == [("behind", "right")],
+            "exactly one guide_feedback behind (turn right) for the keys": [ (m.get("event"), m.get("turn")) for m in self.received if m.get("type") == "guide_feedback" and m.get("object_id") == "keys" and m.get("event") == "behind"] == [("behind", "right")],
             "head_pose at <= 10 Hz": self.head_pose_rate() <= 11,
         }
         print("\n== checks", flush=True)
