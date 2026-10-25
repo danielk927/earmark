@@ -1,17 +1,29 @@
-"""The hub: adapters and bus clients in, debounced state out to the bus and Convex."""
+"""The hub: adapters and bus clients in, debounced state out to the bus and Convex.
+
+UWB (docs/project/UWB-PRD.md 8): `uwb_token` is relayed only to its addressee; `uwb_range`, `motion_state`,
+`head_pose` and `listener_command` feed the tracker, whether they come from a bus client or an adapter;
+NFC `pickup`/`placed` re-anchor a frozen listener. The tracker's `listener_pose` goes to the bus at
+`uwb.solve_hz` (and at once on every mode change) and, throttled, to Convex.
+"""
 from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from pathlib import Path
 
 from earmark_contracts import (
     Chirp,
     DetectionEvent,
+    HeadPose,
     Label,
     LabelRequest,
+    ListenerCommand,
+    ListenerPose,
+    MotionState,
     ObjectState,
+    ObjectTap,
     Pickup,
     PickupResult,
     PlaceItem,
@@ -20,11 +32,15 @@ from earmark_contracts import (
     Reset,
     Snapshot,
     StatusMsg,
+    TapPosition,
     TrialEnd,
     TrialStart,
     UnknownTag,
+    UwbRange,
+    UwbToken,
     to_dict,
 )
+from pydantic import ValidationError
 
 from .adapters.base import Adapter
 from .bus import BusServer, Client
@@ -34,10 +50,14 @@ from .convex import ConvexClient, ConvexSync
 from .registry import RegistryStore
 from .space import SpaceIndex
 from .state import Placed, Removed, StateEngine, Stored
+from .uwb.relay import TokenRelay
+from .uwb.tracker import Tracker, mark_z
 
 log = logging.getLogger("earmark.hub")
 
 FORWARDED = (TrialStart, TrialEnd, PickupResult, Chirp, UnknownTag, Pickup)
+TRACKER_INPUTS = (UwbRange, MotionState, HeadPose, ListenerCommand)
+IOS_COMPONENTS = ("ios_wearer", "ios_anchor")
 
 
 class Hub:
@@ -45,18 +65,24 @@ class Hub:
                  convex_env: ConvexEnv | None = None, offline_reason: str = "", root: Path = ROOT,
                  convex_transport=None) -> None:
         self.cfg = cfg
+        self.root = root
         self.clock = clock or SystemClock()
         self.adapters = adapters or []
         self.space = SpaceIndex.load(cfg.path("space", root))
+        self.relay = TokenRelay()
+        self.tracker = Tracker(cfg.uwb, self.space, self.clock.now())
+        self.pose: ListenerPose = self.tracker.pose  # latest published listener_pose (fixed at the origin first)
+        self.client_pose: ListenerPose | None = None  # latest listener_pose from the beacon locator, if any
+        self.client_pose_rx = -math.inf  # hub clock time client_pose arrived (never the phone's own `t`)
         self.registry = RegistryStore(cfg.path("cache", root), cfg.path("seed", root))
         self.engine = StateEngine(self.space, self.registry.objects, placement_reads=cfg.debounce.placement_reads,
                                   removal_s=cfg.debounce.removal_s)
         self.bus = BusServer(cfg.bus.host, cfg.bus.port, on_message=self._on_client_message,
-                             on_hello=self._on_hello, queue_max=cfg.bus.client_queue_max)
+                             on_hello=self._on_hello, queue_max=cfg.bus.client_queue_max, secret=cfg.bus.secret)
         self.sync: ConvexSync | None = None
         if convex_env is not None:
             client = ConvexClient(convex_env, cfg.convex.timeout_s, transport=convex_transport)
-            self.sync = ConvexSync(client, cfg.path("queue", root), cfg.convex)
+            self.sync = ConvexSync(client, cfg.path("queue", root), cfg.convex, pose_hz=cfg.uwb.convex_pose_hz)
         self.offline_reason = offline_reason
         self._adapter_state: dict[str, tuple[bool, str]] = {a.name: (True, "starting") for a in self.adapters}
         self._tasks: list[asyncio.Task] = []
@@ -67,7 +93,7 @@ class Hub:
         return self.registry.objects
 
     async def publish(self, msg, origin: str) -> None:
-        await self._dispatch(None, msg)
+        await self._dispatch(None, msg, origin)
 
     def adapter_status(self, adapter: str, ok: bool, detail: str) -> None:
         if self._adapter_state.get(adapter) != (ok, detail):
@@ -83,6 +109,9 @@ class Hub:
             self._tasks.append(asyncio.create_task(self._run_adapter(a), name=f"adapter:{a.name}"))
         self._tasks.append(asyncio.create_task(self._tick_loop(), name="tick"))
         self._tasks.append(asyncio.create_task(self._health_loop(), name="health"))
+        self._publish_poses([self.pose])
+        if self.cfg.uwb.enabled:
+            self._tasks.append(asyncio.create_task(self._uwb_loop(), name="uwb"))
         if self.sync is not None:
             self._tasks.append(asyncio.create_task(self.sync.run(), name="convex-flush"))
             self._tasks.append(asyncio.create_task(self.sync.poll_registry(self._on_remote_registry),
@@ -126,20 +155,58 @@ class Hub:
             await self.clock.sleep(self.cfg.debounce.tick_s)
             self._apply(self.engine.tick(self.clock.now()))
 
+    async def _uwb_loop(self) -> None:
+        period = 1.0 / self.cfg.uwb.solve_hz
+        next_t = self.clock.now()
+        while True:
+            next_t += period  # deadlines, not a sleep after the work: the rate is solve_hz, not slightly under
+            now = self.clock.now()
+            if next_t - now < -period:  # more than a period behind: resync instead of bursting
+                next_t = now
+            await self.clock.sleep(next_t - now)
+            now = self.clock.now()
+            self._publish_poses(self.tracker.tick(now))
+            if self.sync is not None:
+                self.sync.set_anchors(self.tracker.ingest_anchors(now))
+
+    def _publish_poses(self, poses: list[ListenerPose]) -> None:
+        for p in poses:
+            self.pose = p
+            self.bus.broadcast(p)
+            if self.sync is not None:
+                self.sync.set_pose(p)
+
     # ------------------------------------------------------------ inbound
 
     async def _on_hello(self, client: Client) -> None:
         self.bus.send_to(client, self.snapshot())
+        if client.wants("listener_pose"):
+            self.bus.send_to(client, self.pose)
+        for token in self.relay.addressed_to(client.device_id) if client.device_id else []:
+            self.bus.send_to(client, token)
 
     async def _on_client_message(self, client: Client, msg) -> None:
         await self._dispatch(client, msg)
 
-    async def _dispatch(self, client: Client | None, msg) -> None:
-        """Route `msg` to every other subscribed client, then act on it."""
+    async def _dispatch(self, client: Client | None, msg, origin: str | None = None) -> None:
+        """Route `msg` to every other subscribed client, then act on it. `client` is None for adapter messages."""
         if isinstance(msg, DetectionEvent):
             self._on_detection(msg, client)
             return
+        if isinstance(msg, UwbToken):  # addressed: never broadcast
+            self.relay.store(msg)
+            n = self.bus.send_to_device(msg.to, msg)
+            log.debug("uwb_token relayed", extra={"from": msg.from_, "to": msg.to, "delivered": n})
+            return
+        if isinstance(msg, ListenerPose):  # from the beacon locator
+            if self.cfg.uwb.enabled and self.tracker.mode != "fixed":
+                return  # ponytail: UWB owns the listener while it tracks; no blending of two trackers
+            self.client_pose, self.client_pose_rx = msg, self.clock.now()
         self.bus.broadcast(msg, exclude=client)
+        if isinstance(msg, ObjectTap):
+            self._tap()
+        if isinstance(msg, TRACKER_INPUTS):
+            self._to_tracker(client, msg)
         if isinstance(msg, Label):
             self._label(msg)
         elif isinstance(msg, PlaceItem):
@@ -154,6 +221,37 @@ class Hub:
         if isinstance(msg, FORWARDED):
             self._forward(msg)
 
+    def _tap(self) -> None:
+        """Tap-to-mark: the phone is next to the object, so the phone's position is the object's. Broadcast it."""
+        now, uwb = self.clock.now(), self.cfg.uwb
+        fix = None
+        if uwb.enabled and self.tracker.mode in ("tracked", "frozen"):
+            fix = self.tracker.mark_fix(now, uwb.mark_avg_s, uwb.mark_min_fixes)
+        cp = self.client_pose
+        if fix is not None:
+            out = TapPosition(ok=True, position=[fix[0], fix[1], mark_z(uwb, self.space)], source=self.tracker.source,
+                              t=now)
+        elif cp is not None and cp.quality != "lost" and now - self.client_pose_rx <= uwb.beacon_fresh_s:
+            out = TapPosition(ok=True, position=cp.position, source=cp.source, t=now)
+        else:
+            out = TapPosition(ok=False, source="none", t=now)
+        log.info("tap position", extra={"ok": out.ok, "source": out.source})  # no positions in logs
+        self.bus.broadcast(out)
+
+    def _to_tracker(self, client: Client | None, msg) -> None:
+        if not self.cfg.uwb.enabled:
+            return
+        now = self.clock.now()
+        if isinstance(msg, UwbRange):
+            ios = client is not None and client.component in IOS_COMPONENTS
+            self.tracker.on_range(msg, now, "uwb" if ios else "sim")
+        elif isinstance(msg, MotionState):
+            self.tracker.on_motion(msg.state, now)
+        elif isinstance(msg, HeadPose):
+            self.tracker.on_head_pose(msg.yaw, now)
+        else:
+            self._publish_poses(self.tracker.on_command(msg.action, now))
+
     def _on_detection(self, ev: DetectionEvent, client: Client | None) -> None:
         self.bus.broadcast(ev, exclude=client)
         self._apply(self.engine.handle(ev))
@@ -167,6 +265,8 @@ class Hub:
                 log.info(kind, extra={"object_id": o.object_id, "spot": o.spot, "tag": o.tag})
                 if self.sync is not None:
                     self.sync.add_event(kind, o.object_id, o.t, {"spot": o.spot, "tag": o.tag, "source": o.source})
+                if isinstance(o, Placed):
+                    self._publish_poses(self.tracker.on_contact(o.spot, self.clock.now(), "placed"))
                 continue
             if isinstance(o, Stored):
                 log.info("stored", extra={"object_id": o.object_id, "area": o.area, "position": o.position})
@@ -183,6 +283,8 @@ class Hub:
             else:
                 log.info(o.type, extra=to_dict(o))
                 self._forward(o)
+                if isinstance(o, Pickup):
+                    self._publish_poses(self.tracker.on_contact(o.from_spot, self.clock.now(), "pickup"))
 
     def _forward(self, msg) -> None:
         if self.sync is None:
@@ -215,10 +317,21 @@ class Hub:
             except Exception as e:
                 log.warning("adapter reset failed", extra={"adapter": a.name, "error": str(e)})
         self.registry.reload()
-        self._apply(self.engine.reset(self.registry.objects, now=self.clock.now()))
+        try:
+            self.space = SpaceIndex.load(self.cfg.path("space", self.root))
+        except (OSError, ValueError, ValidationError) as e:
+            log.error("space.json not reloaded; keeping the previous layout", extra={"error": str(e)[:300]})
+        self.engine.space = self.space
+        self.tracker.load_space(self.space)
+        now = self.clock.now()
+        self._apply(self.engine.reset(self.registry.objects, now=now))
+        poses = self.tracker.reset(now)
         snap = self.snapshot()
         for c in list(self.bus.clients):
             self.bus.send_to(c, snap)
+        self._publish_poses(poses)  # after the snapshot: clients see reset, snapshot, then listener_pose
+        if self.sync is not None:
+            self.sync.set_anchors(self.tracker.ingest_anchors(now))
 
     def _label(self, msg: Label) -> None:
         object_id, created = self.registry.apply_label(msg)

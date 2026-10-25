@@ -10,6 +10,10 @@ public final class MockRenderer: SpatialRenderer {
     public private(set) var target: EarmarkPoint?
     public private(set) var yawDeg = 0.0
     public private(set) var pitchDeg = 0.0
+    /// Latest listener position, and every position in order (tests check the glide never jumps).
+    public private(set) var listenerPosition: EarmarkPoint = .zero
+    public private(set) var listenerPositions: [EarmarkPoint] = []
+    public private(set) var attenuation = DistanceAttenuation()
     public private(set) var pingInterval: TimeInterval?
     public private(set) var repeatingCue: Cue = .ping
     public private(set) var played: [Cue] = []
@@ -34,6 +38,10 @@ public final class MockRenderer: SpatialRenderer {
     public func restart() throws { lock.withLock { restarts += 1 } }
     public func setTarget(_ position: EarmarkPoint?) { lock.withLock { target = position } }
     public func setListener(yawDeg: Double, pitchDeg: Double) { lock.withLock { self.yawDeg = yawDeg; self.pitchDeg = pitchDeg } }
+    public func setListener(position: EarmarkPoint) {
+        lock.withLock { listenerPosition = position; listenerPositions.append(position) }
+    }
+    public func setDistanceAttenuation(_ attenuation: DistanceAttenuation) { lock.withLock { self.attenuation = attenuation } }
     public func setPingInterval(_ interval: TimeInterval?) { lock.withLock { pingInterval = interval } }
     public func setRepeatingCue(_ cue: Cue) { lock.withLock { repeatingCue = cue } }
     public func play(_ cue: Cue) { lock.withLock { played.append(cue) } }

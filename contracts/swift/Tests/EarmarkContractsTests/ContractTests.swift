@@ -19,7 +19,7 @@ private func allTypes() throws -> [String] {
 
 @Test func everyBusExampleDecodesWithItsType() throws {
     let types = try allTypes()
-    #expect(types.count >= 25)
+    #expect(types.count >= 30)
     for type in types {
         for data in try examples(type) {
             let msg = try BusCoding.decode(data)
@@ -28,8 +28,9 @@ private func allTypes() throws -> [String] {
     }
 }
 
-/// Messages the Mac app sends must re-encode to exactly the example JSON.
-@Test(arguments: ["hello", "mic_audio", "transcript", "guide_feedback", "playback", "head_pose", "status", "reset"])
+/// Messages the Mac and iOS apps send must re-encode to exactly the example JSON.
+@Test(arguments: ["hello", "mic_audio", "transcript", "guide_feedback", "playback", "head_pose", "status", "reset",
+                      "uwb_token", "uwb_range", "motion_state", "listener_pose", "listener_command", "object_tap"])
 func sentMessagesRoundTrip(type: String) throws {
     for data in try examples(type) {
         let msg = try BusCoding.decode(data)

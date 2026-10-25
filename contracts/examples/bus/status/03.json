@@ -1,0 +1,14 @@
+{
+  "type": "status",
+  "component": "ios_anchor",
+  "ok": true,
+  "detail": "UWB Reader/Emitter 1 ranging",
+  "info": {
+    "role": "anchor",
+    "device_id": "uwb_1",
+    "uwb_running": true,
+    "last_distance_m": 2.41,
+    "battery": 0.87
+  },
+  "t": 1761350400.12
+}

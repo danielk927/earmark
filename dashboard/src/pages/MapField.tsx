@@ -7,7 +7,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { LiveMap } from "@contracts/convexFunctions";
-import { capitalize, distanceWords, spotLabel } from "../lib/words";
+import { anchorWords, capitalize, distanceWords, poseWords, spotLabel } from "../lib/words";
 
 type ChipKind = "object" | "unknown" | "ghost" | "floating";
 interface Chip {
@@ -87,6 +87,8 @@ export function describeMap(map: LiveMap): string {
     const name = capitalize(map.objects.find((o) => o.objectId === st.objectId)?.name ?? st.objectId);
     parts.push(st.near ? `${name}: near the ${st.near} receiver${st.distanceClass ? `, ${distanceWords[st.distanceClass]}` : ""}.` : `${name}: moving around.`);
   }
+  for (const a of map.anchors) parts.push(`${anchorWords(a)}.`);
+  if (map.wearer) parts.push(`The person: ${poseWords[map.wearer.mode].toLowerCase()}.`);
   return `Seen from above, with the listener at the bottom facing forward. ${parts.join(" ")}`;
 }
 
@@ -103,9 +105,12 @@ export function MapField({ map }: { map: LiveMap }) {
   const charW = fs * 0.6;
   const padX = compact ? 9 : 12;
   const padY = compact ? 6 : 8;
-  const s = width / (compact ? 1.36 : 1.56); // px per meter across the width
-  const pr = Math.max(15, Math.min(26, 0.045 * s));
   const half = width / 2;
+  const baseS = width / (compact ? 1.36 : 1.56); // px per meter across the width
+  // The anchors and the person can be a meter or two off to the side: zoom out just enough to fit them.
+  const reach = Math.max(0, ...map.anchors.map((a) => Math.abs(a.position[0]!)), map.wearer ? Math.abs(map.wearer.position[0]!) : 0);
+  const s = reach > 0 ? Math.max(Math.min(baseS, (half - 22) / reach), Math.min(baseS, 70)) : baseS;
+  const pr = Math.max(15, Math.min(26, 0.045 * s));
   const P = (pos: readonly number[]) => ({ x: pos[0]! * s, y: -pos[1]! * s });
 
   const name = (id: string) => capitalize(map.objects.find((o) => o.objectId === id)?.name ?? id);
@@ -199,6 +204,34 @@ export function MapField({ map }: { map: LiveMap }) {
     });
   }
 
+  const headR = Math.max(16, Math.min(24, 0.05 * s));
+  // UWB anchors: triangles with a two-line label above (or below, when behind the listener) them.
+  // The label grows toward the middle so it never leaves the picture.
+  const triR = Math.max(11, Math.min(16, 0.035 * s));
+  const af = fs * 0.85;
+  const anchorShapes = map.anchors.map((a) => {
+    const p = P(a.position);
+    const above = a.position[1]! >= 0;
+    const align = a.position[0]! < -0.15 ? "start" : a.position[0]! > 0.15 ? "end" : "middle";
+    const w = Math.ceil(Math.max(a.label.length, 10) * af * 0.58);
+    const h = af * 2.4 + 4;
+    const tx = align === "start" ? p.x - triR : align === "end" ? p.x + triR : Math.max(-half + w / 2 + 4, Math.min(half - w / 2 - 4, p.x));
+    const x1 = align === "start" ? tx : align === "end" ? tx - w : tx - w / 2;
+    const y1 = above ? p.y - triR - 6 - h : p.y + triR + 6;
+    return { a, p, above, align: align as "start" | "middle" | "end", w, h, tx, x1, y1 };
+  });
+  // The person: a dot with the mode in words under it.
+  const dotR = Math.max(9, Math.min(14, 0.025 * s));
+  const person = map.wearer
+    ? (() => {
+        const p = P(map.wearer.position);
+        const lines = wrap(poseWords[map.wearer.mode], 16);
+        const w = Math.ceil(Math.max(...lines.map((l) => l.length)) * fs * 0.58);
+        const tx = Math.max(-half + w / 2 + 4, Math.min(half - w / 2 - 4, p.x));
+        return { p, lines, w, h: lines.length * fs * 1.2, tx, y1: p.y + dotR + 6 };
+      })()
+    : null;
+
   // Spot labels wrap to the room between neighboring pucks, so "center left" and "center right" never collide.
   const labelCharW = fs * 0.85 * 0.58;
   const spotXs = map.spots.map((sp) => P(sp.position).x);
@@ -214,6 +247,14 @@ export function MapField({ map }: { map: LiveMap }) {
     obstacles.push({ x1: p.x - halfW, x2: p.x + halfW, y1: p.y - pr - 2, y2: p.y + pr + 6 + lines.length * fs * 1.05 });
   }
   for (const m of markers) obstacles.push({ x1: m.x - 9, x2: m.x + 9, y1: m.y - 9, y2: m.y + 9 });
+  for (const a of anchorShapes) {
+    obstacles.push({ x1: Math.min(a.x1, a.p.x - triR), x2: Math.max(a.x1 + a.w, a.p.x + triR), y1: Math.min(a.y1, a.p.y - triR), y2: Math.max(a.y1 + a.h, a.p.y + triR) });
+  }
+  if (person) {
+    // The listening mark and its label stay clear of the item chips.
+    obstacles.push({ x1: -Math.max(headR, fs * 4.5), x2: Math.max(headR, fs * 4.5), y1: -headR, y2: headR * 0.6 + fs * 1.6 });
+    obstacles.push({ x1: Math.min(person.tx - person.w / 2, person.p.x - dotR), x2: Math.max(person.tx + person.w / 2, person.p.x + dotR), y1: person.p.y - dotR, y2: person.y1 + person.h });
+  }
 
   // Size chips: wrap to the space between neighbors, then push apart until nothing overlaps.
   const spotChips = chips.filter((c) => c.kind !== "floating");
@@ -270,13 +311,21 @@ export function MapField({ map }: { map: LiveMap }) {
   }, [sigKey]);
 
   // Bounds: everything drawn, plus the listener.
-  const headR = Math.max(16, Math.min(24, 0.05 * s));
   const listenerBottom = headR + fs * 2.2;
   let top = -0.84 * s;
   for (const c of chips) top = Math.min(top, c.cy - c.h / 2);
   for (const sp of map.spots) top = Math.min(top, P(sp.position).y - pr);
+  let bottom = listenerBottom;
+  for (const a of anchorShapes) {
+    top = Math.min(top, a.above ? a.y1 : a.p.y - triR);
+    bottom = Math.max(bottom, a.above ? a.p.y + triR : a.y1 + a.h);
+  }
+  if (person) {
+    top = Math.min(top, person.p.y - dotR);
+    bottom = Math.max(bottom, person.y1 + person.h);
+  }
   top -= PAD + 6;
-  const height = Math.ceil(listenerBottom + PAD - top);
+  const height = Math.ceil(bottom + PAD - top);
 
   const ripples = [0.2, 0.4, 0.6, 0.8];
   const arc = (r: number) => {
@@ -370,15 +419,57 @@ export function MapField({ map }: { map: LiveMap }) {
           </g>
         ))}
 
-        <g className="listener">
-          <circle cx={-headR * 0.98} cy={0} r={headR * 0.3} />
-          <circle cx={headR * 0.98} cy={0} r={headR * 0.3} />
-          <circle cx={0} cy={0} r={headR} />
-          <path d={`M ${-headR * 0.32} ${-headR * 0.9} L 0 ${-headR * 1.45} L ${headR * 0.32} ${-headR * 0.9} Z`} />
-          <text x={0} y={headR + fs * 1.3} textAnchor="middle" fontSize={fs * 0.9}>
-            Listener
-          </text>
-        </g>
+        {person ? (
+          // With a person on the map, the origin is just the listening mark they walk toward.
+          <g className="listen-spot">
+            <circle cx={0} cy={0} r={headR * 0.6} />
+            {Math.hypot(person.p.x, person.p.y) > headR * 3 && (
+              <text x={0} y={headR * 0.6 + fs * 1.1} textAnchor="middle" fontSize={fs * 0.9}>
+                Listening spot
+              </text>
+            )}
+          </g>
+        ) : (
+          <g className="listener">
+            <circle cx={-headR * 0.98} cy={0} r={headR * 0.3} />
+            <circle cx={headR * 0.98} cy={0} r={headR * 0.3} />
+            <circle cx={0} cy={0} r={headR} />
+            <path d={`M ${-headR * 0.32} ${-headR * 0.9} L 0 ${-headR * 1.45} L ${headR * 0.32} ${-headR * 0.9} Z`} />
+            <text x={0} y={headR + fs * 1.3} textAnchor="middle" fontSize={fs * 0.9}>
+              Listener
+            </text>
+          </g>
+        )}
+
+        {anchorShapes.map(({ a, p, align, tx, y1 }) => {
+          const on = a.online;
+          return (
+            <g key={a.anchorId} className={on ? "anchor anchor-on" : "anchor anchor-off"}>
+              <path
+                className="anchor-shape"
+                d={`M ${p.x} ${p.y - triR} L ${p.x + triR * 0.95} ${p.y + triR * 0.7} L ${p.x - triR * 0.95} ${p.y + triR * 0.7} Z`}
+              />
+              <text className="anchor-name" x={tx} y={y1 + af * 1.0} textAnchor={align} fontSize={af}>
+                {a.label}
+              </text>
+              <text className="anchor-state" x={tx} y={y1 + af * 2.25} textAnchor={align} fontSize={af}>
+                {on ? "\u2713 Online" : "\u2715 Offline"}
+              </text>
+            </g>
+          );
+        })}
+
+        {person && map.wearer && (
+          <g className={`person person-${map.wearer.mode}`}>
+            <circle className="person-ring" cx={person.p.x} cy={person.p.y} r={dotR + 4} />
+            <circle className="person-dot" cx={person.p.x} cy={person.p.y} r={dotR} />
+            {person.lines.map((line, i) => (
+              <text key={i} className="person-label" x={person.tx} y={person.y1 + fs * 1.0 + fs * 1.2 * i} textAnchor="middle" fontSize={fs}>
+                {line}
+              </text>
+            ))}
+          </g>
+        )}
       </svg>
     </div>
   );

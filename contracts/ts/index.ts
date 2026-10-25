@@ -19,7 +19,7 @@ export type Vec3 = [number, number, number];
  */
 export type Vec31 = [number, number, number];
 /**
- * Every JSON message on the local WebSocket bus ws://127.0.0.1:8765. Discriminated by `type`. All times are unix seconds (float).
+ * Every JSON message on the local WebSocket bus ws://<hub>:8765 (127.0.0.1 by default; 0.0.0.0 on the private network when iPhones join, see hello.secret). Discriminated by `type`. All times are unix seconds (float).
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "BusMessage".
@@ -52,6 +52,12 @@ export type BusMessage =
   | PickupResult
   | HeadPose
   | Status
+  | UwbToken
+  | UwbRange
+  | MotionState
+  | ListenerCommand
+  | ObjectTap
+  | TapPosition
   | Reset;
 /**
  * Concierge -> hub. The user said where they put an item. Either `area` (an id from space.areas: "I put my keys in the drawer") or `position` (room frame, from the locator: "I'm leaving my keys here"). The hub records the item there and logs a `stored` event.
@@ -219,6 +225,41 @@ export interface Space {
     label: string;
     position?: null | Vec31;
   }[];
+  /**
+   * Optional fixed UWB anchors (iPhones) for walking guidance, measured from the origin floor mark. Labels are shown verbatim in every UI.
+   */
+  anchors?: {
+    /**
+     * Device id, e.g. "uwb_1".
+     */
+    anchor: string;
+    /**
+     * e.g. "UWB Reader/Emitter 1".
+     */
+    label: string;
+    position: Vec31;
+  }[];
+  /**
+   * Optional wearer geometry, set by calibration. Overrides the hub.json uwb defaults.
+   */
+  tracking?: {
+    /**
+     * Wearer phone height relative to the ears, meters (chest ~ -0.35).
+     */
+    phone_z?: number;
+    /**
+     * How far the head is behind the handheld phone, meters.
+     */
+    head_offset_m?: number;
+    /**
+     * Ear height in the room frame (floor = 0), meters. The UWB listener_pose z; the phone is at ear_z_m + phone_z. Standing ~1.55.
+     */
+    ear_z_m?: number;
+    /**
+     * Height given to an object marked by a phone tap when the tracker is 2D (UWB), meters. Counter ~0.9.
+     */
+    mark_z_m?: number;
+  };
 }
 /**
  * The object registry. Shape of config/objects.seed.json, config/objects.cache.json, and the Convex GET /api/registry response. Convex is the source of truth.
@@ -300,7 +341,7 @@ export interface Phrases {
   }[];
 }
 /**
- * Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak.
+ * Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak. iPhone clients (ios_anchor, ios_wearer) also send `device_id` (uwb_1|uwb_2|uwb_3|wearer) and `role`; any client connecting from a non-loopback address must send `secret` = EARMARK_BUS_SECRET or the hub closes the connection. The locator may send `token`; the hub accepts and ignores it.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "Hello".
@@ -308,7 +349,17 @@ export interface Phrases {
 export interface Hello {
   type: "hello";
   component:
-    "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent" | "locator";
+    | "hub"
+    | "concierge"
+    | "mac_app"
+    | "simulator"
+    | "trial_cli"
+    | "dashboard"
+    | "cli"
+    | "memory_agent"
+    | "locator"
+    | "ios_anchor"
+    | "ios_wearer";
   /**
    * Message types to receive, or ["*"] for all including audio.
    */
@@ -321,6 +372,18 @@ export interface Hello {
    * Optional shared token sent by the locator; the local hub accepts and ignores it.
    */
   token?: string;
+  /**
+   * Stable id for addressed delivery, e.g. "uwb_1", "uwb_2", "uwb_3", "wearer". uwb_token messages are delivered to the client whose device_id equals `to`.
+   */
+  device_id?: string;
+  /**
+   * iPhone UWB role.
+   */
+  role?: "anchor" | "wearer";
+  /**
+   * Shared bus secret (EARMARK_BUS_SECRET). Required from non-loopback clients; never logged.
+   */
+  secret?: string;
 }
 /**
  * Hub -> one client, in reply to hello and after reset. Everything a client needs to render and reason.
@@ -408,7 +471,7 @@ export interface MicAudio {
   t?: number;
 }
 /**
- * Locator -> bus. The user's ear position from the beacons, room frame (origin under the mat center), about 3 per second. quality `lost` repeats the last position once after 1.5 s without a fix.
+ * Locator or hub -> bus. Where the listener's ears are, room frame (origin under the mat center, +x right, +y forward, +z up). Two producers share it: the sound-beacon locator (source `beacons`, ~3 Hz, sends `beacons_heard`) and the hub's UWB tracker (source `uwb`/`sim`, 10 Hz, sends `mode`, `residual_m`, `anchors_used`, `blocked`, `anchors`). Consumers only need `position` and `quality`. quality `lost` repeats the last good position. UWB mode: tracked = live estimate while walking; frozen = averaged landing spot at the counter; lost = holding the last good estimate; fixed = no tracker (origin); tracked/frozen map to quality ok, lost/fixed to lost.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "ListenerPose".
@@ -417,8 +480,32 @@ export interface ListenerPose {
   type: "listener_pose";
   position: Vec32;
   quality: "ok" | "degraded" | "lost";
-  beacons_heard: number;
-  source: "beacons" | "steps" | "sim" | "manual";
+  source: "beacons" | "uwb" | "sound" | "steps" | "sim" | "manual" | "none";
+  beacons_heard?: number;
+  mode?: "tracked" | "frozen" | "lost" | "fixed";
+  /**
+   * RMS range residual of the solve, meters; null when not solved (fixed).
+   */
+  residual_m?: number | null;
+  anchors_used?: number;
+  /**
+   * Anchor ids rejected as outliers in this solve.
+   */
+  blocked?: string[];
+  /**
+   * Optional per-anchor health for maps and status bars.
+   */
+  anchors?: {
+    anchor: string;
+    /**
+     * A fresh range arrived from this anchor within the freshness window.
+     */
+    online: boolean;
+    /**
+     * Latest raw distance from the wearer, meters.
+     */
+    distance_m: number | null;
+  }[];
   /**
    * Unix seconds.
    */
@@ -710,7 +797,17 @@ export interface HeadPose {
 export interface Status {
   type: "status";
   component:
-    "hub" | "concierge" | "mac_app" | "simulator" | "trial_cli" | "dashboard" | "cli" | "memory_agent" | "locator";
+    | "hub"
+    | "concierge"
+    | "mac_app"
+    | "simulator"
+    | "trial_cli"
+    | "dashboard"
+    | "cli"
+    | "memory_agent"
+    | "locator"
+    | "ios_anchor"
+    | "ios_wearer";
   ok: boolean;
   detail: string;
   info?: {
@@ -720,6 +817,107 @@ export interface Status {
    * Unix seconds.
    */
   t?: number;
+}
+/**
+ * iPhone -> hub -> iPhone. A Nearby Interaction discovery token (NSKeyedArchiver, secure coding, base64). The hub keeps the latest per (from, to), delivers it to the client whose hello.device_id equals `to`, and replays it when that client (re)connects. Each NISession has its own token, so the wearer sends one per anchor.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "UwbToken".
+ */
+export interface UwbToken {
+  type: "uwb_token";
+  /**
+   * Sender device_id.
+   */
+  from: string;
+  /**
+   * Recipient device_id.
+   */
+  to: string;
+  token_b64: string;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Wearer iPhone -> hub. One Nearby Interaction distance to an anchor (direction is never used). Up to 20 Hz per anchor. Anchors never send ranges.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "UwbRange".
+ */
+export interface UwbRange {
+  type: "uwb_range";
+  /**
+   * Anchor device_id, e.g. "uwb_1".
+   */
+  anchor: string;
+  distance_m: number;
+  /**
+   * Per-anchor sequence number from the wearer.
+   */
+  seq: number;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Wearer iPhone -> hub. Moving vs still from CoreMotion user acceleration (0.5 s RMS, hysteresis). Sent on change and as a 1 s heartbeat.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "MotionState".
+ */
+export interface MotionState {
+  type: "motion_state";
+  state: "moving" | "still";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Concierge (voice) or Mac app -> bus. freeze: "I'm here" - the hub freezes the listener at the current estimate immediately. recenter: the Mac app re-zeroes AirPods yaw (user faces the counter).
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "ListenerCommand".
+ */
+export interface ListenerCommand {
+  type: "listener_command";
+  action: "freeze" | "recenter";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Wearer iPhone (a knock of the phone next to the object, or the Mark button) or concierge (the user said "here") -> hub. Carries no data: it marks the moment. The hub answers with tap_position.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "ObjectTap".
+ */
+export interface ObjectTap {
+  type: "object_tap";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. UWB: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D). Otherwise the last beacon listener_pose. ok false (no position) when no tracker has a fresh fix.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "TapPosition".
+ */
+export interface TapPosition {
+  type: "tap_position";
+  ok: boolean;
+  position?: Vec32;
+  source: "beacons" | "uwb" | "sound" | "steps" | "sim" | "manual" | "none";
+  /**
+   * Unix seconds.
+   */
+  t: number;
 }
 /**
  * Any -> bus. Return every component to the demo starting state (stop guidance and chirps, clear held state, hub re-reads seed/cache and re-sends snapshot).
@@ -735,7 +933,7 @@ export interface Reset {
   t: number;
 }
 /**
- * POST /ingest (hub). Idempotent by event_id.
+ * POST /ingest (hub). Idempotent by event_id. Optional `anchors` (UWB anchor health, sent on change) and `pose` (the single live wearer pose, <= 2 Hz). Pose is overwritten in place, never stored as history.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "IngestRequest".
@@ -743,6 +941,8 @@ export interface Reset {
 export interface IngestRequest {
   events: HubEvent[];
   states: ObjectState[];
+  anchors?: IngestAnchor[];
+  pose?: IngestPose;
 }
 /**
  * Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}.
@@ -769,6 +969,40 @@ export interface HubEvent {
   object_id: string | null;
   t: number;
   data: {};
+}
+/**
+ * One UWB anchor as the hub sees it.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "IngestAnchor".
+ */
+export interface IngestAnchor {
+  anchor: string;
+  label: string;
+  /**
+   * @minItems 3
+   * @maxItems 3
+   */
+  position: [number, number, number];
+  online: boolean;
+  last_distance_m: number | null;
+  last_seen_t: number | null;
+}
+/**
+ * Latest listener pose (bus listener_pose, trimmed). Overwrites the single wearerPose row.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "IngestPose".
+ */
+export interface IngestPose {
+  /**
+   * @minItems 3
+   * @maxItems 3
+   */
+  position: [number, number, number];
+  mode: "tracked" | "frozen" | "lost" | "fixed";
+  source: "uwb" | "sound" | "sim" | "none";
+  t: number;
 }
 /**
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema

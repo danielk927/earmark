@@ -79,6 +79,7 @@ class Settings:
     mac_app_ttl_s: float = 15.0
     label_window_s: float = 300.0
     clarify_window_s: float = 30.0
+    mark_window_s: float = 60.0
     stale_s: float = 600.0
     say_cmd: str = "say"
     timezone: str | None = None
@@ -145,6 +146,7 @@ def load_settings(*, dotenv: bool = True) -> Settings:
         mac_app_ttl_s=_float("CONCIERGE_MAC_APP_TTL_S", d.mac_app_ttl_s),
         label_window_s=_float("CONCIERGE_LABEL_WINDOW_S", d.label_window_s),
         clarify_window_s=_float("CONCIERGE_CLARIFY_WINDOW_S", d.clarify_window_s),
+        mark_window_s=_float("CONCIERGE_MARK_WINDOW_S", d.mark_window_s),
         stale_s=_float("CONCIERGE_STALE_S", d.stale_s),
         say_cmd=_get("CONCIERGE_SAY_CMD", d.say_cmd),
         timezone=_get("CONCIERGE_TIMEZONE"),

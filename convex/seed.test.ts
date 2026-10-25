@@ -89,6 +89,59 @@ describe("seed", () => {
   });
 });
 
+describe("anchors in the seed config", () => {
+  const withAnchors = (anchors: { anchor: string; label: string; position: number[] }[]) => {
+    const a = seedArgs();
+    return { ...a, space: { ...a.space, anchors } };
+  };
+  const A1 = { anchor: "uwb_1", label: "UWB Reader/Emitter 1", position: [-0.9, 0.75, -0.25] };
+  const A2 = { anchor: "uwb_2", label: "UWB Reader/Emitter 2", position: [0.9, 0.75, -0.25] };
+
+  test("seed creates them offline, keeps hub-reported health on re-seed, and drops removed ones", async () => {
+    at("2025-10-24", "17:00");
+    const t = setup();
+    await t.mutation(internal.seed.seed, withAnchors([A1, A2]));
+    expect((await t.query(api.dashboard.liveMap, {})).anchors).toEqual([
+      { anchorId: "uwb_1", label: A1.label, position: A1.position, online: false, lastDistanceM: null, lastSeenT: null },
+      { anchorId: "uwb_2", label: A2.label, position: A2.position, online: false, lastDistanceM: null, lastSeenT: null },
+    ]);
+    await post(t, "/ingest", {
+      events: [],
+      states: [],
+      anchors: [{ ...A1, online: true, last_distance_m: 1.5, last_seen_t: 1 }],
+    });
+    await t.mutation(internal.seed.seed, withAnchors([{ ...A1, label: "UWB Reader/Emitter One" }]));
+    expect((await t.query(api.dashboard.liveMap, {})).anchors).toEqual([
+      { anchorId: "uwb_1", label: "UWB Reader/Emitter One", position: A1.position, online: true, lastDistanceM: 1.5, lastSeenT: 1 },
+    ]);
+  });
+
+  test("a bad anchor position is rejected", async () => {
+    at("2025-10-24", "17:00");
+    const t = setup();
+    await expect(t.mutation(internal.seed.seed, withAnchors([{ ...A1, position: [1, 2] }]))).rejects.toThrow(/position/);
+  });
+
+  test("reset clears the wearer pose and returns anchors to offline", async () => {
+    at("2025-10-24", "17:00");
+    const t = setup();
+    await t.mutation(internal.seed.seed, withAnchors([A1]));
+    await post(t, "/ingest", {
+      events: [],
+      states: [],
+      anchors: [{ ...A1, online: true, last_distance_m: 1.5, last_seen_t: 1 }],
+      pose: { position: [0, -1, 0], mode: "tracked", source: "uwb", t: 1 },
+    });
+    expect((await t.query(api.dashboard.liveMap, {})).wearer).not.toBeNull();
+    await t.action(internal.seed.reset, withAnchors([A1]));
+    const map = await t.query(api.dashboard.liveMap, {});
+    expect(map.wearer).toBeNull();
+    expect(map.anchors).toEqual([
+      { anchorId: "uwb_1", label: A1.label, position: A1.position, online: false, lastDistanceM: null, lastSeenT: null },
+    ]);
+  });
+});
+
 describe("reset", () => {
   test("restores the demo state, never touching trials", async () => {
     at("2025-10-24", "17:00");

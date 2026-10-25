@@ -4,6 +4,9 @@
   the latest ObjectState per object.
 - POST /api/label: voice labels, in queue order with the events.
 - GET /api/registry: polled; a new `version` replaces the local registry.
+- UWB: the latest listener pose and the anchor list ride along in the next /ingest body as the optional
+  `pose` / `anchors`, at most `pose_hz` times a second, anchors only when they changed. Both live in
+  memory only: the pose is never a hub_event, never queued on disk, and only the latest one is sent.
 Every request carries X-Earmark-Secret and a timeout. Failures back off exponentially;
 the queue lives on disk (var/hub/queue.jsonl) so nothing is lost while offline or across
 restarts. The secret is never logged.
@@ -13,7 +16,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -21,10 +26,13 @@ from typing import Awaitable, Callable
 import httpx
 from earmark_contracts import (
     HubEvent,
+    IngestAnchor,
+    IngestPose,
     IngestRequest,
     IngestResponse,
     LabelRequest,
     LabelResponse,
+    ListenerPose,
     ObjectState,
     Registry,
     to_dict,
@@ -109,8 +117,15 @@ class DurableQueue:
 
 class ConvexSync:
     def __init__(self, client: ConvexClient, queue_path: Path, cfg: ConvexCfg,
-                 on_change: Callable[[], None] | None = None) -> None:
+                 on_change: Callable[[], None] | None = None, pose_hz: float = 2.0,
+                 monotonic: Callable[[], float] = time.monotonic) -> None:
         self.client, self.cfg = client, cfg
+        self._pose: IngestPose | None = None  # latest unsent pose
+        self._anchors: list[IngestAnchor] | None = None  # changed, unsent anchors
+        self._anchors_sent: list[IngestAnchor] | None = None
+        self._live_every_s = 1.0 / pose_hz
+        self._live_sent = -math.inf
+        self._monotonic = monotonic
         self.queue = DurableQueue(queue_path)
         self._states: dict[str, ObjectState] = {}
         self._wake = asyncio.Event()
@@ -133,6 +148,14 @@ class ConvexSync:
     def add_label(self, req: LabelRequest) -> None:
         self.queue.append({"kind": "label", "body": to_dict(req)})
         self._wake.set()
+
+    def set_pose(self, pose: ListenerPose) -> None:
+        """Latest listener pose for the dashboard; replaces any unsent one."""
+        self._pose = IngestPose(position=pose.position, mode=pose.mode, source=pose.source, t=pose.t)
+
+    def set_anchors(self, anchors: list[IngestAnchor]) -> None:
+        """Anchor health; sent only if it differs from what Convex last acknowledged."""
+        self._anchors = None if anchors == self._anchors_sent else list(anchors)
 
     def pending_labels(self) -> list[LabelRequest]:
         return [LabelRequest.model_validate(i["body"]) for i in self.queue.items if i["kind"] == "label"]
@@ -172,10 +195,15 @@ class ConvexSync:
                 break
             events.append(HubEvent.model_validate(item["body"]))
         states = list(self._states.values())
-        if not events and not states:
+        pose, anchors = self._pose, self._anchors
+        live = (pose is not None or anchors is not None) and self._monotonic() - self._live_sent >= self._live_every_s
+        if not live:
+            pose = anchors = None
+        if not events and not states and not live:
             return False
+        extra = {k: v for k, v in (("pose", pose), ("anchors", anchors)) if v is not None}
         try:
-            resp = await self.client.ingest(IngestRequest(events=events, states=states))
+            resp = await self.client.ingest(IngestRequest(events=events, states=states, **extra))
             log.debug("ingested", extra={"accepted_events": resp.accepted_events,
                                          "duplicate_events": resp.duplicate_events,
                                          "accepted_states": resp.accepted_states})
@@ -184,6 +212,15 @@ class ConvexSync:
                 raise
             log.error("ingest batch rejected by convex; dropped", extra={
                 "error": str(e), "events": [ev.model_dump(mode="json") for ev in events]})
+        else:
+            if anchors is not None:
+                self._anchors_sent = anchors
+        if live:
+            self._live_sent = self._monotonic()
+            if self._pose is pose:
+                self._pose = None
+            if self._anchors is anchors:
+                self._anchors = None
         self.queue.drop_front(len(events))
         for s in states:
             if self._states.get(s.object_id) is s:

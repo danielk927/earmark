@@ -133,5 +133,6 @@ async def test_anthropic_chooser_request_shape():
     assert "temperature" not in b
     assert [t["name"] for t in b["tools"]] == [
         "locate_object", "guide_to_object", "chirp_fob", "label_object", "last_seen",
-        "put_in_place", "place_history", "stop_guidance", "list_objects"]
+        "put_in_place", "place_history", "stop_guidance", "list_objects", "freeze_listener", "recenter_listener",
+        "mark_object"]
     assert all("input_schema" in t for t in b["tools"])

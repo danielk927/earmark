@@ -22,6 +22,11 @@ struct DebugPanel: View {
                         row("Ping interval", g.map { String(format: "%.0f ms", $0.pingIntervalSec * 1000) } ?? "-")
                         row("Zone / locked", g.map { "\($0.zone.rawValue) / \($0.locked ? "yes" : "no")" } ?? "-")
                         row("Last feedback", core.lastFeedback.map { "\($0.event.rawValue)\($0.turn.map { " " + $0.rawValue } ?? "")" } ?? "-")
+                        row("Listener x / y", String(format: "%+.2f / %+.2f m", pose.listener.x, pose.listener.y))
+                        row("Listener pose", core.listenerPose.map { p in
+                            "\(p.mode?.rawValue ?? "none"), \(p.source.rawValue), \(p.anchorsUsed ?? 0) anchors" + (p.residualM.map { String(format: ", res %.2f m", $0) } ?? "")
+                        } ?? "none (origin)")
+                        row("Target distance", g.map { String(format: "%.2f m", $0.distanceM) } ?? "-")
                     }
                 }
                 Card("Audio") {
@@ -95,6 +100,7 @@ struct DebugPanel: View {
 struct SettingsView: View {
     @ObservedObject var m: AppModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showCalibration = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -136,6 +142,16 @@ struct SettingsView: View {
                         .font(.system(size: 12).monospaced())
                         .foregroundStyle(Theme.textSecondary)
                 }
+                Section("Walking guidance (UWB)") {
+                    Button("Calibrate UWB anchors...") { showCalibration = true }
+                        .accessibilityHint("Opens the anchor measurements, position check, and save to space.json")
+                    tuning("Full volume within", value: $m.attenuation.referenceDistance, range: 0.2...2, step: 0.1, unit: "m",
+                           help: "Cues closer than this are not attenuated (default 0.6 m, so the seated demo sounds the same).")
+                    tuning("No quieter beyond", value: $m.attenuation.maximumDistance, range: 2...20, step: 0.5, unit: "m",
+                           help: "Default 8 m.")
+                    tuning("Rolloff", value: $m.attenuation.rolloffFactor, range: 0...3, step: 0.1, unit: "",
+                           help: "How fast the cue gets quieter with distance (default 1, 0 = no distance cue). PHASE applies a change when the renderer is next built.")
+                }
             }
             .formStyle(.grouped)
             HStack {
@@ -145,7 +161,30 @@ struct SettingsView: View {
             }
         }
         .padding(24)
-        .frame(width: 560, height: 640)
+        .frame(width: 560, height: 720)
         .background(Theme.background)
+        .sheet(isPresented: $showCalibration) { CalibrationView(m: m, cal: m.calibration) }
+    }
+
+    /// A labeled slider with its value in words for VoiceOver.
+    private func tuning(_ title: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double,
+                        unit: String, help: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(String(format: "%.2f", value.wrappedValue) + (unit.isEmpty ? "" : " " + unit))
+                    .font(.system(size: 13).monospacedDigit())
+                    .foregroundStyle(Theme.textSecondary)
+                    .accessibilityHidden(true)
+            }
+            Slider(value: value, in: range, step: step)
+                .accessibilityLabel(title)
+                .accessibilityValue(String(format: "%.2f", value.wrappedValue) + (unit.isEmpty ? "" : " " + unit))
+            Text(help)
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

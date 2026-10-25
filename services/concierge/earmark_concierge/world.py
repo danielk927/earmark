@@ -15,14 +15,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from earmark_contracts import (
-    ObjectState, Pickup, RegistryObject, Snapshot, Space, Spot, UnknownTag,
+    HeadPose, ListenerPose, ObjectState, Pickup, RegistryObject, Snapshot, Space, Spot, UnknownTag,
 )
 
 log = logging.getLogger(__name__)
 DEFAULT_TZ = "America/Los_Angeles"
+HEAD_YAW_FRESH_S = 2.0  # older head_pose readings are ignored for walking directions
 MAX_HISTORY = 10
 LISTENER_FRESH_S = 3.0  # a locator fix older than this is ignored
-HEAD_FRESH_S = 2.0
 
 
 @dataclass
@@ -62,9 +62,11 @@ class World:
         self.sightings: dict[str, Sighting] = {}
         self.history: dict[str, list[Sighting]] = {}  # every place an object was noted, oldest first
         self.pickups: dict[str, LastPickup] = {}
-        self.listener: tuple[list[float], float] | None = None  # (position, received at)
-        self.head_yaw: tuple[float, float] | None = None  # (degrees, received at)
+        self.listener_fix: tuple[list[float], float] | None = None  # last usable position, received at
         self.unknown_tag: UnknownTag | None = None
+        self.listener: ListenerPose | None = None  # latest UWB/sim pose; None = origin, fixed
+        self.head_yaw: float | None = None  # degrees from calibrated forward, right positive
+        self.head_yaw_t: float | None = None  # local receive time
         self.registry_version: float | None = None
 
     # ------------------------------------------------------------ updates
@@ -111,18 +113,36 @@ class World:
             t=msg.t,
         )
 
-    def apply_listener(self, position: list[float], quality: str) -> None:
-        if quality != "lost":
-            self.listener = (list(position), time.time())
+    def apply_head_pose(self, msg: HeadPose, now: float | None = None) -> None:
+        self.head_yaw = msg.yaw
+        self.head_yaw_t = time.time() if now is None else now
 
-    def apply_head(self, yaw: float) -> None:
-        self.head_yaw = (yaw, time.time())
+    def fresh_yaw(self, now: float | None = None) -> float | None:
+        """Head yaw, or None (room frame) unless a head_pose arrived within HEAD_YAW_FRESH_S."""
+        now = time.time() if now is None else now
+        fresh = (self.head_yaw is not None and self.head_yaw_t is not None
+                 and now - self.head_yaw_t <= HEAD_YAW_FRESH_S)
+        return self.head_yaw if fresh else None
+
+    def listener_view(self, now: float | None = None) -> tuple[list[float] | None, str | None, float | None]:
+        """(position, mode, fresh yaw) for direction phrasing; (None, 'fixed', yaw) before any pose.
+
+        mode is None for the beacon locator, which has no walking modes.
+        """
+        p = self.listener
+        yaw = self.fresh_yaw(now)
+        return (list(p.position), p.mode, yaw) if p else (None, "fixed", yaw)
+
+    def apply_listener(self, msg: ListenerPose) -> None:
+        self.listener = msg
+        if msg.quality != "lost":
+            self.listener_fix = (list(msg.position), time.time())
 
     def listener_position(self) -> list[float] | None:
         """Where the locator last put the user, or None when it is old or missing."""
-        if self.listener is None or time.time() - self.listener[1] > LISTENER_FRESH_S:
+        if self.listener_fix is None or time.time() - self.listener_fix[1] > LISTENER_FRESH_S:
             return None
-        return self.listener[0]
+        return self.listener_fix[0]
 
     def relative(self, pos: list[float]) -> list[float]:
         """A room position as seen by the user: from where they stand, turned to where they face.
@@ -131,7 +151,7 @@ class World:
         """
         here = self.listener_position() or [0.0, 0.0, 0.0]
         dx, dy = pos[0] - here[0], pos[1] - here[1]
-        yaw = self.head_yaw[0] if self.head_yaw and time.time() - self.head_yaw[1] <= HEAD_FRESH_S else 0.0
+        yaw = self.fresh_yaw() or 0.0
         r = math.hypot(dx, dy)
         az = math.atan2(dx, dy) - math.radians(yaw)
         return [r * math.sin(az), r * math.cos(az), pos[2] - here[2] if len(pos) > 2 else 0.0]
@@ -151,7 +171,12 @@ class World:
         return list(s.position) if s else None
 
     def spots_left_to_right(self) -> list[Spot]:
-        """Spots ordered by azimuth from the listener (leftmost first)."""
+        """Spots ordered by azimuth from the counter origin (leftmost first).
+
+        Deliberately NOT relative to the live listener pose: the order of jars on the counter
+        must not flip when the user stands off to one side, and "N spots to your left/right" is
+        only ever spoken right after a pickup, when the user is at the counter facing it.
+        """
         from .phrasing import azimuth_deg
         if self.space is None:
             return []

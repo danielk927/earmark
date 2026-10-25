@@ -13,6 +13,7 @@ Anything marked **estimate** or **proposal** is our planning number, not a measu
 | Hub | Python on the demo Mac: debounce, state engine, local WebSocket bus, durable offline queue to Convex (`services/hub/README.md`) | Same code on a small always-on box in the home (section 2) |
 | Voice concierge | Python on the demo Mac: Cartesia speech, Claude tool choice with a keyword fallback, spoken memory of where items were put, Moss retrieval with fuzzy fallback (`services/concierge/README.md`) | Same, on the home box |
 | Spatial audio app | macOS app with AirPods head tracking (in progress) | iPhone app (section 3) |
+| Walking guidance (UWB) | Four iPhones: three fixed anchors ("UWB Reader/Emitter 1/2/3") and one handheld wearer; the hub's solver and freeze run against a simulator; the iPhone app has not run on a phone yet (`docs/project/UWB-PRD.md`, `docs/project/STATUS.md`) | Small dedicated UWB anchor modules in the room; the user's own iPhone is the wearer (section 3.1) |
 | Backend | Convex: tables, HTTP actions with shared secrets, adherence rules with tests, crons, photo labeling (`convex/README.md`) | Convex with user auth, household scoping, and roles (section 5) |
 | Caregiver dashboard and memory agent | In progress | Azure Static Web Apps and Azure Container Apps (section 4) |
 | Users | None yet; see `docs/project/CUSTOMER.md` | Pilot households through a blindness organization (section 10) |
@@ -33,6 +34,7 @@ Anything marked **estimate** or **proposal** is our planning number, not a measu
 | Enclosures, spot pads, cables, power supplies | Thin pad per spot, one box per reader board and hub | **Estimate:** $20 to $60 per home (not sourced) | - |
 
 Not included, because the user brings them: an iPhone and head-tracking headphones (section 3).
+Not included yet: UWB anchors for walking guidance, which are not priced (section 3.1).
 Without supported headphones Earmark falls back to stereo panning and spoken clock directions, then speech only.
 
 ### 1.2 A starter home (estimate)
@@ -101,6 +103,33 @@ What changes on iPhone:
   Sources: https://developer.apple.com/documentation/bundleresources/information-property-list/nsmotionusagedescription, https://developer.apple.com/documentation/bundleresources/information-property-list/nslocalnetworkusagedescription
 - **UI:** the map becomes a VoiceOver-first SwiftUI screen; the primary user still never has to touch it, since every job works by voice.
 - **Hardware coverage:** head tracking needs supported headphones; the fallback ladder in `docs/project/ARCHITECTURE.md` covers everyone else.
+
+### 3.1 Walking guidance: anchors and the wearer
+
+Tonight the anchors are iPhones because they were the UWB hardware we had.
+That does not work in a home: each anchor phone needs its screen on, the app in front, auto-lock off, and a charger, because Nearby Interaction suspends a session when its app goes to the background (`docs/sponsors/vendor-notes/apple-nearby-interaction.md`).
+And nobody should buy three iPhones to find the sugar.
+
+Production plan (**proposal**):
+- **Anchors are small dedicated UWB modules**, for example Qorvo's Apple-interoperable modules, mounted on a wall or shelf and powered by USB or mains.
+  Apple's guidance to accessory makers: "Implement the Nearby Interaction accessory protocol with a Nearby Interaction-enabled UWB chipset to make accessories that interact with supported Apple products. Contact your UWB chipset vendor to confirm feature support." (https://developer.apple.com/nearby-interaction/)
+- **The wearer is the user's own iPhone**, running the iPhone app from section 3, held or carried as they walk. It ranges to each anchor and sends the distances to the home hub, exactly like tonight's wearer app.
+- **Background use.** Apple: "In iOS 16, third-party UWB accessories paired to the device through Bluetooth can interact with your app while it's in the background." The app pairs to each anchor over Bluetooth and starts the session with `NINearbyAccessoryConfiguration(accessoryData:bluetoothPeerIdentifier:)` (iOS 16+). The plain `NINearbyAccessoryConfiguration(data:)` is iOS 15+. (https://developer.apple.com/documentation/nearbyinteraction/ninearbyaccessoryconfiguration)
+- **Setup.** The installer measures each anchor from the origin mark with a tape measure, the same way we do tonight (Mac app Calibrate screen or `scripts/calibrate.py`), and runs the five-mark position check.
+
+What changes in the code:
+- The iPhone app swaps phone-to-phone sessions (`NINearbyPeerConfiguration`) for accessory sessions. The accessory sends its configuration data over the Bluetooth link, so the hub's token relay is no longer needed for the anchors.
+- Nothing else changes. The hub's solver, freeze, and NFC re-anchor, the Mac/iPhone audio, the concierge, and the dashboard all consume `uwb_range` and `listener_pose`, never the anchor hardware.
+
+Not verified yet (vendor sites were unreachable from our build environment on 2026-10-25):
+- Which Qorvo module or development kit to use, its price, size, and power draw, and whether it supports Apple's current interoperability specification. Anchors are therefore not in the bill of materials in section 1.
+- Whether a shipping anchor needs Apple's MFi program. Apple's Nearby Interaction page links MFi but does not say.
+
+Risks to test in the pilot:
+- How many accessory sessions one iPhone sustains at once. Apple only says the limit "varies across device type and platform" (`NIError.activeSessionsLimitExceeded`). Tonight's round-robin fallback carries over.
+- Battery drain on the user's iPhone while walking guidance runs.
+- A phone in a pocket or bag: tonight the phone is held at the chest (`docs/project/UWB-PRD.md` section 2), and a pocket is untested.
+- Anchor placement in real kitchens: metal appliances and the user's own body block the signal; the hub flags and drops a blocked anchor, but rooms need at least three anchors with a clear view of the walking area.
 
 ## 4. Cloud hosting on Azure
 

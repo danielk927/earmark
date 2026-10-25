@@ -1,4 +1,5 @@
 import EarmarkAudio
+import simd
 import Testing
 
 @Suite struct GuidanceCurveTests {
@@ -138,6 +139,54 @@ import Testing
         #expect(r.events == [.front(errorDeg: r.state.errorDeg)])
         #expect(Guidance.turn(forErrorDeg: 180) == .right)
         #expect(Guidance.turn(forErrorDeg: -180) == .right)   // -180 wraps to +180
+    }
+}
+
+@Suite struct WalkingGuidanceTests {
+    // The app keeps the listener at the origin and passes guidance the target relative to the user (`retarget`).
+
+    @Test func relativeTargetGivesAzimuthDistanceAndProximityPing() {
+        // User stands 2 m to the left of the counter mark; the jar is at (0.16, 0.58): relative target (2.16, 0).
+        var g = Guidance(target: [2.16, 0, 0])
+        let s = g.update(headYawDeg: 0, now: 0).state
+        #expect(abs(s.targetAzimuthDeg - 90) < 1e-9)
+        #expect(abs(s.errorDeg - 90) < 1e-9)
+        #expect(s.turn == .right)
+        #expect(abs(s.distanceM - 2.16) < 1e-9)
+        #expect(s.pingIntervalSec == 0.9)                      // no locator distance: angle curve only
+        var h = Guidance(target: [2.16, 0, 0])
+        let near = h.update(headYawDeg: 0, now: 0, distanceM: 2.16).state
+        #expect(abs(near.pingIntervalSec - 0.9 * Guidance.proximityScale(distanceM: 2.16)) < 1e-12)
+        #expect(near.pingIntervalSec < 0.9)
+    }
+
+    @Test func behindAndLockComeFromTheRetargetedVector() {
+        // Walked past the counter (listener beyond the jar): the jar is behind. Relative target = (0, 0.58, 0) - (0.3, 1.5, 0).
+        var g = Guidance(target: [-0.3, -0.92, 0])
+        let r = g.update(headYawDeg: 0, now: 0)
+        #expect(r.state.zone == .behind)
+        guard case .behind(let turn, _)? = r.events.first else { Issue.record("no behind event"); return }
+        #expect(turn == .left)   // target at about -162 deg: the shorter turn is left
+
+        // 3 m back, facing the jar exactly: locks after the dwell, just like seated.
+        let rel = EarmarkPoint(0.16, 0.58 + 2.42, 0)
+        var h = Guidance(target: rel)
+        let az = Geometry.azimuthDeg(rel)
+        var locked = false
+        for i in 0...25 {
+            let r = h.update(headYawDeg: az, now: Double(i) * 0.02)
+            if r.events.contains(.locked(errorDeg: 0)) { locked = true }
+        }
+        #expect(locked)
+    }
+
+    @Test func retargetingMidWalkChangesTheVectorButKeepsZone() {
+        var g = Guidance(target: [0, 2, 0])
+        _ = g.update(headYawDeg: 0, now: 0)
+        g.retarget([0, -1, 0])                                  // user walked past the target
+        let r = g.update(headYawDeg: 0, now: 0.02)
+        #expect(r.state.zone == .behind)
+        #expect(abs(r.state.distanceM - 1) < 1e-9)
     }
 }
 

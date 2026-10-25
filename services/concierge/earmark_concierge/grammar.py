@@ -16,6 +16,24 @@ _FILLER_TAIL = re.compile(
 _DET = r"(?:(?:my|the|a|an|our|some|his|her|their)\s+)?"
 
 _STOP = re.compile(r"\b(?:stop|cancel|never ?mind|nevermind|be quiet|quiet|that's enough|enough)\b")
+_TAP = re.compile(  # voice fallback for the phone tap while marking an object
+    r"^(?:(?:ok|okay|so|alright|hey earmark)\s+)*"
+    r"(?:(?:i'm|im|i am)\s+(?:here|done)|i tapped(?: it)?|here|done|tapped|now)(?:\s+(?:now|please))?$"
+)
+_MARK_ASK = re.compile(
+    r"^(?:(?:ok|okay|so|and|now|please|hey earmark)\s+)*(?:i want to |i'd like to |let's |can you |could you )?"
+    r"(?:add|register)\s+(?:a |an |another |one )?(?:new )?(?:object|item|thing)s?$"
+)
+_MARK_ADD = re.compile(
+    r"^(?:(?:ok|okay|so|and|now|please|hey earmark)\s+)*(?:i want to |i'd like to |let's |can you |could you )?"
+    r"(?:add|register)\s+" + _DET + r"(?P<x>.+)$"
+)
+_MARK_REMEMBER = re.compile(
+    r"^(?:(?:ok|okay|so|and|now|please|hey earmark)\s+)*remember where i (?:put|left|placed|set)\s+"
+    + _DET + r"(?P<x>.+)$"
+)
+_HERE = re.compile(r"^(?:(?:ok|okay|so|alright|hey earmark)\s+)*(?:i'm|im|i am)\s+here(?:\s+(?:now|please))?$")
+_RECENTER = re.compile(r"\bre ?center\b")
 _LABEL = re.compile(
     r"^(?:(?:ok|okay|so|and|now|hey earmark)\s+)*"
     r"(?:this(?: one| item| thing)? is(?: called| named)?|call this(?: one)?|label this(?: one)?(?: as)?|"
@@ -27,6 +45,10 @@ _CHIRP = (
 )
 _SAY = r"^(?:(?:ok|okay|so|and|now|hey earmark)\s+)*(?:i(?:'m| am| just)?\s+)?"
 _PUT_VERB = r"(?:put|placed|left|leaving|stored|putting|placing|set|stuck)\s+"
+_MARK_DOWN = (  # "I'm putting down my keys" / "I'm putting my keys down"
+    re.compile(_SAY + r"(?:putting|setting|placing|laying|put|set|placed|laid)\s+down\s+" + _DET + r"(?P<x>.+)$"),
+    re.compile(_SAY + r"(?:putting|setting|placing|laying|put|set|placed|laid)\s+" + _DET + r"(?P<x>.+?)\s+down$"),
+)
 _PUT_IN = re.compile(
     _SAY + _PUT_VERB + _DET + r"(?P<x>.+?)\s+(?:in|into|on|at|inside|under|behind|by|near)\s+"
     r"(?:the |my |a |an )?(?P<p>.+)$"
@@ -67,6 +89,11 @@ def normalize(text: str) -> str:
     return " ".join(s.split())
 
 
+def is_tap(text: str) -> bool:
+    """'here', 'done', 'I'm here': the voice stand-in for tapping the phone while marking an object."""
+    return bool(_TAP.match(normalize(text)))
+
+
 def _clean_x(x: str) -> str:
     x = _FILLER_TAIL.sub("", x.strip())
     return clean_name(x)
@@ -76,6 +103,10 @@ def parse(text: str, known_terms: set[str] | None = None) -> ToolCall | None:
     s = normalize(text)
     if not s:
         return None
+    if _HERE.match(s):
+        return ToolCall("freeze_listener")
+    if _RECENTER.search(s) and not re.search(r"\b(?:where|find)\b", s):
+        return ToolCall("recenter_listener")
     if _STOP.search(s) and not re.search(r"\b(?:where|find)\b", s):
         return ToolCall("stop_guidance")
     m = _LABEL.search(s)
@@ -99,6 +130,12 @@ def parse(text: str, known_terms: set[str] | None = None) -> ToolCall | None:
         m = rx.search(s)
         if m and _clean_x(m["x"]):
             return ToolCall("last_seen", {"query": _clean_x(m["x"])})
+    if _MARK_ASK.match(s):
+        return ToolCall("mark_object")
+    for rx in (_MARK_ADD, _MARK_REMEMBER, *_MARK_DOWN):
+        m = rx.match(s)
+        if m and _clean_x(m["x"]):
+            return ToolCall("mark_object", {"query": _clean_x(m["x"])})
     if _LIST.search(s):
         return ToolCall("list_objects")
     m = _GUIDE.search(s)

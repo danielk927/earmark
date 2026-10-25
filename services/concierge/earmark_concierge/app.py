@@ -73,7 +73,10 @@ async def run(settings: Settings, text: str | None = None, repl: bool = False) -
     log.info("concierge starting: %s", describe(settings))
 
     main = asyncio.current_task()
-    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown
+    try:
+        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown
+    except NotImplementedError:  # Windows has no loop signal handlers; terminate() kills the process
+        pass
     tasks = [asyncio.create_task(bus.run_forever()), asyncio.create_task(core.status_loop())]
     if text:
         tasks.append(asyncio.create_task(_inject_once(core, text)))

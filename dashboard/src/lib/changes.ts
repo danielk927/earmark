@@ -30,6 +30,12 @@ export function describeChanges(prev: LiveMap, next: LiveMap): string[] {
     if (prevTags.has(u.tag)) continue;
     out.push(u.spot != null ? `New item on ${theSpot(spots, u.spot)}. Label it on the Items page.` : "New unlabeled tag seen.");
   }
+
+  const prevAnchors = new Map(prev.anchors.map((a) => [a.anchorId, a]));
+  for (const a of next.anchors) {
+    const before = prevAnchors.get(a.anchorId);
+    if (before && before.online !== a.online) out.push(`${a.label} is ${a.online ? "online" : "offline"}.`);
+  }
   return out;
 }
 

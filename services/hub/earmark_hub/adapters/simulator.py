@@ -89,6 +89,7 @@ class Simulator:
         interactive: bool = False,
         commands: AsyncIterator[str] | None = None,
         out: Callable[[str], None] | None = None,
+        extra_keys: Callable[[str], Awaitable[bool]] | None = None,
     ) -> None:
         if interactive and scenario is not None:
             raise ValueError("--interactive and --scenario are mutually exclusive")
@@ -101,6 +102,7 @@ class Simulator:
         self.interactive = interactive
         self.commands = commands
         self.out = out or (lambda s: print(s, end="", flush=True))
+        self.extra_keys = extra_keys  # e.g. uwb_sim's wearer keys; tried first, True = handled
         self.spots = list(spots)
         self.set_objects(objects)
         self.reset_physical()
@@ -234,6 +236,8 @@ class Simulator:
         cmd = cmd.strip()
         if not cmd:
             return False
+        if self.extra_keys is not None and await self.extra_keys(cmd):
+            return False
         head, rest = cmd[0], cmd[1:].strip()
         if head.isdigit() and not rest:
             self._toggle(int(head))
@@ -318,11 +322,13 @@ class SimulatorAdapter(Adapter):
 
     def __init__(self, clock: Clock, cfg: SimulatorCfg, *, scenario: Path | None = None, loop: bool = False,
                  step: bool = False, interactive: bool = False, gate: Gate | None = None,
-                 commands: AsyncIterator[str] | None = None, out: Callable[[str], None] | None = None) -> None:
+                 commands: AsyncIterator[str] | None = None, out: Callable[[str], None] | None = None,
+                 extra_keys: Callable[[str], Awaitable[bool]] | None = None) -> None:
         self.clock, self.cfg = clock, cfg
         self.lines = load_scenario(scenario) if scenario else None
         self.scenario_path = scenario
-        self.opts = dict(loop=loop, step=step, interactive=interactive, gate=gate, commands=commands, out=out)
+        self.opts = dict(loop=loop, step=step, interactive=interactive, gate=gate, commands=commands, out=out,
+                         extra_keys=extra_keys)
         self.sim: Simulator | None = None
 
     async def events(self) -> AsyncIterator[DetectionEvent]:

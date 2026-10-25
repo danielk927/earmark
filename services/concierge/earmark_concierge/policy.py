@@ -5,12 +5,13 @@ messages. Every sentence is computed here, never by an LLM.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from earmark_contracts import RegistryObject
 
 from .phrasing import (
-    Grammar, cap, clock_phrase, clock_time, direction_phrase, join_and, join_or, number_word,
+    LOST_MESSAGE, Grammar, cap, clock_phrase, clock_time, direction_phrase, join_and, join_or, number_word,
     relative_spot_phrase, the, time_phrase,
 )
 from .world import Sighting, World
@@ -56,6 +57,8 @@ class Plan:
     label: LabelAction | None = None
     place: PlaceAction | None = None
     stop: bool = False
+    tap: bool = False  # emit ObjectTap (the voice stand-in for the phone tap)
+    listener_command: str | None = None  # freeze | recenter -> listener_command on the bus
     clarify: list[str] = field(default_factory=list)
     clarify_tool: str | None = None
     object_id: str | None = None  # what this turn was about (for "it" follow-ups)
@@ -76,6 +79,18 @@ def where_phrase(world: World, s: Sighting) -> str | None:
 
 def _chirp_suffix(obj: RegistryObject, g: Grammar) -> str:
     return f" I'll make {g.it} beep." if obj.fob_id else ""
+
+
+def where_from(world: World, pos: list[float], now: float | None = None) -> str:
+    """Direction phrase for a room position from the listener, whichever producer made the pose.
+
+    UWB poses carry a mode (tracked words or clock face). Beacon-locator poses have none: clock
+    face from where they stand, turned to where they face.
+    """
+    where, mode, yaw = world.listener_view(now)
+    if mode is None:
+        return direction_phrase(world.relative(pos))
+    return direction_phrase(pos, where, mode, yaw)
 
 
 def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Plan:
@@ -101,8 +116,11 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
 
     if st is not None and st.precision == "exact" and st.location.position:
         pos = list(st.location.position)
+        # Lost: no trustworthy direction. Say so (the core marks it said for this guidance) and
+        # still start guidance so the sound ping works once tracking returns.
+        lost = world.listener_view(now)[1] == "lost"
         return Plan(
-            text=f"{cap(name)} {g.is_} {direction_phrase(world.relative(pos))}.",
+            text=LOST_MESSAGE if lost else f"{cap(name)} {g.is_} {where_from(world, pos, now)}.",
             guide=GuideTarget(obj.object_id, obj.name, pos, "exact"),
             object_id=obj.object_id,
         )
@@ -113,7 +131,7 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
         noted = f" I noted that {time_phrase(st.last_seen_t, now, tz)}." if st.last_seen_t else ""
         return Plan(
             text=(f"{cap(name)} {g.is_} in {world.area_label(st.location.area)}, "
-                  f"{direction_phrase(world.relative(pos))}.{noted}"),
+                  f"{where_from(world, pos, now)}.{noted}"),
             guide=GuideTarget(obj.object_id, obj.name, pos, "area"), object_id=obj.object_id,
         )
 
@@ -213,6 +231,15 @@ def label(tag: str, name: str, aliases: list[str], spot: int | None) -> Plan:
     )
 
 
+def freeze_listener(guiding: bool) -> Plan:
+    """'I'm here'. While guiding, the frozen transition announces itself, so stay quiet."""
+    return Plan(listener_command="freeze", text=None if guiding else "Okay, you're at the counter.")
+
+
+def recenter_listener() -> Plan:
+    return Plan(listener_command="recenter", text="Okay, recentered.")
+
+
 def put_in_place(world: World, obj: RegistryObject, area: str) -> Plan:
     g = Grammar(obj.name)
     return Plan(text=f"Got it, {the(obj.name)} {g.is_} in {world.area_label(area)}.",
@@ -228,6 +255,38 @@ def put_here(obj: RegistryObject, listener: list[float]) -> Plan:
     spot = [round(listener[0], 2), round(listener[1], 2), HAND_HEIGHT_M]
     return Plan(text=f"Got it, I'll remember where you left {the(obj.name)}.",
                 place=PlaceAction(obj.object_id, position=spot), object_id=obj.object_id)
+
+
+def mark_ask_name() -> Plan:
+    return Plan(text="What object are you adding?")
+
+
+def mark_set_down(name: str, known: RegistryObject | None) -> Plan:
+    """Two-step tap-to-mark, step 2. A new object is registered first, under a synthetic tag."""
+    label = None
+    if known is None:
+        slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "object"
+        # ponytail: a synthetic tag keeps registry, hub and Convex unchanged; drop it if Label's tag becomes optional.
+        label = LabelAction(tag=f"voice:{slug}", name=name, aliases=[], spot=None)
+    return Plan(text=f"Set {the(name)} down and tap your phone next to it.", label=label,
+                object_id=known.object_id if known else None)
+
+
+def mark_placed(object_id: str, name: str, position: list[float]) -> Plan:
+    return Plan(text=f"Got it. I'll remember where you left {the(name)}.",
+                place=PlaceAction(object_id, position=list(position)), object_id=object_id)
+
+
+def mark_retry(name: str) -> Plan:
+    return Plan(text=f"I couldn't tell where your phone is. Hold it still next to {the(name)} and tap again.")
+
+
+def mark_lost(name: str) -> Plan:
+    return Plan(text=f"Sorry, I lost track of {the(name)}. Tap your phone next to it again.")
+
+
+def mark_cancelled() -> Plan:
+    return Plan(text="Okay, cancelled.")
 
 
 def ask_place(world: World, obj: RegistryObject) -> Plan:
@@ -307,7 +366,7 @@ def pickup_wrong(world: World, target: RegistryObject, actual: RegistryObject | 
             if rel:
                 return f"{first} {tname} {g.is_} {rel}."
     if st is not None and st.precision == "exact" and st.location.position:
-        return f"{first} {tname} {g.is_} {direction_phrase(world.relative(list(st.location.position)))}."
+        return f"{first} {tname} {g.is_} {where_from(world, list(st.location.position))}."
     return f"{first} I'm not sure where {the(target.name)} {g.is_} right now."
 
 

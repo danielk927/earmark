@@ -50,6 +50,11 @@ public protocol SpatialRenderer: AnyObject {
     func setTarget(_ position: EarmarkPoint?)
     /// Listener (head) orientation in Earmark degrees: yaw + right, pitch + up.
     func setListener(yawDeg: Double, pitchDeg: Double)
+    /// Listener (head) position in Earmark coordinates. EarmarkCore does not call this: it keeps the listener at the
+    /// origin and moves the target (`setTarget`) as the user walks. Origin = default.
+    func setListener(position: EarmarkPoint)
+    /// Distance attenuation of the cue layer (tuned by ear in Settings).
+    func setDistanceAttenuation(_ attenuation: DistanceAttenuation)
     /// Interval of the repeating cue; nil stops repeating.
     func setPingInterval(_ interval: TimeInterval?)
     /// Which cue repeats: `.ping` normally, `.behind` while the target is behind the listener.
@@ -70,6 +75,23 @@ public extension SpatialRenderer {
     var name: String { kind.rawValue }
     func playLockedTone() { play(.locked) }
     func playBehindCue() { play(.behind) }
+}
+
+/// Inverse distance attenuation for the cue layer (PRD 10.1). Under `referenceDistance` there is no attenuation,
+/// so the seated demo (spots 0.4-0.6 m away) sounds exactly as before; walking from 3 m away the cue is quieter.
+/// gain = ref / (ref + rolloff * (min(d, max) - ref)) for d > ref (AVAudioEnvironmentNode `.inverse`).
+public struct DistanceAttenuation: Sendable, Equatable {
+    public var referenceDistance: Double = 0.6
+    public var maximumDistance: Double = 8
+    public var rolloffFactor: Double = 1
+
+    public init() {}
+
+    public init(referenceDistance: Double, maximumDistance: Double, rolloffFactor: Double) {
+        self.referenceDistance = referenceDistance
+        self.maximumDistance = maximumDistance
+        self.rolloffFactor = rolloffFactor
+    }
 }
 
 /// Decides when the repeating cue is due. Pure; driven by `RepeatingCueDriver`.

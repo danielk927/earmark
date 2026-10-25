@@ -3,7 +3,15 @@ import { internalMutation, type MutationCtx } from "./_generated/server";
 import { recomputeAfterPickup } from "./doses";
 import { householdInfo } from "./lib/registry";
 import { localDate } from "./lib/time";
-import { eventKind, nullableNumber, nullableString, objectStateFields, trialFields } from "./lib/validators";
+import {
+  anchorFields,
+  eventKind,
+  nullableNumber,
+  nullableString,
+  objectStateFields,
+  trialFields,
+  wearerPoseFields,
+} from "./lib/validators";
 import type { IngestEvent } from "./lib/wire";
 
 const eventArg = v.object({
@@ -71,9 +79,14 @@ async function applyUnknownTag(ctx: MutationCtx, e: IngestEvent) {
 
 /** POST /ingest commit: one transaction for the whole batch. */
 export const apply = internalMutation({
-  args: { events: v.array(eventArg), states: v.array(v.object(objectStateFields)) },
+  args: {
+    events: v.array(eventArg),
+    states: v.array(v.object(objectStateFields)),
+    anchors: v.array(v.object(anchorFields)),
+    pose: v.union(v.object(wearerPoseFields), v.null()),
+  },
   returns: v.object({ acceptedEvents: v.number(), duplicateEvents: v.number(), acceptedStates: v.number() }),
-  handler: async (ctx, { events, states }) => {
+  handler: async (ctx, { events, states, anchors, pose }) => {
     const now = Date.now() / 1000;
     const { timezone } = await householdInfo(ctx);
     let acceptedEvents = 0;
@@ -128,6 +141,23 @@ export const apply = internalMutation({
       else if (s.t >= row.t) await ctx.db.replace("objectState", row._id, s);
       else continue;
       acceptedStates++;
+    }
+
+    // Anchors: the hub owns health; the last entry for an id in a batch wins.
+    for (const a of anchors) {
+      const row = await ctx.db
+        .query("anchors")
+        .withIndex("by_anchorId", (q) => q.eq("anchorId", a.anchorId))
+        .unique();
+      if (row) await ctx.db.replace("anchors", row._id, a);
+      else await ctx.db.insert("anchors", a);
+    }
+
+    // The wearer pose: one row, overwritten when newer. Never an event, never a history.
+    if (pose !== null) {
+      const row = await ctx.db.query("wearerPose").first();
+      if (!row) await ctx.db.insert("wearerPose", pose);
+      else if (pose.t >= row.t) await ctx.db.replace("wearerPose", row._id, pose);
     }
 
     const seen = new Set<string>();

@@ -683,6 +683,95 @@ main:focus {
   font-weight: 700;
 }
 
+.listen-spot circle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 4 4;
+}
+
+.listen-spot text {
+  fill: var(--ink-soft);
+  font-weight: 700;
+}
+
+.anchor-shape {
+  stroke: var(--ink);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.anchor-on .anchor-shape {
+  fill: var(--ink);
+}
+
+.anchor-off .anchor-shape {
+  fill: var(--surface);
+  stroke-dasharray: 4 3;
+}
+
+.anchor-name {
+  fill: var(--ink);
+  font-weight: 700;
+}
+
+.anchor-state {
+  font-weight: 700;
+}
+
+.anchor-on .anchor-state {
+  fill: var(--ok);
+}
+
+.anchor-off .anchor-state {
+  fill: var(--bad);
+}
+
+.person-dot {
+  fill: var(--accent);
+}
+
+.person-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.person-lost .person-dot {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-dasharray: 3 3;
+}
+
+.person-lost .person-ring {
+  stroke-dasharray: 3 4;
+}
+
+.person-label {
+  fill: var(--ink);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--field);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.uwb-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.uwb-list li {
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--rule);
+}
+
+.uwb-list li p {
+  margin: 0.15rem 0 0;
+}
+
 .pulse {
   fill: none;
   stroke: var(--accent);
@@ -1289,6 +1378,10 @@ fieldset {
   .listener circle,
   .listener path,
   .receiver rect,
+  .person-dot,
+  .anchor-on .anchor-shape,
+  .anchor-state,
+  .person-label,
   .wordmark-glyph circle {
     fill: CanvasText;
   }

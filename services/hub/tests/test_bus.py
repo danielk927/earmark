@@ -42,8 +42,8 @@ async def connect_client(h, component="cli", subscribe=None):
     return await BusClient.connect(component, subscribe=subscribe, url=url(h))
 
 
-async def drain(client, seconds=0.3, skip=("status",)):
-    """Every message received within `seconds`, minus hub status heartbeats."""
+async def drain(client, seconds=0.3, skip=("status", "listener_pose")):
+    """Every message received within `seconds`, minus hub status heartbeats and listener poses."""
     got = []
     try:
         async with asyncio.timeout(seconds):
@@ -262,6 +262,7 @@ async def test_locator_messages_exactly_as_the_phone_app_sends_them(hub):
             await raw.send((examples / f"{name}.json").read_text())
         got = await drain(listener, skip=())
     types = [m.type for m in got]
-    assert types.count("listener_pose") == 2 and "mic_audio" in types and "ptt" in types
+    beacons = [m for m in got if m.type == "listener_pose" and m.source == "beacons"]  # not the hub's own hello pose
+    assert len(beacons) == 2 and "mic_audio" in types and "ptt" in types
     assert not [m for m in got if m.type == "status" and not m.ok], "the hub must not reject locator messages"
     await listener.close()

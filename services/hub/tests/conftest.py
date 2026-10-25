@@ -14,6 +14,7 @@ from earmark_hub.space import SpaceIndex
 from earmark_hub.state import StateEngine
 
 ROOT = Path(__file__).resolve().parents[3]
+FIXTURES = Path(__file__).resolve().parent / "fixtures"  # pinned geometry: config/space.json gets re-measured
 T0 = 1_761_350_400.0
 
 SALT, SUGAR, PEPPER, MEDS, UNKNOWN = ("04A1B2C3D4E501", "04A1B2C3D4E502", "04A1B2C3D4E503", "04A1B2C3D4E504",
@@ -22,7 +23,7 @@ SALT, SUGAR, PEPPER, MEDS, UNKNOWN = ("04A1B2C3D4E501", "04A1B2C3D4E502", "04A1B
 
 @pytest.fixture
 def space() -> SpaceIndex:
-    return SpaceIndex.load(ROOT / "config" / "space.json")
+    return SpaceIndex.load(FIXTURES / "space.json")
 
 
 @pytest.fixture
@@ -78,10 +79,10 @@ def free_port() -> int:
 
 @pytest.fixture
 def hub_root(tmp_path) -> Path:
-    """A throwaway repo root with the real space/seed config, so tests never touch config/ or var/."""
+    """A throwaway repo root with the pinned space fixture and the real seed config, so tests never touch config/ or var/."""
     (tmp_path / "config").mkdir()
-    for name in ("space.json", "objects.seed.json"):
-        shutil.copy(ROOT / "config" / name, tmp_path / "config" / name)
+    shutil.copy(FIXTURES / "space.json", tmp_path / "config" / "space.json")
+    shutil.copy(ROOT / "config" / "objects.seed.json", tmp_path / "config" / "objects.seed.json")
     return tmp_path
 
 

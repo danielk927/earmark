@@ -39,6 +39,8 @@ final class PoseModel: ObservableObject {
     @Published var rateHz = 0.0
     @Published var tracking = false
     @Published var guidance: GuidanceState?
+    /// Where the locator/UWB says the user stands (room frame); the origin when seated.
+    @Published var listener: EarmarkPoint = .zero
     /// The head faces backward (|yaw| > 110 deg, back under 80): the map centers the listener so the cone stays visible.
     @Published var facingBack = false
 
@@ -88,6 +90,16 @@ final class AppModel: ObservableObject {
         didSet { if rendererChoice != oldValue { core.applyRenderer(rendererChoice); UserDefaults.standard.set(rendererChoice.rawValue, forKey: "renderer") } }
     }
     @Published var timbre: PingTimbre { didSet { core.timbre = timbre; UserDefaults.standard.set(timbre.rawValue, forKey: "timbre") } }
+    /// Walking guidance tuning, by ear (PRD 10.1).
+    @Published var attenuation: DistanceAttenuation {
+        didSet {
+            core.distanceAttenuation = attenuation
+            let d = UserDefaults.standard
+            d.set(attenuation.referenceDistance, forKey: "attenuationReference")
+            d.set(attenuation.maximumDistance, forKey: "attenuationMaximum")
+            d.set(attenuation.rolloffFactor, forKey: "attenuationRolloff")
+        }
+    }
 
     init() {
         let d = UserDefaults.standard
@@ -97,6 +109,11 @@ final class AppModel: ObservableObject {
         listenMode = listen
         timbre = d.string(forKey: "timbre").flatMap(PingTimbre.init(rawValue:)) ?? .tone
         enforceBuiltInMic = d.object(forKey: "enforceBuiltInMic") as? Bool ?? true
+        var att = DistanceAttenuation()
+        if let v = d.object(forKey: "attenuationReference") as? Double { att.referenceDistance = v }
+        if let v = d.object(forKey: "attenuationMaximum") as? Double { att.maximumDistance = v }
+        if let v = d.object(forKey: "attenuationRolloff") as? Double { att.rolloffFactor = v }
+        attenuation = att
         mockHead = flags.mockHead
         showDebug = flags.debug
 
@@ -108,8 +125,15 @@ final class AppModel: ObservableObject {
         core.listenMode = listen
         core.timbre = timbre
         core.micEnabled = !flags.noMic
+        core.distanceAttenuation = att
         routes.enforceBuiltInMic = enforceBuiltInMic
     }
+
+    /// config/space.json in the repo (EARMARK_REPO_ROOT, the build_app.sh Info.plist key, or a parent folder).
+    var spaceFileURL: URL? { RepoLocator.root()?.appendingPathComponent("config/space.json") }
+
+    /// The UWB calibration sheet's state (kept while the app runs; the form reloads from disk on open).
+    lazy var calibration = CalibrationModel(core: core, fileURL: spaceFileURL)
 
     var mockTracker: MockHeadTracker? { core.head as? MockHeadTracker }
 
@@ -249,6 +273,7 @@ final class AppModel: ObservableObject {
         pose.pitch = tracking ? p.pitchDeg : 0
         pose.rateHz = core.head.updateRateHz
         pose.guidance = core.guidanceState
+        if pose.listener != core.listenerPosition { pose.listener = core.listenerPosition }
         if mic != nil { micLevelDb = pipeline.levelDb }
     }
 

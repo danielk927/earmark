@@ -1,6 +1,7 @@
 import EarmarkAudio
 import EarmarkContracts
 import Foundation
+import simd
 import Testing
 
 /// Bus message handling with a mock renderer and mock head tracker.
@@ -189,6 +190,102 @@ import Testing
         #expect(core.states["salt"]?.status == .held)
     }
 
+    // MARK: UWB walking guidance
+    // The listener stays at the origin; a listener_pose moves the TARGET relative to the user (retarget).
+
+    func expectTarget(_ expected: EarmarkPoint) {
+        guard let t = renderer.target else { Issue.record("no target"); return }
+        #expect(simd_distance(t, expected) < 1e-9)
+    }
+
+    @Test func uwbListenerPoseRetargetsTheRendererAndGuidance() throws {
+        core.handle(example("guide_start", "01"))       // sugar at (0.16, 0.58, 0)
+        core.handle(example("listener_pose", "03"))     // UWB tracked at (0.12, -1.85, 1.55)
+        #expect(core.listenerTracked)
+        #expect(core.listenerPose?.anchorsUsed == 3)
+        #expect(simd_distance(core.listenerPosition, [0.12, -1.85, 1.55]) < 1e-9)
+        let rel = EarmarkPoint(0.16 - 0.12, 0.58 + 1.85, 0 - 1.55)
+        expectTarget(rel)
+        run(0.1)
+        let s = try #require(core.guidanceState)
+        #expect(abs(s.targetAzimuthDeg - Geometry.azimuthDeg(rel)) < 1e-9)
+        #expect(abs(s.distanceM - Geometry.horizontalDistance(rel)) < 1e-9)
+        #expect(renderer.pingInterval == s.pingIntervalSec)
+        // Within 3 m of the target the ping is faster than the angle curve alone.
+        #expect(s.pingIntervalSec < Guidance.pingInterval(errorDeg: s.errorDeg))
+        #expect(abs(core.targetDistanceM! - s.distanceM) < 1e-9)
+    }
+
+    @Test func fixedModeReturnsTheListenerToTheOrigin() {
+        core.handle(example("guide_start", "01"))
+        core.handle(example("listener_pose", "03"))
+        #expect(core.listenerTracked)
+        core.handle(.listenerPose(ListenerPose(position: [0, 0, 1.55], quality: .ok, source: .none, mode: .fixed)))
+        #expect(!core.listenerTracked)
+        #expect(core.listenerPosition == .zero)
+        expectTarget(EarmarkPoint(0.16, 0.58, 0))
+        run(0.1)
+        #expect(core.targetDistanceM == nil)            // not a walking fix: the seated demo pings as before
+        #expect(core.listenerPose?.mode == .fixed)
+    }
+
+    @Test func lostUWBPoseIsShownButNotApplied() {
+        core.handle(example("guide_start", "01"))
+        core.handle(example("listener_pose", "03"))
+        let before = core.listenerPosition
+        core.handle(.listenerPose(ListenerPose(position: [3, 3, 1.55], quality: .lost, source: .uwb, mode: .lost)))
+        #expect(core.listenerPose?.mode == .lost)
+        #expect(core.listenerPosition == before)
+    }
+
+    @Test func noPoseForFiveSecondsFallsBackToTheOrigin() {
+        core.handle(example("guide_start", "01"))
+        core.handle(example("listener_pose", "03"))
+        run(3)
+        #expect(core.listenerPose != nil)               // still tracked
+        #expect(core.listenerPosition != .zero)
+        run(3)                                           // > 5 s without a pose
+        #expect(core.listenerPose == nil)
+        #expect(core.listenerPosition == .zero)
+        expectTarget(EarmarkPoint(0.16, 0.58, 0))
+    }
+
+    @Test func recenterCommandRecentersTheAirPods() {
+        head.setRawPose(yawDeg: 40)
+        #expect(renderer.yawDeg == 40)
+        core.handle(example("listener_command", "02"))  // recenter
+        #expect(abs(core.latestPose.yawDeg) < 1e-9)
+        #expect(renderer.yawDeg == 0)
+        #expect(core.captions.last?.text.hasPrefix("Recentered") == true)
+        core.handle(example("listener_command", "01"))  // freeze is the hub's: no recenter, no crash
+        #expect(core.captions.filter { $0.text.hasPrefix("Recentered") }.count == 1)
+    }
+
+    @Test func statusCarriesUWBKeys() throws {
+        run(0.1)
+        guard case .status(let off)? = busSink.ofType("status").last else { Issue.record("no status"); return }
+        #expect(off.info?["uwb_mode"] == .string("off"))
+        #expect(off.info?["uwb_residual_m"] == .null)
+        core.handle(example("listener_pose", "03"))
+        run(0.1)
+        guard case .status(let on)? = busSink.ofType("status").last else { Issue.record("no status"); return }
+        let info = try #require(on.info)
+        #expect(info["uwb_mode"] == .string("tracked"))
+        #expect(info["uwb_anchors_used"] == .number(3))
+        #expect(info["uwb_residual_m"] == .number(0.06))
+    }
+
+    @Test func headPoseKeepsFlowingWhileUWBIsActive() {
+        core.handle(example("listener_pose", "03"))
+        busSink.clear()
+        for _ in 0..<10 {                                // keep the pose fresh while ticking 1 s
+            core.handle(example("listener_pose", "03"))
+            run(0.1)
+        }
+        let n = busSink.ofType("head_pose").count
+        #expect(n >= 9 && n <= 11)
+    }
+
     // MARK: Locator (listener_pose)
 
     func pose(_ x: Double, _ y: Double, quality: String = "ok") {
@@ -224,6 +321,48 @@ import Testing
         #expect(core.guide == nil)
         #expect(busSink.feedback.contains { $0.event == .arrived && $0.objectId == "keys" })
         #expect(renderer.played.contains(.locked))
+    }
+
+    func uwbPose(_ mode: String, _ x: Double, _ y: Double) {
+        let q = (mode == "lost" || mode == "fixed") ? "lost" : "ok"
+        core.handle(bus("""
+        {"type":"listener_pose","position":[\(x),\(y),0],"quality":"\(q)","source":"uwb","mode":"\(mode)","t":1}
+        """))
+    }
+
+    @Test func uwbLostHoldKeepsPositionAndDistanceForTwelveSeconds() throws {
+        guideKeys()
+        uwbPose("tracked", 0, 1)
+        let held = core.listenerPosition
+        #expect(held != .zero)
+        for _ in 0..<120 {                                   // 12 s at 10 Hz, the hub holding the last good position
+            uwbPose("lost", 0, 1)
+            run(0.1)
+            #expect(core.listenerPosition == held)
+            #expect(core.targetDistanceM != nil)
+        }
+        #expect(renderer.target == EarmarkPoint(0, 2, 1))
+        uwbPose("fixed", 0, 0)                               // the hub gives up
+        #expect(core.listenerPosition == .zero)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
+        run(0.1)
+        #expect(core.targetDistanceM == nil)
+    }
+
+    @Test func uwbLostPoseWithoutAPreviousFixCreatesNone() {
+        guideKeys()
+        for _ in 0..<20 { uwbPose("lost", 0, 1); run(0.1) }
+        #expect(core.listenerPosition == .zero)
+        #expect(core.targetDistanceM == nil)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
+    }
+
+    @Test func beaconLostPoseWithNoModeStillTimesOut() {
+        guideKeys()
+        pose(0, 1)
+        for _ in 0..<60 { pose(0, 1, quality: "lost"); run(0.1) }   // 6 s of lost beacon poses refresh nothing
+        #expect(core.listenerPosition == .zero)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
     }
 
     @Test func noFixForFiveSecondsMeansBackOnTheMat() throws {

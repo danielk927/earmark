@@ -1,0 +1,70 @@
+# XcodeGen spec for the Earmark UWB iPhone app (UWB-PRD section 7).
+#   brew install xcodegen && cd ios/EarmarkUWB && xcodegen generate && open EarmarkUWB.xcodeproj
+# Then pick your team under Signing & Capabilities (or set DEVELOPMENT_TEAM below and regenerate).
+name: EarmarkUWB
+
+options:
+  bundleIdPrefix: com.earmark
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  EarmarkContracts:
+    path: ../../contracts/swift
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Main-actor isolation is written out explicitly in the code; keep the checker at its Swift 5 default.
+    SWIFT_STRICT_CONCURRENCY: minimal
+    CODE_SIGN_STYLE: Automatic
+    # Your Apple ID team (a free personal team works; profiles last 7 days). Leave empty and pick it in Xcode,
+    # or put the 10-character team id here.
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  EarmarkUWB:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    dependencies:
+      - package: EarmarkContracts
+        product: EarmarkContracts
+    settings:
+      base:
+        # Must be unique to your team. If Xcode says the id is taken, change it (e.g. com.<you>.earmark.uwb).
+        PRODUCT_BUNDLE_IDENTIFIER: com.earmark.uwb
+        PRODUCT_NAME: EarmarkUWB
+        TARGETED_DEVICE_FAMILY: "1"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # Xcode generates the standard keys; Info.plist adds the usage strings and the ATS local-network exception.
+        GENERATE_INFOPLIST_FILE: "YES"
+        INFOPLIST_FILE: Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Earmark UWB
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleDefault
+        ENABLE_PREVIEWS: "YES"
+    scheme:
+      testTargets:
+        - EarmarkUWBTests
+
+  # Pure-logic tests (motion hysteresis, 20 Hz decimation, rate meter, backoff, hub address). The Logic/ files
+  # are compiled into the bundle directly, so there is no host app and they run on any simulator.
+  EarmarkUWBTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+      - path: Sources/Logic
+    dependencies:
+      - package: EarmarkContracts
+        product: EarmarkContracts
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        PRODUCT_BUNDLE_IDENTIFIER: com.earmark.uwb.tests

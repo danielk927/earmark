@@ -42,6 +42,24 @@ public enum Geometry {
         (p.x * p.x + p.y * p.y).squareRoot()
     }
 
+    // Listener-relative versions (UWB walking guidance, PRD 10.2): everything is computed from the vector
+    // target - listener, so a listener at the origin gives exactly the origin-relative values above.
+
+    /// Azimuth of `target` seen from `listener`, degrees from forward (+y), positive to the right.
+    public static func azimuthDeg(_ target: EarmarkPoint, from listener: EarmarkPoint) -> Double {
+        azimuthDeg(target - listener)
+    }
+
+    /// Elevation of `target` seen from `listener`, degrees, positive up.
+    public static func elevationDeg(_ target: EarmarkPoint, from listener: EarmarkPoint) -> Double {
+        elevationDeg(target - listener)
+    }
+
+    /// Horizontal distance from `listener` to `target` in meters.
+    public static func horizontalDistance(_ target: EarmarkPoint, from listener: EarmarkPoint) -> Double {
+        horizontalDistance(target - listener)
+    }
+
     /// A point at the given azimuth (deg, + right), elevation (deg, + up), and distance (m).
     public static func point(azimuthDeg az: Double, elevationDeg el: Double = 0, distance d: Double = 1) -> EarmarkPoint {
         let a = az * .pi / 180, e = el * .pi / 180

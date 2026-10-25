@@ -65,15 +65,21 @@ async def line_commands(reader: StdinReader) -> AsyncIterator[str]:
 
 
 async def key_commands(reader: StdinReader, out: Callable[[str], None]) -> AsyncIterator[str]:
-    """Single-key commands; `m` waits for a digit, `t` reads a line of text (echoed)."""
+    """Single-key commands; `m` waits for a digit, `t` reads a line of text (echoed); arrow keys become
+    "up", "down", "right", "left"."""
     while (key := await reader.get()) is not None:
-        if key == "m":
-            out("move held object to spot: ")
+        if key == "\x1b":
+            seq = (await reader.get() or "") + (await reader.get() or "")
+            arrow = {"[A": "up", "[B": "down", "[C": "right", "[D": "left"}.get(seq)
+            if arrow:
+                yield arrow
+        elif key == "m":
+            out("move held object to spot (m or Enter = tap the phone): ")
             digit = await reader.get()
             if digit is None:
                 return
-            out(digit + "\n")
-            yield "m" + digit
+            out(digit.strip() + "\n")
+            yield ("m" + digit) if digit.isdigit() else "m"  # a bare "m" is uwb_sim's tap key
         elif key == "t":
             out("say: ")
             text = ""

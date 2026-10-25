@@ -14,6 +14,7 @@ from .world import World
 TOOL_NAMES = (
     "locate_object", "guide_to_object", "chirp_fob", "label_object",
     "last_seen", "stop_guidance", "list_objects", "put_in_place", "place_history",
+    "freeze_listener", "recenter_listener", "mark_object",
 )
 MAX_NAME_LEN = 60
 MAX_QUERY_LEN = 120
@@ -84,6 +85,12 @@ def tool_schemas(world: World) -> list[dict]:
            {"object_id": oid}, ["object_id"]),
         fn("stop_guidance", "Stop guidance and beeping ('stop', 'cancel', 'never mind').", {}, []),
         fn("list_objects", "List the items Earmark knows about ('what do you know').", {}, []),
+        fn("freeze_listener", "The user says they are at the counter ('I'm here').", {}, []),
+        fn("recenter_listener", "Re-zero the AirPods direction ('recenter').", {}, []),
+        fn("mark_object", "The user wants Earmark to remember where an item is by setting it down and tapping the "
+           "phone next to it ('add my prescription', 'I'm putting down my keys', 'remember where I put my "
+           "wallet', 'add an object'). Pass the item's name if they said it; leave it empty otherwise.",
+           {"name": {"type": "string", "description": "The item, e.g. 'prescription'. Empty if not said."}}, []),
     ]
 
 
@@ -93,6 +100,8 @@ def system_prompt(world: World) -> str:
         "find household objects. Call exactly one tool for the user's utterance. Never reply with text.",
         "Rules: never give medical advice; medication questions use last_seen. "
         "If the utterance is unclear or not a request about items, call locate_object with an empty name.",
+        "Adding or remembering a new item's place by tapping the phone next to it ('add my prescription', "
+        "'I'm putting down my keys', 'remember where I put my wallet', 'add an object') uses mark_object.",
         f"Saved places: {', '.join(world.area_ids()) or '-'}.",
         "Known objects (object_id: name; aliases; notes):",
     ]
@@ -141,6 +150,15 @@ def validate_llm_call(name: str, arguments: str | dict | None, world: World) -> 
         if len(q) > MAX_QUERY_LEN:
             raise InvalidToolCall("name too long")
         return ToolCall(name, {"query": q})
+    if name == "mark_object":
+        _only_keys(args, {"name"})
+        q = args.get("name") or ""
+        if not isinstance(q, str):
+            raise InvalidToolCall("name must be a string")
+        q = clean_name(q)
+        if len(q) > MAX_NAME_LEN:
+            raise InvalidToolCall("name too long")
+        return ToolCall(name, {"query": q} if q else {})
     if name == "put_in_place":
         _only_keys(args, {"object_id", "place"})
         place = args.get("place", "")
@@ -184,6 +202,6 @@ def validate_llm_call(name: str, arguments: str | dict | None, world: World) -> 
             if ca and ca != lname and ca not in clean_aliases and len(ca) <= MAX_NAME_LEN:
                 clean_aliases.append(ca)
         return ToolCall(name, {"tag": tag, "name": lname, "aliases": clean_aliases})
-    # stop_guidance, list_objects take no arguments
+    # stop_guidance, list_objects, freeze_listener, recenter_listener take no arguments
     _only_keys(args, set())
     return ToolCall(name, {})

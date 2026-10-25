@@ -1,5 +1,6 @@
 import AVFAudio
 import EarmarkAudio
+import Foundation
 import simd
 import Testing
 
@@ -32,6 +33,24 @@ import Testing
         #expect(abs(Geometry.elevationDeg(p) - 10) < 1e-9)
     }
 
+    @Test func listenerRelativeAzimuthAndDistance() {
+        let target = EarmarkPoint(0.16, 0.58, 0)            // spot 3
+        // From the origin: unchanged.
+        #expect(Geometry.azimuthDeg(target, from: .zero) == Geometry.azimuthDeg(target))
+        #expect(Geometry.horizontalDistance(target, from: .zero) == Geometry.horizontalDistance(target))
+        // From 2 m back, nearly straight ahead and 2.58 m away.
+        let back = EarmarkPoint(0, -2, 0)
+        #expect(abs(Geometry.azimuthDeg(target, from: back) - atan2(0.16, 2.58) * 180 / .pi) < 1e-9)
+        #expect(abs(Geometry.horizontalDistance(target, from: back) - (0.16 * 0.16 + 2.58 * 2.58).squareRoot()) < 1e-12)
+        // Standing past the target's right side: it is to the left.
+        #expect(abs(Geometry.azimuthDeg(target, from: [1.16, 0.58, 0]) + 90) < 1e-9)
+        // Behind: the counter seen from beyond it.
+        #expect(abs(abs(Geometry.azimuthDeg([0, 0, 0], from: [0, 1, 0])) - 180) < 1e-9)
+        // Height difference does not change the horizontal distance; elevation is relative too.
+        #expect(Geometry.horizontalDistance([0, 1, -0.4], from: [0, 0, 0]) == 1)
+        #expect(abs(Geometry.elevationDeg([0, 1, -1], from: [0, 0, -1])) < 1e-9)
+    }
+
     @Test func wrapAndClock() {
         #expect(Angles.wrapDeg(190) == -170)
         #expect(Angles.wrapDeg(-180) == 180)
@@ -57,6 +76,11 @@ import Testing
         #expect(abs(up.y - 0.5) < 1e-5)                                  // pitch +30 looks up
         let src = PHASECueRenderer.sourceTransform([0.16, 0.58, 0])
         #expect(src.columns.3 == SIMD4<Float>(0.16, 0, -0.58, 1))
+        // Listener position goes in the translation column, mapped like any point; rotation is unchanged.
+        let moved = PHASECueRenderer.listenerTransform(yawDeg: 90, pitchDeg: 0, position: [0.5, -2, 0])
+        #expect(moved.columns.3 == SIMD4<Float>(0.5, 0, 2, 1))
+        let f = forward(moved)
+        #expect(abs(f.x - 1) < 1e-5 && abs(f.z) < 1e-5)
     }
 
     @Test func stereoPanIsExaggeratedAndPointsTheShorterWay() {
@@ -69,13 +93,14 @@ import Testing
 }
 
 /// Renders through the production AVAudioCueRenderer graph offline and returns right-minus-left level in dB.
-private func rightMinusLeftDB(kind: RendererKind, target: EarmarkPoint, headYaw: Double,
+private func rightMinusLeftDB(kind: RendererKind, target: EarmarkPoint, headYaw: Double, listener: EarmarkPoint = .zero,
                               source: (AVAudioFormat) -> AVAudioPCMBuffer, loops: Bool = true) throws -> Double {
     let stereo = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2)!
     let r = AVAudioCueRenderer(kind: kind, offlineRenderFormat: stereo)
     try r.start()
     r.setTarget(target)
     r.setListener(yawDeg: headYaw, pitchDeg: 0)
+    r.setListener(position: listener)
     r.scheduleForTest(source(PCM.monoFloat(48_000)), loops: loops)
     _ = try r.renderOffline(frames: 8_192)               // settle
     let out = try r.renderOffline(frames: 48_000)
@@ -132,6 +157,19 @@ private func pingTrain(_ timbre: PingTimbre) -> (AVAudioFormat) -> AVAudioPCMBuf
     func productionPingIsLateralized(kind: RendererKind, timbre: PingTimbre) throws {
         #expect(try rightMinusLeftDB(kind: kind, target: [0.6, 0.2, -0.3], headYaw: 0, source: pingTrain(timbre)) > 3)
         #expect(try rightMinusLeftDB(kind: kind, target: [0, 0.6, -0.3], headYaw: 60, source: pingTrain(timbre)) < -3)
+    }
+
+    /// UWB: the listener moves, the target stays put. A front target seen from 1 m to its left is on the right.
+    @Test(arguments: spatialKinds)
+    func listenerPositionMovesTheScene(kind: RendererKind) throws {
+        #expect(try rightMinusLeftDB(kind: kind, target: [0, 1, 0], headYaw: 0, listener: [-1, 1, 0], source: noise) > 6)
+        #expect(try rightMinusLeftDB(kind: kind, target: [0, 1, 0], headYaw: 0, listener: [1, 1, 0], source: noise) < -6)
+        #expect(abs(try rightMinusLeftDB(kind: kind, target: [1, 1, 0], headYaw: 0, listener: [1, -1, 0], source: noise)) < 2)
+    }
+
+    @Test func stereoPanIsListenerRelative() throws {
+        #expect(try rightMinusLeftDB(kind: .stereoPan, target: [1, 1, 0], headYaw: 0, source: noise) > 20)   // 45 deg right of the origin
+        #expect(abs(try rightMinusLeftDB(kind: .stereoPan, target: [1, 1, 0], headYaw: 0, listener: [1, 0, 0], source: noise)) < 1)
     }
 
     @Test func stereoPanFallbackFollowsTheHead() throws {

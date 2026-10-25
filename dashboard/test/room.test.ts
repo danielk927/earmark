@@ -38,6 +38,14 @@ describe("room model", () => {
     expect(s.userSource).toBe("beacons");
   });
 
+  it("follows a UWB pose the same way (no beacons_heard, extra UWB fields)", () => {
+    const s = run(snapshot, { type: "listener_pose", position: [0.12, -1.85, 1.55], quality: "ok", source: "uwb",
+                              mode: "tracked", residual_m: 0.06, anchors_used: 3, blocked: [] });
+    expect(s.user).toEqual([0.12, -1.85, 1.55]);
+    expect(s.userLive).toBe(true);
+    expect(s.userSource).toBe("uwb");
+  });
+
   it("falls back to the mat after 5 s without a position", () => {
     let s = run(snapshot, { type: "listener_pose", position: [1, 1, 1.5], quality: "ok", beacons_heard: 3, source: "beacons" });
     s = tick(s, 103);

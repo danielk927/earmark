@@ -14,6 +14,8 @@ Screenshots (mock head, no AirPods) are in `docs/screenshots/`.
 
 ## Build and run
 
+On a Mac, run `scripts/mac_check.sh` (or `/mac-bringup` in Claude Code) to build and test everything.
+
 ```bash
 mac/build_app.sh                                   # swift build -c release, bundle, sign, codesign --verify --strict
 mac/build_app.sh --open spike -- --mock-head       # build, then launch the spike via `open -n`
@@ -166,6 +168,15 @@ Applied automatically; the status bar shows "GUIDANCE - LEVEL n OF 4", and `stat
 2. `spatial_untracked`: spatial renderer, head tracking unavailable, disconnected, or denied; the listener is fixed at yaw 0 (the calibrated forward) and the concierge adds clock-face directions.
 3. `stereo_pan`: the chosen spatial renderer failed to start; exaggerated stereo panning (full pan at 45 deg; anything beyond 90 deg pans fully to the shorter-turn side).
 4. `speech_only`: no renderer could start; guidance math and `guide_feedback` still run, so the concierge can speak directions.
+
+## UWB walking guidance (docs/project/UWB-PRD.md section 10)
+
+- The app subscribes to `listener_pose` and moves the audio listener there (any source: UWB, sound, simulator), gliding over `uwb.blend_s` from `config/hub.json` (default 0.4 s; Settings > Walking guidance overrides it). `fixed`, or no pose for 2 s, puts the listener back at the origin: the seated demo, unchanged.
+- Guidance angles, behind, lock, and the clock face use the vector target - listener. The ping interval is the angle curve times a distance factor (1.0 within 1 m, 1.6 at 4 m and beyond).
+- Distance attenuation (inverse, full volume within 0.6 m, no quieter beyond 8 m, rolloff 1) is tunable by ear in Settings. PHASE takes the rolloff only, and only when its renderer is built.
+- `listener_command recenter` (the concierge's "recenter") recenters the AirPods like the R key. `head_pose` goes out at 10 Hz whenever head tracking runs.
+- `status.info` adds `uwb_mode` (`off` when no pose), `uwb_anchors_used`, `uwb_residual_m`.
+- Settings > Calibrate UWB anchors: anchor positions in cm from the origin mark (same convention as `scripts/calibrate.py`), phone height and head offset, a five-mark verify against the PRD targets, recenter, and Save, which writes `config/space.json` (old file kept as `space.json.bak`) and sends `reset` so the hub reloads it. The file is found through `EARMARK_REPO_ROOT`, the `EarmarkRepoRoot` key `build_app.sh` writes, or a parent folder containing `BUILD_BRIEF.md`; without one, Save is off.
 
 ## Architecture
 

@@ -30,6 +30,12 @@ export const seedArgs = {
     receivers: v.array(
       v.object({ receiver: v.string(), label: v.string(), position: v.optional(v.union(position, v.null())) }),
     ),
+    anchors: v.optional(v.array(v.object({ anchor: v.string(), label: v.string(), position }))),
+    // Wearer geometry for the hub's UWB tracker; accepted so config/space.json seeds as-is, not stored.
+    tracking: v.optional(v.object({
+      phone_z: v.optional(v.number()), head_offset_m: v.optional(v.number()),
+      ear_z_m: v.optional(v.number()), mark_z_m: v.optional(v.number()),
+    })),
   }),
   registry: v.object({
     household: v.object({ name: v.string(), timezone: v.string() }),
@@ -108,6 +114,21 @@ export const seed = internalMutation({
         label: r.label,
         position: r.position ? toVec3(r.position, r.receiver) : null,
       });
+    }
+
+    // Anchors: config owns id/label/position, the hub owns health (kept across seeds; new ones start offline).
+    const wanted = new Set((space.anchors ?? []).map((a) => a.anchor));
+    for (const row of await ctx.db.query("anchors").take(100)) {
+      if (!wanted.has(row.anchorId)) await ctx.db.delete("anchors", row._id);
+    }
+    for (const a of space.anchors ?? []) {
+      const fields = { label: a.label, position: toVec3(a.position, a.anchor) };
+      const row = await ctx.db
+        .query("anchors")
+        .withIndex("by_anchorId", (q) => q.eq("anchorId", a.anchor))
+        .unique();
+      if (row) await ctx.db.patch("anchors", row._id, fields);
+      else await ctx.db.insert("anchors", { anchorId: a.anchor, ...fields, online: false, lastDistanceM: null, lastSeenT: null });
     }
 
     // Seed objects: upsert by objectId; the config wins a tag or fob conflict.
@@ -251,6 +272,8 @@ const CLEARED_TABLES = [
   "spots",
   "areas",
   "receivers",
+  "anchors",
+  "wearerPose",
   "objectState",
   "medications",
   "doses",
@@ -285,7 +308,10 @@ export const clearBatch = internalMutation({
   },
 });
 
-/** Return the deployment to the demo starting state. Trials are preserved. */
+/**
+ * Return the deployment to the demo starting state. Trials are preserved. The wearer pose is cleared and
+ * anchors are re-created from config as offline (stale health must not outlive a reset).
+ */
 export const reset = internalAction({
   args: seedArgs,
   returns: v.object({ deleted: v.number(), seeded: seedResult }),

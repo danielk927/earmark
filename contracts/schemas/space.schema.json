@@ -44,6 +44,28 @@
           "position": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/vec3" }] }
         }
       }
+    },
+    "anchors": {
+      "type": "array",
+      "description": "Optional fixed UWB anchors (iPhones) for walking guidance, measured from the origin floor mark. Labels are shown verbatim in every UI.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["anchor", "label", "position"],
+        "properties": {
+          "anchor": { "type": "string", "pattern": "^uwb_[0-9]+$", "description": "Device id, e.g. \"uwb_1\"." },
+          "label": { "type": "string", "minLength": 1, "description": "e.g. \"UWB Reader/Emitter 1\"." },
+          "position": { "$ref": "#/$defs/vec3" }
+        }
+      }
+    },
+    "tracking": {
+      "type": "object", "additionalProperties": false,
+      "description": "Optional wearer geometry, set by calibration. Overrides the hub.json uwb defaults.",
+      "properties": {
+        "phone_z": { "type": "number", "description": "Wearer phone height relative to the ears, meters (chest ~ -0.35)." },
+        "head_offset_m": { "type": "number", "minimum": 0, "description": "How far the head is behind the handheld phone, meters." },
+        "ear_z_m": { "type": "number", "description": "Ear height in the room frame (floor = 0), meters. The UWB listener_pose z; the phone is at ear_z_m + phone_z. Standing ~1.55." },
+        "mark_z_m": { "type": "number", "description": "Height given to an object marked by a phone tap when the tracker is 2D (UWB), meters. Counter ~0.9." }
+      }
     }
   },
   "$defs": {

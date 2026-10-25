@@ -39,6 +39,11 @@ demo-sim: ## Full stack with the keyboard-driven simulator (no hardware). SCENAR
 	@if [ -n "$(SCENARIO)" ]; then scripts/run_stack.sh sim --scenario scenarios/$(SCENARIO).jsonl; \
 	 else scripts/run_stack.sh sim; fi
 
+.PHONY: demo-uwb-sim
+demo-uwb-sim: ## Full stack with a simulated UWB wearer (scripted walk to the counter); KEYS=1 moves the wearer from the keyboard
+	@if [ -n "$(KEYS)" ]; then scripts/run_stack.sh sim --interactive --adapters simulator,uwb_sim; \
+	 else scripts/run_stack.sh sim --adapters simulator,uwb_sim; fi
+
 .PHONY: demo-live
 demo-live: ## Full stack with real adapters (NFC spot readers + BLE fobs)
 	scripts/run_stack.sh live
@@ -89,6 +94,18 @@ reset: ## Back to the demo starting state: bus reset (if the hub runs) + Convex 
 .PHONY: tail
 tail: ## Print bus traffic
 	$(HUB) earmark-tail
+
+.PHONY: uwb-record
+uwb-record: ## Record a UWB field session to var/fieldlog/NAME.jsonl (type markers + Enter; NAME defaults to a timestamp)
+	$(HUB) earmark-fieldkit record var/fieldlog/$(or $(NAME),$(shell date +%Y%m%d-%H%M%S)).jsonl
+
+.PHONY: uwb-gates
+uwb-gates: ## Show how to check the UWB gates on a recorded log
+	@echo "earmark-fieldkit ranging LOG --anchor uwb_1 --truth 0.5,1,2,3"
+	@echo "earmark-fieldkit track LOG --path 'x1,y1;x2,y2' [--from M --to M --hold-from M --hold-to M]"
+	@echo "earmark-fieldkit taps LOG --spots 'x1,y1;x2,y2'"
+	@echo "earmark-fieldkit latency LOG"
+	@echo "run as: $(HUB) earmark-fieldkit <subcommand> ...  (exit 0 = PASS, 1 = FAIL)"
 
 .PHONY: trial
 trial: ## Run one Earmark-vs-baseline trial (brief 5.I)

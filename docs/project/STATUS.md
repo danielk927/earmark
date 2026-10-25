@@ -1,9 +1,16 @@
 # Earmark status
 
-Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed).
+Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed; UWB branch merged with main, tap-to-mark added).
 Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
+
+- **2026-10-24: UWB branch merged with main; tap-to-mark added (uwb-leo).**
+  - `listener_pose` is one shared message. The beacon locator sends `source: "beacons"` (about 3 Hz); the UWB tracker sends `source: "uwb"` or `"sim"` (10 Hz). While UWB tracks, the hub drops the beacon poses, so only one tracker drives the audio. The Mac app still moves the target relative to the listener; UWB only feeds positions.
+  - Coordinates follow main's room frame (floor = 0, +z up, origin under the mat center). UWB anchors moved up 1.55 m (now z = 1.3). New `tracking.ear_z_m` (1.55) and `tracking.mark_z_m` (0.9).
+  - Tap-to-mark replaces NFC for placing objects: the user taps the wearer phone next to an object, and the hub returns the averaged UWB position (or the last beacon pose). The concierge stores it with `place_item`. NFC still does identity, spots, and pickups. Details: `docs/project/UWB-PRD.md` section 18.
+  - Windows dev: the hub and concierge CLIs skip asyncio loop signal handlers where they are not supported, so end-to-end runs work on Windows.
+  - Not verified on a phone: no UWB ranging or tap has run on a device yet.
 
 - **AirPods test passed (reported by the team, 2026-10-24):** with real AirPods Pro the 3D ping works and follows head turns, head tracking runs at about 54 per second, output stays at 48 kHz, and the app correctly switches the mic to the Mac. The detailed pointing scores in the table below were not filled in.
 
@@ -98,7 +105,63 @@ Not run yet: needs the human wearing AirPods (procedure will be in `mac/README.m
 
 Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) with the built-in mic capturing.
 
+## UWB track: what's verified in software vs pending on device
+
+As of 2026-10-25, branch `uwb-prd`.
+Nothing UWB has run on a phone yet.
+The Mac and iOS code was written without a Swift toolchain and has **not been compiled** (not locally, not in CI); expect small fixes on the first Xcode build (`ios/README.md`, `mac/README.md`).
+
+| Piece | Verified in software | Pending |
+|---|---|---|
+| contracts | Python suite passes (68 tests), including `config/space.json` with `anchors` and `tracking` and every `uwb_walk` line; TS check passes | Swift suite not run (no toolchain here) |
+| hub | 219 tests pass, 78 of them UWB unit tests (PRD 12.1): solver (exact, σ 0.07 m median < 0.10 m, +0.4 m block flagged, 2-anchor choice, speed gate, slant), freeze, voice freeze, NFC re-anchor, lost to fixed, token relay, bus secret, `uwb_sim` at 5 Hz or more. They found and fixed a speed gate that stalled fast walks, a mirror-point lock-on, freeze overshoot after a stop, and a repeating re-anchor. `make demo-uwb-sim` runs the scripted walk | Tuning on device. Near the counter the uwb_2-uwb_3 line passes 17 cm from the origin, so a block on uwb_1 there can go undetected; move uwb_3 off that line when placing anchors |
+| scenarios, e2e | `scenarios/uwb_walk.jsonl` (start mark, walk, freeze, wrong jar). `test_uwb_walk` runs it through the real hub and concierge: tracked to frozen, meters phrasing then "You're at the counter", wrong-jar correction, "Got it". The full e2e suite passes | Runs at 1x speed because the tracker timers use wall-clock time |
+| concierge | 232 tests pass, including the listener-aware phrasing tests | - |
+| convex, dashboard | Convex 132 tests and typecheck pass (the seed now accepts `tracking`); dashboard 146 tests pass, including axe in both themes | - |
+| `scripts/calibrate.py` | Anchor and wearer prompts dry-run with piped input to a temp file; the output validates against `space.schema.json` and `earmark_contracts.Space`, and the hub's tracker loads it | - |
+| Mac app (listener position, map, Calibrate screen) | - | Not compiled; `make mac-test` not run |
+| iOS app `ios/EarmarkUWB` | - | Not compiled; needs Xcode; every gate below |
+
+The hub logs listener mode changes and NFC re-anchor correction sizes, but never positions, so `logs/hub.jsonl` holds no pose history (`docs/project/RESPONSIBLE_DESIGN.md` 4.1).
+
+## On-device gates (UWB)
+
+From `docs/project/UWB-PRD.md` 12.2. Run in order; procedure in `ios/README.md`.
+For each gate also note the phone models and iOS versions, the anchor positions used (`python3 scripts/calibrate.py --show`), and anything odd (session restarts, rates, round-robin needed or not).
+
+| # | Gate | Pass | Date/time | Phones (model, iOS) | Result | Pass/fail | Notes |
+|---|---|---|---|---|---|---|---|
+| 1 | Ranging: one anchor + wearer, tape at 0.5 / 1 / 2 / 3 m | Each within ±0.10 m, averaged over 2 s | | | | | |
+| 2 | Concurrency: wearer with three sessions for 2 minutes | At least 5 Hz per anchor the whole time | | | | | |
+| 3 | Position: stand on 5 floor marks | Median error ≤ 0.20 m, max ≤ 0.35 m | | | | | |
+| 4 | Freeze: walk to the counter 10 times, stop naturally | Frozen point ≤ 0.15 m from the mark in 8 of 10 | | | | | |
+| 5 | Body block: body between the phone and one anchor | Outlier flagged in `blocked`; pose jumps no more than 0.3 m | | | | | |
+| 6 | Walk: eyes closed, start mark to the sugar, 5 attempts, with a spotter | 4 of 5 lift the correct jar (NFC-confirmed) | | | | | |
+
+Gate 1 readings:
+
+| True distance | Mean reading | Spread | Error |
+|---|---|---|---|
+| 0.5 m | | | |
+| 1 m | | | |
+| 2 m | | | |
+| 3 m | | | |
+
+Gate 3 readings (the Mac app's Verify marks):
+
+| Mark | Expected (x, y) | Solved (x, y) | Error |
+|---|---|---|---|
+| Origin | (0, 0) | | |
+| 1 m back | (0, -1) | | |
+| 2 m back | (0, -2) | | |
+| 1 m left | (-1, 0) | | |
+| 1 m right | (1, 0) | | |
+
+Bake-off with the sound track (PRD 13.10, gates 3, 4 and 6): decision: -
+
 ## Contract changes
+
+- 2026-10-24 (uwb-leo, tap-to-mark): new bus messages `object_tap` (wearer to hub, no data) and `tap_position` (hub to concierge: `ok`, plus `position` when ok). `listener_pose` is one shared message with required `position`, `quality`, `source` (`beacons` | `uwb` | `sim`) and `t`. `space.schema.json` `tracking` gains `ear_z_m` and `mark_z_m`.
 
 - 2026-10-24: added the `place_item` bus message (concierge to hub: object id, saved place id) and the `stored` Convex event kind, with examples in `contracts/examples/bus/place_item/`. Swift treats `place_item` as an unhandled type (`other`), so no Swift change.
 
@@ -106,6 +169,16 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
   Bus messages added beyond the brief's table: `hello`, `snapshot`, `registry_update`, `unknown_tag`, `label`, `stt_mode`, `guide_feedback`, `speak_text`, `playback`, `reset`.
   Convex client-function contract added in `contracts/ts/convexFunctions.ts`.
 - 2026-10-24: added `registry_response` to `convex_http.schema.json` (GET /api/registry with required `version`), proposed by hub-builder. Documented `roaming` as "tracked by any non-spot method" and the pickup debounce bias.
+
+- 2026-10-24 (uwb-leo): UWB walking guidance (docs/project/UWB-PRD.md section 9).
+  - Bus: `component` gains `ios_anchor` and `ios_wearer`. `hello` gains optional `device_id`, `role` and `secret`.
+  - Bus: new `uwb_token`, `uwb_range`, `motion_state`, `listener_pose` and `listener_command`.
+  - `listener_pose` carries optional per-anchor health.
+  - `listener_command` (`freeze` | `recenter`) is new beyond the PRD. It lets the concierge's "I'm here" reach the hub, and "recenter" reach the Mac app.
+  - `space.json` gains optional `anchors[]` and `tracking {phone_z, head_offset_m}`.
+  - `/ingest` gains optional `anchors[]` (`ingest_anchor`) and `pose` (`ingest_pose`).
+  - `LiveMap` gains `anchors` and `wearer`.
+  - The Swift package now also targets iOS 17.
 
 ## Deferred contract proposals
 
@@ -150,3 +223,4 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
 8. **Timing:** the Convex workshop "Build Your Backend with Convex" is today, Saturday, 4:00-5:00 PM PDT at Gate 3.
 9. **Product decisions:** whether to add Fetch.ai bonus items (Payment Protocol, multi-agent, Interactive Cards); stretch items (Creao, Visa + Apify) stay off unless approved.
 10. **Bluetooth permission:** launch the hub once from Terminal.app and accept the Bluetooth prompt before using real fobs.
+11. **UWB walking demo:** install Xcode (large; gates the iOS app), four UWB iPhones (iPhone 11 or later, not SE), a travel router or a fifth phone's hotspot, and about 3 x 3 m of clear floor in front of the counter (`docs/project/UWB-PRD.md` 13).

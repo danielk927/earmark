@@ -1,8 +1,9 @@
 # Earmark hub
 
 The hub turns raw detections (NFC spot readers, BLE fobs, the simulator) into debounced object state.
-It runs the local WebSocket bus at `ws://127.0.0.1:8765` and syncs to Convex.
-Spec: `BUILD_BRIEF.md` sections 5.A, 5.B and 5.I; the contracts in `contracts/` are authoritative.
+For walking guidance it also turns UWB distances from the wearer iPhone into the listener's position (`listener_pose`, see "UWB walking guidance" below).
+It runs the local WebSocket bus at `ws://127.0.0.1:8765` (or on the private network for the iPhones) and syncs to Convex.
+Spec: `BUILD_BRIEF.md` sections 5.A, 5.B and 5.I, and `docs/project/UWB-PRD.md` section 8; the contracts in `contracts/` are authoritative.
 
 ## Run
 
@@ -22,6 +23,11 @@ uv run --project services/hub earmark-hub --interactive
 
 # Real hardware
 uv run --project services/hub earmark-hub --adapters nfc_serial,ble_fobs
+
+# UWB walking guidance without phones (simulated wearer; see "UWB walking guidance")
+EARMARK_ADAPTERS=simulator,uwb_sim uv run --project services/hub earmark-hub --no-convex                # scripted walk
+EARMARK_ADAPTERS=simulator,uwb_sim uv run --project services/hub earmark-hub --interactive --no-convex  # keyboard wearer
+uv run --project services/hub earmark-tail --types listener_pose
 
 # Bus tools (the hub must be running)
 uv run --project services/hub earmark-tail                      # everything except audio
@@ -53,6 +59,15 @@ Every message is validated against the contract before it is sent.
 | `?` | Help |
 | `q` | Quit the simulator (the hub keeps running) |
 
+With `uwb_sim` also enabled, the same keyboard drives the simulated wearer:
+
+| Key | Action |
+|---|---|
+| `w` `a` `s` `d` or the arrow keys | Move the wearer `step_m` (0.25 m); `w` / up is toward the counter. The wearer counts as moving for 0.6 s after each key |
+| `x` | Stand still now |
+| `f` | Say "I'm here" (`listener_command freeze`) |
+| `m`, then `m` or Enter | Tap the phone next to an object (`object_tap`); the first `m` is also the move-held-object prefix, so a digit still means a move |
+
 The simulator keeps polling every spot every 0.5 s (and the fob every 1 s), so the hub sees exactly what real readers would send.
 On a terminal, keys act immediately; with piped stdin, each line is one command (`3`, `m1`, `t where is the sugar`).
 
@@ -62,7 +77,8 @@ On a terminal, keys act immediately; with piped stdin, each line is one command 
 cd services/hub && uv run pytest -q
 ```
 
-140 tests, about 17 s.
+219 tests, about 23 s.
+The `test_uwb_*.py` files cover the UWB module (`docs/project/UWB-PRD.md` 12.1): solver accuracy and outlier rejection, the freeze state machine, NFC re-anchor, lost to fixed, the token relay and bus secret, and `uwb_sim` pose rate.
 They include an end-to-end smoke test that starts the real `earmark-hub --adapters simulator --scenario scenarios/full_demo.jsonl --speed 10 --no-convex` process and asserts the pickup sequence salt(2), sugar(3), sugar(1) over the WebSocket.
 A second one runs `earmark-sim`, `earmark-send` and `earmark-tail` against a running hub.
 No test touches real Bluetooth, serial ports, Convex, `config/`, or `var/`.
@@ -73,13 +89,15 @@ No test touches real Bluetooth, serial ports, Convex, `config/`, or `var/`.
 
 | Section | Keys |
 |---|---|
-| `adapters` | Enabled adapters: `simulator`, `nfc_serial`, `ble_fobs`, `camera_stub`. Several can run at once. |
-| `bus` | `host`, `port`, `client_queue_max` (per-client send queue bound). |
+| `adapters` | Enabled adapters: `simulator`, `nfc_serial`, `ble_fobs`, `camera_stub`, `uwb_sim`. Several can run at once. |
+| `bus` | `host`, `port`, `client_queue_max` (per-client send queue bound). The secret is never in this file: set `EARMARK_BUS_SECRET`. |
 | `debounce` | `placement_reads` (2), `removal_s` (1.5), `tick_s` (0.25, how often removals are checked without reads). |
 | `simulator` | `poll_s`, `fob_poll_s`, `start_delay_s` (1.0 wall seconds, so bus clients can connect before a scenario starts), `fob_rssi` per class. |
 | `nfc_serial` | `port_globs`, `baud`, `reconnect_s`. |
 | `ble_fobs` | `receiver`, `fobs` (`fob_id` -> `{address, name}`), `ema_tau_s`, `stale_s`, `near_dbm`, `mid_dbm`, `emit_interval_s`, `chirp_timeout_s`, `connect_timeout_s`, `alert_service_uuid`, `alert_char_uuid`, `alert_level`, `link_loss_service_uuid`, `link_loss_value`. |
 | `convex` | `registry_poll_s` (2), `timeout_s` (3), `flush_interval_s`, `batch_max`, `backoff_initial_s`, `backoff_max_s`. |
+| `uwb` | Walking guidance (below). `enabled`, `solve_hz` (10; the solve loop runs on deadlines, so the real rate is `solve_hz`, and it resyncs rather than bursts after a stall), `auto_freeze` (true; false never freezes by standing still near the counter, voice "I'm here" and NFC re-anchoring still work), `range_offset_m` (`{}`; per anchor id, metres subtracted from each range, floored at 0), `freshness_s` (0.5), `lost_after_s` (2), `lost_hold_s` (3; `config/hub.json` sets 12 for the table demo), `max_speed_mps` (2.5), `outlier_rms_m` (0.25), `alpha` / `beta` (0.5 / 0.1), `alpha_still` (0.2), `phone_z` (-0.35), `head_offset_m` (0.2), `head_pose_max_age_s` (0.5), `counter_ref` ([0, 0]), `freeze_enter_m` (1.0), `freeze_exit_m` (1.3, must be at least `freeze_enter_m`), `still_for_s` (0.6), `average_window_s` (1.0), `unfreeze_move_m` (0.35), `blend_s` (0.4, used by the Mac app only), `freeze_mode` (`average` or `snap`), `reach_max_m` (0.75), `convex_pose_hz` (2), tap-to-mark: `mark_avg_s` (1.5), `mark_min_fixes` (3), `mark_z_m` (0.9), `beacon_fresh_s` (2). |
+| `uwb_sim` | Simulated wearer. `rate_hz` (15 ranges per anchor per second), `noise_sigma_m` (0.07), `dropout_prob` (0.03), `jump_m` (0.4), `block_every_s` (8), `block_s` (1), `path` (start mark to counter, `[[0.4, -3.0], [0.1, -1.5], [0.0, 0.0]]`), `speed_mps` (0.6), `dwell_s` (4), `loop` (true), `step_m` (0.25), `seed` (null = random). |
 | `health` | `interval_s` (5). |
 | `paths` | `space`, `seed`, `cache`, `queue`, `trials`, `logs`, relative to the repo root unless absolute. |
 
@@ -90,8 +108,9 @@ Precedence: CLI flags, then the environment, then `config/hub.json`.
 
 | Variable | Default | Used by | Meaning |
 |---|---|---|---|
-| `EARMARK_BUS_HOST` | `127.0.0.1` | hub | Bus bind address. |
+| `EARMARK_BUS_HOST` | `127.0.0.1` | hub | Bus bind address. `0.0.0.0` for the UWB iPhones, on a private network only. |
 | `EARMARK_BUS_PORT` | `8765` | hub | Bus port. |
+| `EARMARK_BUS_SECRET` | unset | hub | Required in `hello` from every non-loopback client (the iPhones); never logged. |
 | `EARMARK_BUS_URL` | `ws://127.0.0.1:8765` (built from host and port when unset) | CLIs, `scripts/trial.py` | Where clients connect. |
 | `EARMARK_ADAPTERS` | from `config/hub.json` (`simulator`) | hub | Comma list; `--adapters` overrides it. |
 | `NFC_SERIAL_PORT` | `auto` | `nfc_serial` | A device path, or `auto` to scan `port_globs`. |
@@ -131,6 +150,50 @@ Pure and deterministic: time comes only from event timestamps and `tick(now)`, a
 - Each client has a bounded send queue with its own writer task; when full, the oldest audio frame is dropped first, then the oldest message.
 - `status` from the hub every 5 s and on every change: `info.adapters`, `info.convex` (`disabled`, `connecting`, `online`, `offline`), `info.queue_depth`, `info.clients`, `info.registry_version`.
 
+### UWB walking guidance (`earmark_hub/uwb/`)
+
+Spec: `docs/project/UWB-PRD.md` section 8.
+The phones send distances; the hub does all the math and publishes one `listener_pose` that the Mac app, concierge, and dashboard follow.
+
+- **Token relay** (`relay.py`): each `uwb_token` goes only to the client whose `hello.device_id` equals `to` (`uwb_1`, `uwb_2`, `uwb_3`, `wearer`), never to the whole bus.
+  The latest token per `(from, to)` is kept in memory and replayed when that phone says `hello`; `reset` keeps them.
+- **Solver** (`solver.py`, `tracker.py`), at `solve_hz`: ranges older than `freshness_s` (hub receive time) are ignored; slant correction with `phone_z` and each anchor's height; least-squares position from 3 anchors with leave-one-out rejection above `outlier_rms_m` (the dropped anchor is listed in `blocked`), or the in-room circle intersection from 2; a speed gate (`max_speed_mps`); an alpha-beta filter, heavier while `motion_state` is `still`; then the head is placed `head_offset_m` behind the phone, facing from the AirPods `head_pose` when recent, else the direction of travel, else toward the counter inside the freeze radius.
+- **Modes:**
+  - `fixed`: listener at the origin. This is today's seated behavior: UWB disabled, no ranges yet, or lost for too long.
+  - `tracked`: the live estimate while walking.
+  - `frozen`: the landing spot at the counter (below).
+  - `lost`: fewer than 2 fresh anchors for `lost_after_s` while tracked; it holds the last position for `lost_hold_s`, then goes to `fixed`. The concierge says the lost message once.
+- **Freeze:** inside `freeze_enter_m` of `counter_ref`, still for `still_for_s`, with at least 2 fresh anchors, the listener freezes at the average over `average_window_s` (or at `counter_ref` with `freeze_mode: snap`).
+  "I'm here" (`listener_command freeze`, from the concierge or the `f` key) freezes at once, even outside the radius.
+  It unfreezes when moving and more than `unfreeze_move_m` from the frozen point, or outside `freeze_exit_m` (not after a voice freeze).
+- **NFC re-anchor:** while frozen, a `pickup` or `placed` on spot N farther than `reach_max_m` from the listener pulls the frozen point toward spot N until it is exactly `reach_max_m` away, and logs the correction. Never while tracked.
+- **Output:** `listener_pose` on every tick while tracked, frozen, or lost, and at once on every mode change (nothing while fixed); it carries `residual_m`, `anchors_used`, `blocked`, and per-anchor health (`online`, latest distance).
+  New clients get the latest pose right after their snapshot.
+  Convex gets anchor health when it differs from what Convex last acknowledged, and the latest pose (one overwritten row, at most `convex_pose_hz`); no pose history is kept there.
+- **Config:** anchors come from `config/space.json` `anchors`, and `tracking.phone_z` / `tracking.head_offset_m` there override the `uwb` defaults in `hub.json`.
+  The Mac app's Calibrate screen or `scripts/calibrate.py` write them; `reset` reloads `space.json` and pushes the anchors to Convex.
+  `uwb.enabled: false` turns the tracker off (always `fixed`).
+- **Simulator** (`sim.py`, adapter `uwb_sim`): a fake wearer that sends `uwb_range` to every anchor in `space.json` at `rate_hz` plus `motion_state`, with Gaussian noise, dropouts, and a body-block burst (+`jump_m` on one anchor for `block_s`) every `block_every_s`.
+  Scripted (default): stand at the start of `path` for `dwell_s`, walk to the counter at `speed_mps`, stand, and with `loop` walk back and forth.
+  Interactive (`--interactive`): keys above.
+  Enable it with `EARMARK_ADAPTERS=simulator,uwb_sim` or `--adapters simulator,uwb_sim`.
+  `scripts/run_stack.sh sim` passes `--adapters simulator` itself, so add it there as `scripts/run_stack.sh sim --interactive --adapters simulator,uwb_sim` (the last `--adapters` wins).
+  Simulated poses have `source: sim`; ranges from an `ios_wearer` client are `source: uwb`.
+
+**Tap-to-mark.** The user sets an object down and taps the phone next to it; the phone's position becomes the object's.
+An `object_tap` (no data, from `ios_wearer`, the concierge, or the `uwb_sim` `m` key) makes the hub broadcast one `tap_position {ok, position, source}`:
+- UWB `tracked` or `frozen`: the mean of the raw accepted phone fixes of the still period (since the stop, within the last `mark_avg_s`, 1.5 s) when standing still and there are at least `mark_min_fixes` (3) of them, else the last `mark_min_fixes` fixes of that window; while moving, the mean of the whole `mark_avg_s` window; none if the window has fewer than `mark_min_fixes`; `position` is `[x, y, mark_z_m]` (`tracking.mark_z_m` in `space.json`, else `uwb.mark_z_m`, 0.9) and `source` is the tracker's (`uwb` or `sim`). The phone position is used, not the head position.
+- Otherwise the latest beacon-locator `listener_pose`, if its quality is not `lost` and the hub received it within `beacon_fresh_s` (2 s; the phone's own `t` is never trusted): its position and source, as is.
+- Otherwise `ok: false`, `source: none`, no position.
+
+The hub logs only `ok` and `source`, never coordinates.
+
+**Network and the bus secret.** The phones reach the hub over Wi-Fi, so the bus must listen on the network: `EARMARK_BUS_HOST=0.0.0.0` (or `bus.host` in `hub.json`) and set `EARMARK_BUS_SECRET`.
+Loopback clients are trusted.
+Any other client receives nothing and may send nothing until its `hello` carries the secret; otherwise it gets `status ok:false` and is closed (code 1008).
+With no secret set, every non-loopback client is refused, and the hub warns at startup.
+**Only do this on the team's private router or hotspot, never on venue Wi-Fi**: the bus has no TLS, and anyone on the network who learns the secret can read and send every message.
+
 ### Adapters (`earmark_hub/adapters/`)
 
 - `simulator`: replays `scenarios/*.jsonl` or runs the keyboard mode (above).
@@ -142,6 +205,7 @@ Pure and deterministic: time comes only from event timestamps and `tick(now)`, a
   Chirp: connect with the scanner's `BLEDevice`, log every service and characteristic, resolve Alert Level `2a06` through service `1802`, choose the write type from the characteristic's properties, write `alert_level`, hold the connection until `stop` or `chirp_timeout_s`, write `0x00`, optionally write `link_loss_value` to `1803/2a06`, and disconnect.
   If the connect times out while scanning, it retries once with the scanner paused.
 - `camera_stub`: interface only; its docstring describes how a vision adapter would emit `position` events.
+- `uwb_sim`: the simulated wearer iPhone (above).
 
 ### Registry and Convex (`earmark_hub/registry.py`, `earmark_hub/convex.py`)
 
@@ -174,6 +238,7 @@ The console shows a short human line per event (warnings only in `--interactive`
 - BLE is tested with fake `BleakScanner`/`BleakClient` objects; no real scan was started (it would trigger a macOS permission prompt).
 - Serial is tested with a fake port; no real port was opened.
 - Camera is a stub.
+- UWB: no iPhone has connected to this hub yet. The tracker has only run against `uwb_sim`, which models noise, dropouts, and body blocks but not real Nearby Interaction behavior.
 
 ## Decisions
 
@@ -195,3 +260,12 @@ The console shows a short human line per event (warnings only in `--interactive`
 - `--scenario` and `--interactive` are mutually exclusive; `--scenario`/`--interactive` enable the simulator automatically.
 - The simulator waits `start_delay_s` (1 s) before playing so clients started alongside the hub do not miss the first lines.
 - Without a scenario or `--interactive`, the `simulator` adapter idles, so the default config is a bus-only hub that `earmark-sim` can drive.
+
+## Field kit
+
+`earmark-fieldkit` records UWB sessions and checks the physical gates with numbers. The hub never logs positions, so this is a separate local recorder.
+
+- Record: `make uwb-record NAME=walk1` writes `var/fieldlog/walk1.jsonl` (one `{"rx", "msg"}` line per bus message).
+- Mark: type a label and press Enter while recording (`0.5`, `1`, `turn`, `back`); each becomes a `{"rx", "marker"}` line.
+- Analyze: `earmark-fieldkit ranging|track|taps|latency LOG ...` (see `make uwb-gates`) prints a Markdown table and exits 0 on PASS, 1 on FAIL.
+- Logs hold positions: `var/` is gitignored, keep them there and never commit them.

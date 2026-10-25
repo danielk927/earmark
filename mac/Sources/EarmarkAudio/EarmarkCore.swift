@@ -88,6 +88,11 @@ public final class EarmarkCore {
     public private(set) var isSpeaking = false
     public private(set) var userSpeaking = false
     public private(set) var devices = DeviceReport()
+    /// Latest `listener_pose` (UWB, beacons, sound, or simulator); nil when none arrived for `fixTimeout`.
+    public private(set) var listenerPose: ListenerPose?
+    public var distanceAttenuation = DistanceAttenuation() { didSet { renderer?.setDistanceAttenuation(distanceAttenuation) } }
+    /// Every listener_pose as it arrives (main thread); the calibration screen averages them.
+    public var onListenerPose: ((ListenerPose) -> Void)?
     public var micEnabled = true { didSet { updateRoute() } }
     public var listenMode: ListenMode = .pushToTalk
     public var timbre: PingTimbre = .tone { didSet { renderer?.setTimbre(timbre) } }
@@ -115,6 +120,7 @@ public final class EarmarkCore {
     private var lastStatusSent = -Double.infinity
     private var lastStatusKey = ""
     private var captionID = 0
+    private var lastListenerPoseAt = -Double.infinity
     public static let headPosePeriod = 0.1
     public static let statusHeartbeat = 10.0
 
@@ -180,6 +186,7 @@ public final class EarmarkCore {
         var chosen: SpatialRenderer?
         for kind in ladder {
             let r = makeRenderer(kind)
+            r.setDistanceAttenuation(distanceAttenuation)   // PHASE reads it while building, inside start()
             do {
                 try r.start()
                 chosen = r
@@ -245,7 +252,7 @@ public final class EarmarkCore {
     // MARK: Bus input
 
     public func handle(_ message: BusMessage) {
-        note("<- \(summary(message))")
+        if case .listenerPose = message {} else { note("<- \(summary(message))") }   // 10 Hz: kept out of the log
         switch message {
         case .snapshot(let s):
             space = s.space
@@ -280,7 +287,11 @@ public final class EarmarkCore {
             applyListenerPose(p)
         case .reset:
             reset()
-        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other:
+        case .listenerCommand(let c):
+            // "recenter" (concierge voice command): same path as the R key. "freeze" is the hub's job.
+            if c.action == .recenter { recenter() }
+        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other,
+             .uwbToken, .uwbRange, .motionState, .objectTap, .tapPosition:
             break
         }
         changed()
@@ -332,10 +343,35 @@ public final class EarmarkCore {
         EarmarkPoint(p.x - listenerPosition.x, p.y - listenerPosition.y, p.z - listenerPosition.z)
     }
 
+    /// The listener stays at the origin of the audio scene; a pose moves the TARGET (`retarget`) instead.
+    /// A UWB `lost` pose (the hub holding the last good position) keeps the current position and refreshes the fix, so there is
+    /// no snap while the hub holds; other `quality: lost` poses (no mode) are shown but not applied and time out after
+    /// `fixTimeout`. A `fixed` UWB pose means seated at the origin, not a walking fix.
     private func applyListenerPose(_ p: ListenerPose) {
-        guard p.quality != .lost, let pt = Geometry.point(p.position) else { return }
-        listenerPosition = pt
-        lastFixAt = clock()
+        let now = clock()
+        if p.mode != listenerPose?.mode {
+            Log.app("listener mode -> \(p.mode?.rawValue ?? "none") (source \(p.source.rawValue), \(p.anchorsUsed ?? 0) anchors)")
+            note("<- listener_pose \(p.mode?.rawValue ?? p.quality.rawValue)")
+        }
+        listenerPose = p
+        lastListenerPoseAt = now
+        onListenerPose?(p)
+        if p.mode == .lost {
+            // A UWB hold: the hub is alive and republishing the last good position. Keep the listener where it is and keep the
+            // fix fresh so guidance holds its distance; the hub alone decides when to give up (it then sends `fixed`).
+            if lastFixAt != nil { lastFixAt = now }
+            return
+        }
+        // `fixed` is handled before the quality check: the hub publishes it with quality `lost`.
+        guard p.quality != .lost || p.mode == .fixed else { return }
+        if p.mode == .fixed {
+            listenerPosition = EarmarkPoint(0, 0, 0)
+            lastFixAt = nil
+        } else {
+            guard let pt = Geometry.point(p.position) else { return }
+            listenerPosition = pt
+            lastFixAt = now
+        }
         retarget()
     }
 
@@ -367,6 +403,17 @@ public final class EarmarkCore {
     private func updateVocabulary() {
         guard let rec = apple as? AppleSpeechRecognizer else { return }
         rec.setVocabulary(objects.flatMap { [$0.name] + $0.aliases } + ["Earmark", "where's", "stop"])
+    }
+
+    // MARK: Listener position (main thread)
+
+    /// True while a tracker (UWB, beacons, sound, simulator) is placing the listener: a recent pose whose mode is not `fixed`
+    /// (tracked, frozen, or lost for UWB; poses without a mode count as tracked).
+    public var listenerTracked: Bool { listenerPose.map { $0.mode != .fixed } ?? false }
+
+    /// Sends `reset` so the hub reloads config/space.json (calibration screen).
+    public func sendReset() {
+        send(.reset(Reset()))
     }
 
     // MARK: Head pose (any thread)
@@ -471,6 +518,10 @@ public final class EarmarkCore {
         let now = clock()
         let (yaw, pitch) = listenerAngles()
 
+        if listenerPose != nil, now - lastListenerPoseAt > Self.fixTimeout {
+            listenerPose = nil
+            changed()
+        }
         if let at = lastFixAt, now - at > Self.fixTimeout {
             lastFixAt = nil
             listenerPosition = EarmarkPoint(0, 0, 0)
@@ -492,7 +543,10 @@ public final class EarmarkCore {
             if let d = distance, d <= guidanceConfig.arriveM, let id = guide?.objectId { arrive(objectId: id) }
         }
 
-        if busConnected && head.state.isTracking && now - lastHeadPoseSent >= Self.headPosePeriod {
+        // 10 Hz whenever the AirPods track, so it also covers UWB (the hub needs facing for the head offset).
+        // Without head tracking yaw is a fixed 0, so nothing is sent and the hub assumes facing the counter.
+        // Half a 50 Hz tick of slack: five 20 ms ticks can add up to just under 0.1 s, which would send every 0.12 s.
+        if busConnected && head.state.isTracking && now - lastHeadPoseSent >= Self.headPosePeriod - 0.01 {
             lastHeadPoseSent = now
             send(.headPose(HeadPose(yaw: (yaw * 10).rounded() / 10, pitch: (pitch * 10).rounded() / 10)), log: false)
         }
@@ -554,6 +608,9 @@ public final class EarmarkCore {
             "hfp_suspected": .bool(devices.hfpSuspected),
         ]
         info["yaw"] = .number(latestPose.yawDeg.rounded1)
+        info["uwb_mode"] = .string(listenerPose?.mode?.rawValue ?? "off")
+        info["uwb_anchors_used"] = .number(Double(listenerPose?.anchorsUsed ?? 0))
+        info["uwb_residual_m"] = listenerPose?.residualM.map { JSONScalar.number(($0 * 100).rounded() / 100) } ?? JSONScalar.null
         var detail: String
         switch mode {
         case .spatialTracked: detail = "spatial + head tracking"
@@ -568,6 +625,7 @@ public final class EarmarkCore {
     private func statusKey(_ s: Status) -> String {
         var info = s.info ?? [:]
         info["yaw"] = nil
+        info["uwb_residual_m"] = nil   // changes on every pose; sent with the next real change or heartbeat
         return "\(s.ok)|\(s.detail)|" + info.keys.sorted().map { "\($0)=\(info[$0]!)" }.joined(separator: ",")
     }
 
@@ -599,6 +657,7 @@ public final class EarmarkCore {
         case .transcript(let t): "transcript \(t.source.rawValue)\(t.isFinal ? " final" : "")"
         case .pickup(let p): "pickup \(p.objectId)"
         case .pickupResult(let p): "pickup_result \(p.correct ? "correct" : "wrong: " + p.actual)"
+        case .listenerCommand(let c): "listener_command \(c.action.rawValue)"
         default: m.type
         }
     }

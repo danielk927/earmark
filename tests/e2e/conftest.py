@@ -22,6 +22,7 @@ import pytest
 import websockets
 
 ROOT = Path(__file__).resolve().parents[2]
+PINNED_SPACE = ROOT / "services" / "hub" / "tests" / "fixtures" / "space.json"  # config/space.json gets re-measured
 BLANK = [
     "CARTESIA_API_KEY", "CARTESIA_VOICE_ID", "MOSS_PROJECT_ID", "MOSS_PROJECT_KEY", "ANTHROPIC_API_KEY",
     "CONVEX_SITE_URL", "EARMARK_HUB_SECRET",
@@ -36,7 +37,8 @@ def free_port() -> int:
 
 
 class Stack:
-    def __init__(self, tmp: Path) -> None:
+    def __init__(self, tmp: Path, *, uwb: bool | None = None) -> None:
+        """`uwb`: force `uwb.enabled` in the temp hub.json (True/False); None keeps config/hub.json's value."""
         self.port = free_port()
         self.url = f"ws://127.0.0.1:{self.port}"
         self.tmp = tmp
@@ -44,6 +46,12 @@ class Stack:
         cfg["adapters"] = ["camera_stub"]
         cfg["bus"]["port"] = self.port
         cfg.setdefault("paths", {})["cache"] = str(tmp / "objects.cache.json")
+        cfg["paths"]["space"] = str(PINNED_SPACE)  # absolute paths are used as they are (HubConfig.path)
+        # The recorded uwb_walk scenario expects the counter freeze and the 3 s lost hold, not the table-demo config.
+        cfg.setdefault("uwb", {}).update(auto_freeze=True, lost_hold_s=3.0)
+        if uwb is not None:
+            cfg["uwb"]["enabled"] = uwb
+        self.cfg = cfg
         (tmp / "hub.json").write_text(json.dumps(cfg))
         self.env = dict(os.environ, EARMARK_BUS_PORT=str(self.port), EARMARK_BUS_URL=self.url,
                         HUB_LOG_DIR=str(tmp), CONCIERGE_SAY_CMD="true",
@@ -107,6 +115,11 @@ class Stack:
         try:
             ready = await recv_until(lambda m: m["type"] == "status" and m["component"] == "concierge", 30)
             assert ready, "concierge never reported status"
+            # The concierge only counts the Mac app as present once it has seen a status from it; a heartbeat
+            # sent before it connected is lost, and without it answers go to local speech, not the bus.
+            await ws.send(json.dumps({"type": "status", "component": "mac_app", "ok": True,
+                                      "detail": "e2e recorder", "t": time.time()}))
+            await recv_until(lambda m: False, 0.3)
             sim = self.spawn("sim", "--project", "services/hub", "earmark-sim", f"scenarios/{scenario}.jsonl",
                              "--speed", str(speed), "--url", self.url)
             while sim.poll() is None:
@@ -118,14 +131,23 @@ class Stack:
         return msgs
 
 
-@pytest.fixture
-def stack(tmp_path):
-    s = Stack(tmp_path)
+def _running(s: Stack):
     s.start()
     try:
         yield s
     finally:
         s.stop()
+
+
+@pytest.fixture
+def stack(tmp_path):
+    yield from _running(Stack(tmp_path))
+
+
+@pytest.fixture
+def uwb_stack(tmp_path):
+    """Hub with UWB tracking enabled (listener_pose from uwb_range + motion_state)."""
+    yield from _running(Stack(tmp_path, uwb=True))
 
 
 def of(msgs: list[dict], *types: str) -> list[dict]:

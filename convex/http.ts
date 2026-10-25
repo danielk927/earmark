@@ -73,8 +73,8 @@ http.route({
   path: "/ingest",
   method: "POST",
   handler: route(false, async (ctx, req) => {
-    const { events, states } = parseIngestRequest(await readJson(req));
-    const r = await ctx.runMutation(internal.ingest.apply, { events, states });
+    const { events, states, anchors, pose } = parseIngestRequest(await readJson(req));
+    const r = await ctx.runMutation(internal.ingest.apply, { events, states, anchors, pose });
     return json(200, {
       ok: true,
       accepted_events: r.acceptedEvents,

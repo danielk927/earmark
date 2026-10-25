@@ -45,6 +45,8 @@ public struct GuidanceState: Equatable, Sendable {
     public var targetAzimuthDeg: Double
     /// Shown in the debug panel only; it never affects ping rate, lock, or behind.
     public var targetElevationDeg: Double
+    /// Horizontal distance from the listener to the target, meters.
+    public var distanceM: Double
     public var pingIntervalSec: Double
     public var zone: GuidanceZone
     public var locked: Bool
@@ -52,7 +54,8 @@ public struct GuidanceState: Equatable, Sendable {
     public var turn: TurnDirection
 }
 
-/// Pure guidance math: head yaw vs target azimuth.
+/// Pure guidance math: head yaw vs the target's azimuth. The target is stored relative to the listener
+/// (the app calls `retarget` as the user walks), so the listener is always the origin.
 ///
 /// Azimuth only (orchestrator decision): spots sit 30-45 cm below ear level and blind users orient
 /// horizontally before reaching down, so a user facing the jar with a level head must reach "locked".
@@ -108,6 +111,7 @@ public struct Guidance: Sendable {
     }
 
     /// Advances the state machine. Call at a steady rate (the app ticks at 50 Hz).
+    /// `distanceM` is the locator's distance (nil without a fix); the target vector is already relative to the listener.
     public mutating func update(headYawDeg: Double, now: Double, distanceM: Double? = nil) -> (state: GuidanceState, events: [GuidanceEvent]) {
         let az = targetAzimuthDeg
         let e = Self.signedErrorDeg(targetAzimuthDeg: az, headYawDeg: headYawDeg)
@@ -157,6 +161,7 @@ public struct Guidance: Sendable {
             errorDeg: e,
             targetAzimuthDeg: az,
             targetElevationDeg: targetElevationDeg,
+            distanceM: Geometry.horizontalDistance(target),
             pingIntervalSec: Self.pingInterval(errorDeg: e, config: config) * Self.proximityScale(distanceM: distanceM, config: config),
             zone: zone ?? .front,
             locked: locked,

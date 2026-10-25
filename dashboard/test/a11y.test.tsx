@@ -7,7 +7,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
-import { renderAt, serve, YESTERDAY } from "./harness";
+import { makeFixtures } from "../src/data/fixtures";
+import { NOW, renderAt, serve, YESTERDAY } from "./harness";
 
 async function violations() {
   const result = await axe.run(document, {
@@ -25,6 +26,17 @@ describe.each(["light", "dark"])("axe, %s theme", (theme) => {
     renderAt(route);
     await screen.findAllByRole("heading", { level: 1 });
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(await violations()).toEqual([]);
+  });
+
+  it.each(["lost", "frozen"] as const)("the live map with an offline anchor and a %s person has no violations", async (mode) => {
+    document.documentElement.setAttribute("data-theme", theme);
+    const data = makeFixtures(NOW);
+    data.liveMap.anchors = data.liveMap.anchors.map((a) => (a.anchorId === "uwb_3" ? { ...a, online: false, lastDistanceM: null } : a));
+    data.liveMap.wearer = { ...data.liveMap.wearer!, mode };
+    serve(data);
+    renderAt("/");
+    await screen.findByRole("heading", { name: "The person and UWB anchors" });
     expect(await violations()).toEqual([]);
   });
 
