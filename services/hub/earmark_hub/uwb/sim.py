@@ -1,4 +1,4 @@
-"""`uwb_sim` adapter: a simulated wearer iPhone (docs/UWB-PRD.md 8.6).
+"""`uwb_sim` adapter: a simulated wearer iPhone (docs/project/UWB-PRD.md 8.6).
 
 Publishes `uwb_range` to every anchor in config/space.json at `rate_hz`, plus `motion_state` (on change
 and as a 1 s heartbeat), exactly as the wearer app would. The ranges are 3D distances from the phone

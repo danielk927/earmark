@@ -2,7 +2,7 @@
 
 One app, four iPhones: three fixed **UWB Reader/Emitter 1/2/3** anchors and one handheld **Wearer**.
 The wearer measures its distance to each anchor with Nearby Interaction and streams `uwb_range` and `motion_state` to the hub, which solves the position and publishes `listener_pose`.
-Spec: `docs/UWB-PRD.md` section 7. API notes: `docs/vendor-notes/apple-nearby-interaction.md`.
+Spec: `docs/project/UWB-PRD.md` section 7. API notes: `docs/sponsors/vendor-notes/apple-nearby-interaction.md`.
 
 This code was written on Windows without a Swift toolchain, so **it has never been compiled**.
 Expect a few small fixes on the first build (see "If it doesn't compile" below).
@@ -60,7 +60,7 @@ Expect a few small fixes on the first build (see "If it doesn't compile" below).
     - Wearer only: **Motion & Fitness** may be asked; **Microphone** is asked on the first Talk.
     - The hub dot turns green once the hub answers `hello` with a snapshot. If the hub refuses the phone, its reason is shown in red (e.g. "wrong or missing bus secret in hello"; it then closes with code 1008). A red dot with no reason usually means a wrong IP, a different network, or the hub still bound to 127.0.0.1.
 
-## On-device gates (PRD 12.2, in order; record each result in `docs/STATUS.md`)
+## On-device gates (PRD 12.2, in order; record each result in `docs/project/STATUS.md`)
 
 Watch the wearer screen (per-anchor distance, "Hz sent", "Hz measured") and the hub (`listener_pose`).
 
@@ -73,7 +73,7 @@ Watch the wearer screen (per-anchor distance, "Hz sent", "Hz measured") and the 
 5. **Body-block check:** walk with your body between the phone and one anchor. Pass: the anchor is flagged in `blocked` and the pose doesn't jump more than 0.3 m.
 6. **Walk gate:** eyes closed, start mark to the sugar, 5 attempts with a spotter. Pass: 4 of 5 correct (NFC-confirmed).
 
-For each gate write in `docs/STATUS.md`: date/time, phone models and iOS versions, anchor positions used, the numbers, pass/fail, and anything odd (session restarts, rates, round-robin needed or not).
+For each gate write in `docs/project/STATUS.md`: date/time, phone models and iOS versions, anchor positions used, the numbers, pass/fail, and anything odd (session restarts, rates, round-robin needed or not).
 
 ## Manual Xcode fallback (no XcodeGen)
 

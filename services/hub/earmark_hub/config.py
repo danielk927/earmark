@@ -82,7 +82,7 @@ class ConvexCfg(_Cfg):
 
 
 class UwbCfg(_Cfg):
-    """UWB walking guidance (docs/UWB-PRD.md sections 5 and 8). Distances in meters, times in seconds."""
+    """UWB walking guidance (docs/project/UWB-PRD.md sections 5 and 8). Distances in meters, times in seconds."""
 
     enabled: bool = True
     solve_hz: float = Field(default=10.0, gt=0)
@@ -96,6 +96,7 @@ class UwbCfg(_Cfg):
     alpha_still: float = Field(default=0.2, gt=0, le=1)
     phone_z: float = -0.35  # overridden by space.json tracking.phone_z
     head_offset_m: float = Field(default=0.20, ge=0)  # overridden by space.json tracking.head_offset_m
+    ear_z_m: float = 0.0  # overridden by space.json tracking.ear_z_m (room frame: floor = 0, standing ~1.55)
     head_pose_max_age_s: float = Field(default=0.5, gt=0)
     counter_ref: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
     freeze_enter_m: float = Field(default=1.0, gt=0)

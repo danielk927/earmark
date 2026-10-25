@@ -1,0 +1,30 @@
+# Locator-only CI (LOCATOR_BRIEF.md section 9.3).
+# Path-filtered to locator/** so the teammate's hub/apple suites are never run here.
+# Firmware compilation lives in .github/workflows/locator-firmware.yml (PR #3).
+
+name: locator-tests
+
+on:
+  push:
+    paths:
+      - "locator/**"
+      - ".github/workflows/locator-tests.yml"
+  pull_request:
+    paths:
+      - "locator/**"
+      - ".github/workflows/locator-tests.yml"
+
+jobs:
+  pytest:
+    name: Contract & config tests (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test dependencies
+        run: pip install pytest jsonschema numpy
+      - name: Run locator tests only
+        working-directory: locator
+        run: python -m pytest tests/ -v

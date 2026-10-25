@@ -89,7 +89,7 @@ def _dist_to_line(p: list[float], a: list[float], b: list[float]) -> float:
 
 
 def anchor_warnings(anchors: list[dict]) -> list[str]:
-    """Booth layout rules from docs/UWB-PRD.md 4.2 (advice only; nothing is refused)."""
+    """Booth layout rules from docs/project/UWB-PRD.md 4.2 (advice only; nothing is refused)."""
     pos = {a["anchor"]: a["position"] for a in anchors}
     if not {"uwb_1", "uwb_2", "uwb_3"} <= pos.keys():
         return [] if not anchors else ["the hub expects three anchors: uwb_1, uwb_2, uwb_3"]
@@ -152,7 +152,7 @@ def calibrate(space: dict) -> dict:
 
 
 def calibrate_uwb(space: dict) -> None:
-    """UWB anchors and wearer geometry (docs/UWB-PRD.md 10.6). Enter at the first question skips it all."""
+    """UWB anchors and wearer geometry (docs/project/UWB-PRD.md 10.6). Enter at the first question skips it all."""
     if input("\nUpdate the UWB anchors and wearer phone (walking guidance)? [y/N]: ").strip().lower() != "y":
         return
     anchors = space.get("anchors") or json.loads(json.dumps(DEFAULT_ANCHORS))

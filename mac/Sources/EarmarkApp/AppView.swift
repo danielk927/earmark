@@ -140,11 +140,14 @@ private struct StatusBar: View {
     private func uwbSeverity(_ core: EarmarkCore) -> Severity {
         guard let p = core.listenerPose else { return .neutral }
         switch p.mode {
-        case .fixed: return .neutral
-        case .lost: return .bad
-        case .tracked, .frozen:
-            let total = max(core.space?.anchors?.count ?? 0, p.anchorsUsed)
-            return p.anchorsUsed < total || !p.blocked.isEmpty ? .warn : .ok
+        case .fixed?: return .neutral
+        case .lost?: return .bad
+        case .tracked?, .frozen?:
+            let used = p.anchorsUsed ?? 0
+            let total = max(core.space?.anchors?.count ?? 0, used)
+            return used < total || !(p.blocked ?? []).isEmpty ? .warn : .ok
+        case nil:   // beacon / sound locator: no anchors to count
+            return p.quality == .lost ? .bad : .ok
         }
     }
 

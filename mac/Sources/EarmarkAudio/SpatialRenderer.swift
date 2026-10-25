@@ -50,8 +50,8 @@ public protocol SpatialRenderer: AnyObject {
     func setTarget(_ position: EarmarkPoint?)
     /// Listener (head) orientation in Earmark degrees: yaw + right, pitch + up.
     func setListener(yawDeg: Double, pitchDeg: Double)
-    /// Listener (head) position in Earmark coordinates (UWB walking guidance). Applied as given: EarmarkCore
-    /// already glides it over `blend_s` (ListenerGlide), so renderers never see a jump. Origin = seated demo.
+    /// Listener (head) position in Earmark coordinates. EarmarkCore does not call this: it keeps the listener at the
+    /// origin and moves the target (`setTarget`) as the user walks. Origin = default.
     func setListener(position: EarmarkPoint)
     /// Distance attenuation of the cue layer (tuned by ear in Settings).
     func setDistanceAttenuation(_ attenuation: DistanceAttenuation)
@@ -66,9 +66,12 @@ public protocol SpatialRenderer: AnyObject {
     func setTimbre(_ timbre: PingTimbre)
     /// Master gain for the cue layer, 0...1 (`--silent` sets 0 for unattended runs).
     func setMasterGain(_ gain: Float)
+    /// Extra gain from how far the target is (louder when closer), 0...1; 1 when the distance is unknown.
+    func setProximityGain(_ gain: Float)
 }
 
 public extension SpatialRenderer {
+    func setProximityGain(_ gain: Float) {}
     var name: String { kind.rawValue }
     func playLockedTone() { play(.locked) }
     func playBehindCue() { play(.behind) }

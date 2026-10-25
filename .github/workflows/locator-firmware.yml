@@ -1,0 +1,50 @@
+name: Locator firmware
+
+on:
+  pull_request:
+    paths:
+      - 'locator/firmware/**'
+      - 'locator/scripts/flash.sh'
+      - 'locator/scripts/test_firmware.sh'
+      - '.github/workflows/locator-firmware.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'locator/firmware/**'
+      - 'locator/scripts/flash.sh'
+      - 'locator/scripts/test_firmware.sh'
+      - '.github/workflows/locator-firmware.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: ESP32 ${{ matrix.pinmap }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        pinmap: [wroom, wrover]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@81d310742121c928ea9c8bbd407b4217b432ae02 # v2.0.0
+      - name: Install pinned ESP32 core 3.x
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32@3.3.12 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli version
+          arduino-cli core list
+      - name: Test deterministic firmware core and generated sweep
+        run: bash locator/scripts/test_firmware.sh
+      - name: Compile the real sketch
+        env:
+          PINMAP: ${{ matrix.pinmap }}
+        run: |
+          if [[ "$PINMAP" == wrover ]]; then
+            bash locator/scripts/flash.sh --wrover --compile-only
+          else
+            bash locator/scripts/flash.sh --compile-only
+          fi

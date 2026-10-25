@@ -26,7 +26,16 @@
       "$ref": "#/$defs/label"
     },
     {
+      "$ref": "#/$defs/place_item"
+    },
+    {
       "$ref": "#/$defs/mic_audio"
+    },
+    {
+      "$ref": "#/$defs/listener_pose"
+    },
+    {
+      "$ref": "#/$defs/ptt"
     },
     {
       "$ref": "#/$defs/transcript"
@@ -86,9 +95,6 @@
       "$ref": "#/$defs/motion_state"
     },
     {
-      "$ref": "#/$defs/listener_pose"
-    },
-    {
       "$ref": "#/$defs/listener_command"
     },
     {
@@ -118,18 +124,18 @@
         "dashboard",
         "cli",
         "memory_agent",
+        "locator",
         "ios_anchor",
         "ios_wearer"
       ]
     },
     "hello": {
-      "description": "Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak. iPhone clients (ios_anchor, ios_wearer) also send `device_id` (uwb_1|uwb_2|uwb_3|wearer) and `role`; any client connecting from a non-loopback address must send `secret` = EARMARK_BUS_SECRET or the hub closes the connection.",
+      "description": "Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak. iPhone clients (ios_anchor, ios_wearer) also send `device_id` (uwb_1|uwb_2|uwb_3|wearer) and `role`; any client connecting from a non-loopback address must send `secret` = EARMARK_BUS_SECRET or the hub closes the connection. The locator may send `token`; the hub accepts and ignores it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "type",
-        "component",
-        "t"
+        "component"
       ],
       "properties": {
         "type": {
@@ -144,6 +150,14 @@
             "type": "string"
           },
           "description": "Message types to receive, or [\"*\"] for all including audio."
+        },
+        "t": {
+          "type": "number",
+          "description": "Unix seconds."
+        },
+        "token": {
+          "type": "string",
+          "description": "Optional shared token sent by the locator; the local hub accepts and ignores it."
         },
         "device_id": {
           "type": "string",
@@ -160,9 +174,6 @@
         "secret": {
           "type": "string",
           "description": "Shared bus secret (EARMARK_BUS_SECRET). Required from non-loopback clients; never logged."
-        },
-        "t": {
-          "$ref": "#/$defs/t"
         }
       }
     },
@@ -320,8 +331,7 @@
         "seq",
         "sample_rate",
         "encoding",
-        "chunk_b64",
-        "t"
+        "chunk_b64"
       ],
       "properties": {
         "type": {
@@ -352,7 +362,8 @@
           "contentEncoding": "base64"
         },
         "t": {
-          "$ref": "#/$defs/t"
+          "type": "number",
+          "description": "Unix seconds."
         }
       }
     },
@@ -613,8 +624,10 @@
           "enum": [
             "behind",
             "front",
-            "locked"
-          ]
+            "locked",
+            "arrived"
+          ],
+          "description": "behind/front/locked come from the head angle; arrived means the locator put the user within about half a meter of the target."
         },
         "turn": {
           "enum": [
@@ -850,7 +863,7 @@
       }
     },
     "head_pose": {
-      "description": "Mac app -> bus, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up. The hub's UWB tracker uses yaw as the facing direction for the phone-to-head offset.",
+      "description": "Mac app -> bus, debug only, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -882,8 +895,7 @@
         "type",
         "component",
         "ok",
-        "detail",
-        "t"
+        "detail"
       ],
       "properties": {
         "type": {
@@ -910,7 +922,8 @@
           }
         },
         "t": {
-          "$ref": "#/$defs/t"
+          "type": "number",
+          "description": "Unix seconds."
         }
       }
     },
@@ -925,6 +938,171 @@
       "properties": {
         "type": {
           "const": "reset"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "place_item": {
+      "description": "Concierge -> hub. The user said where they put an item. Either `area` (an id from space.areas: \"I put my keys in the drawer\") or `position` (room frame, from the locator: \"I'm leaving my keys here\"). The hub records the item there and logs a `stored` event.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "object_id",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "place_item"
+        },
+        "object_id": {
+          "type": "string"
+        },
+        "area": {
+          "type": "string",
+          "minLength": 1
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "area"
+          ]
+        },
+        {
+          "required": [
+            "position"
+          ]
+        }
+      ]
+    },
+    "listener_pose": {
+      "description": "Locator or hub -> bus. Where the listener's ears are, room frame (origin under the mat center, +x right, +y forward, +z up). Two producers share it: the sound-beacon locator (source `beacons`, ~3 Hz, sends `beacons_heard`) and the hub's UWB tracker (source `uwb`/`sim`, 10 Hz, sends `mode`, `residual_m`, `anchors_used`, `blocked`, `anchors`). Consumers only need `position` and `quality`. quality `lost` repeats the last good position. UWB mode: tracked = live estimate while walking; frozen = averaged landing spot at the counter; lost = holding the last good estimate; fixed = no tracker (origin); tracked/frozen map to quality ok, lost/fixed to lost.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "position",
+        "quality",
+        "source",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "listener_pose"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "quality": {
+          "enum": [
+            "ok",
+            "degraded",
+            "lost"
+          ]
+        },
+        "source": {
+          "enum": [
+            "beacons",
+            "uwb",
+            "sound",
+            "steps",
+            "sim",
+            "manual",
+            "none"
+          ]
+        },
+        "beacons_heard": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "mode": {
+          "enum": [
+            "tracked",
+            "frozen",
+            "lost",
+            "fixed"
+          ]
+        },
+        "residual_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "RMS range residual of the solve, meters; null when not solved (fixed)."
+        },
+        "anchors_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Anchor ids rejected as outliers in this solve."
+        },
+        "anchors": {
+          "type": "array",
+          "description": "Optional per-anchor health for maps and status bars.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "anchor",
+              "online",
+              "distance_m"
+            ],
+            "properties": {
+              "anchor": {
+                "type": "string",
+                "minLength": 1
+              },
+              "online": {
+                "type": "boolean",
+                "description": "A fresh range arrived from this anchor within the freshness window."
+              },
+              "distance_m": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Latest raw distance from the wearer, meters."
+              }
+            }
+          }
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "ptt": {
+      "description": "Push-to-talk start/stop. The Mac app (or the stem button) publishes it; the locator streams phone mic audio while it is on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "state"
+      ],
+      "properties": {
+        "type": {
+          "const": "ptt"
+        },
+        "state": {
+          "enum": [
+            "start",
+            "stop"
+          ]
         },
         "t": {
           "$ref": "#/$defs/t"
@@ -1018,96 +1196,6 @@
             "moving",
             "still"
           ]
-        },
-        "t": {
-          "$ref": "#/$defs/t"
-        }
-      }
-    },
-    "listener_pose": {
-      "description": "Hub -> bus. Where the listener's head is, in Earmark coordinates. Source-agnostic: produced from UWB, sound ranging or the simulator; consumers never care which. mode: tracked = live estimate while walking; frozen = averaged landing spot at the counter; lost = holding the last good estimate; fixed = origin (today's seated behavior). Published at the solver rate (10 Hz) and immediately on every mode change.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "type",
-        "position",
-        "mode",
-        "source",
-        "residual_m",
-        "anchors_used",
-        "blocked",
-        "t"
-      ],
-      "properties": {
-        "type": {
-          "const": "listener_pose"
-        },
-        "position": {
-          "$ref": "#/$defs/vec3"
-        },
-        "mode": {
-          "enum": [
-            "tracked",
-            "frozen",
-            "lost",
-            "fixed"
-          ]
-        },
-        "source": {
-          "enum": [
-            "uwb",
-            "sound",
-            "sim",
-            "none"
-          ]
-        },
-        "residual_m": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "RMS range residual of the solve, meters; null when not solved (fixed)."
-        },
-        "anchors_used": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "blocked": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Anchor ids rejected as outliers in this solve."
-        },
-        "anchors": {
-          "type": "array",
-          "description": "Optional per-anchor health for maps and status bars.",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "anchor",
-              "online",
-              "distance_m"
-            ],
-            "properties": {
-              "anchor": {
-                "type": "string",
-                "minLength": 1
-              },
-              "online": {
-                "type": "boolean",
-                "description": "A fresh range arrived from this anchor within the freshness window."
-              },
-              "distance_m": {
-                "type": [
-                  "number",
-                  "null"
-                ],
-                "description": "Latest raw distance from the wearer, meters."
-              }
-            }
-          }
         },
         "t": {
           "$ref": "#/$defs/t"

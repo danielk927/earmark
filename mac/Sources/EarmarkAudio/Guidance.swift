@@ -15,11 +15,15 @@ public struct GuidanceConfig: Sendable, Equatable {
     /// Behind when |error| > behindEnterDeg; back in front when |error| < behindExitDeg.
     public var behindEnterDeg: Double = 100
     public var behindExitDeg: Double = 95
-    /// Walking guidance (PRD 10.2): the ping interval is multiplied by 1.0 within `nearDistanceM` of the target,
-    /// rising linearly to `farDistanceFactor` at `farDistanceM` and beyond. Far = slower, close = faster.
-    public var nearDistanceM: Double = 1.0
-    public var farDistanceM: Double = 4.0
-    public var farDistanceFactor: Double = 1.6
+    /// With a locator fix: the ping speeds up to this share of its interval when the target is at your feet, and is full speed from `proximityFarM` away.
+    public var proximityMinScale: Double = 0.4
+    public var proximityFarM: Double = 3
+    /// Ping loudness runs from full at `gainNearM` to `gainFarGain` at `gainFarM` and beyond.
+    public var gainNearM: Double = 0.5
+    public var gainFarM: Double = 4
+    public var gainFarGain: Float = 0.25
+    /// Within this horizontal distance the user has arrived.
+    public var arriveM: Double = 0.5
 
     public init() {}
 }
@@ -50,15 +54,15 @@ public struct GuidanceState: Equatable, Sendable {
     public var turn: TurnDirection
 }
 
-/// Pure guidance math: head yaw vs the target's azimuth seen from the listener (target - listener).
-/// With the listener at the origin (seated demo, UWB off) this is exactly the original origin-relative math.
+/// Pure guidance math: head yaw vs the target's azimuth. The target is stored relative to the listener
+/// (the app calls `retarget` as the user walks), so the listener is always the origin.
 ///
 /// Azimuth only (orchestrator decision): spots sit 30-45 cm below ear level and blind users orient
 /// horizontally before reaching down, so a user facing the jar with a level head must reach "locked".
 /// Rendering still uses the full 3D position with head yaw and pitch.
 public struct Guidance: Sendable {
     public let config: GuidanceConfig
-    public let target: EarmarkPoint
+    public private(set) var target: EarmarkPoint
     public private(set) var zone: GuidanceZone?
     public private(set) var locked = false
     private var lockCandidateSince: Double?
@@ -68,7 +72,23 @@ public struct Guidance: Sendable {
         self.config = config
     }
 
-    /// Origin-relative (listener at the calibrated position).
+    /// The target moved relative to the listener (the locator says the user walked). Lock and zone carry over.
+    public mutating func retarget(_ p: EarmarkPoint) { target = p }
+
+    /// Ping interval multiplier for a locator distance: 1 far away, `proximityMinScale` at your feet.
+    public static func proximityScale(distanceM: Double?, config: GuidanceConfig = GuidanceConfig()) -> Double {
+        guard let d = distanceM else { return 1 }
+        let x = min(max(d / config.proximityFarM, 0), 1)
+        return config.proximityMinScale + (1 - config.proximityMinScale) * x
+    }
+
+    /// Loudness for a locator distance: louder as the user walks toward the target.
+    public static func proximityGain(distanceM: Double?, config: GuidanceConfig = GuidanceConfig()) -> Float {
+        guard let d = distanceM else { return 1 }
+        let x = min(max((d - config.gainNearM) / (config.gainFarM - config.gainNearM), 0), 1)
+        return 1 - (1 - config.gainFarGain) * Float(x)
+    }
+
     public var targetAzimuthDeg: Double { Geometry.azimuthDeg(target) }
     public var targetElevationDeg: Double { Geometry.elevationDeg(target) }
 
@@ -90,28 +110,10 @@ public struct Guidance: Sendable {
         return config.nearIntervalSec + (config.farIntervalSec - config.nearIntervalSec) * s
     }
 
-    /// 1.0 within `nearDistanceM`, linear to `farDistanceFactor` at `farDistanceM`, clamped beyond.
-    public static func distanceFactor(distanceM d: Double, config: GuidanceConfig = GuidanceConfig()) -> Double {
-        let span = config.farDistanceM - config.nearDistanceM
-        let x = span > 0 ? min(max((d - config.nearDistanceM) / span, 0), 1) : (d > config.nearDistanceM ? 1 : 0)
-        return 1 + (config.farDistanceFactor - 1) * x
-    }
-
-    /// Angle curve times the distance factor.
-    public static func pingInterval(errorDeg: Double, distanceM: Double, config: GuidanceConfig = GuidanceConfig()) -> Double {
-        pingInterval(errorDeg: errorDeg, config: config) * distanceFactor(distanceM: distanceM, config: config)
-    }
-
-    /// Seated (listener at the origin). Kept so existing callers and tests compile unchanged.
-    public mutating func update(headYawDeg: Double, now: Double) -> (state: GuidanceState, events: [GuidanceEvent]) {
-        update(headYawDeg: headYawDeg, listener: .zero, now: now)
-    }
-
     /// Advances the state machine. Call at a steady rate (the app ticks at 50 Hz).
-    /// Behind, locked, and the ping rate all come from the vector target - listener.
-    public mutating func update(headYawDeg: Double, listener: EarmarkPoint, now: Double) -> (state: GuidanceState, events: [GuidanceEvent]) {
-        let az = Geometry.azimuthDeg(target, from: listener)
-        let dist = Geometry.horizontalDistance(target, from: listener)
+    /// `distanceM` is the locator's distance (nil without a fix); the target vector is already relative to the listener.
+    public mutating func update(headYawDeg: Double, now: Double, distanceM: Double? = nil) -> (state: GuidanceState, events: [GuidanceEvent]) {
+        let az = targetAzimuthDeg
         let e = Self.signedErrorDeg(targetAzimuthDeg: az, headYawDeg: headYawDeg)
         let a = abs(e)
         var events: [GuidanceEvent] = []
@@ -158,9 +160,9 @@ public struct Guidance: Sendable {
         let state = GuidanceState(
             errorDeg: e,
             targetAzimuthDeg: az,
-            targetElevationDeg: Geometry.elevationDeg(target, from: listener),
-            distanceM: dist,
-            pingIntervalSec: Self.pingInterval(errorDeg: e, distanceM: dist, config: config),
+            targetElevationDeg: targetElevationDeg,
+            distanceM: Geometry.horizontalDistance(target),
+            pingIntervalSec: Self.pingInterval(errorDeg: e, config: config) * Self.proximityScale(distanceM: distanceM, config: config),
             zone: zone ?? .front,
             locked: locked,
             turn: Self.turn(forErrorDeg: e)

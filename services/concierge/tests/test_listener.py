@@ -11,6 +11,7 @@ from earmark_contracts import HeadPose, ListenerPose, Pickup
 
 def pose(x=0.0, y=0.0, mode="tracked") -> ListenerPose:
     return ListenerPose(position=[x, y, 0.0], mode=mode, source="uwb", residual_m=0.05,
+                        quality="lost" if mode in ("lost", "fixed") else "ok",
                         anchors_used=3, blocked=[])
 
 

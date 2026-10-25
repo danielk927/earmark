@@ -1,4 +1,4 @@
-"""Listener tracking: ranges -> solve -> smooth -> head offset -> modes (docs/UWB-PRD.md 8.2-8.5).
+"""Listener tracking: ranges -> solve -> smooth -> head offset -> modes (docs/project/UWB-PRD.md 8.2-8.5).
 
 Modes:
 - fixed: listener at the origin (UWB disabled, nothing ranged yet, or lost for too long). Today's behavior.
@@ -31,11 +31,18 @@ MIN_TRAVEL_MPS = 0.3  # ponytail: below this the direction of travel is noise; k
 
 
 def wearer_geometry(cfg: UwbCfg, space: SpaceIndex) -> tuple[float, float]:
-    """(phone_z, head_offset_m): space.json `tracking` overrides the hub.json defaults."""
+    """(phone height in the room frame, head_offset_m): space.json `tracking` overrides the hub.json defaults.
+    phone_z is relative to the ears, so the phone sits at ear_z_m + phone_z."""
     tr = space.space.tracking
     phone_z = tr.phone_z if tr and tr.phone_z is not None else cfg.phone_z
     head = tr.head_offset_m if tr and tr.head_offset_m is not None else cfg.head_offset_m
-    return phone_z, head
+    return ear_z(cfg, space) + phone_z, head
+
+
+def ear_z(cfg: UwbCfg, space: SpaceIndex) -> float:
+    """Ear height in the room frame: the z of every UWB listener_pose (the solve itself is 2D)."""
+    tr = space.space.tracking
+    return tr.ear_z_m if tr and tr.ear_z_m is not None else cfg.ear_z_m
 
 
 class Tracker:
@@ -52,6 +59,7 @@ class Tracker:
         self.space = space
         self.anchors = {a.anchor: a for a in space.space.anchors or []}
         self.phone_z, self.head_offset = wearer_geometry(self.cfg, space)
+        self.ear_z = ear_z(self.cfg, space)
         spot_ys = [s.position[1] for s in space.space.spots]
         self.counter_y = min(spot_ys) if spot_ys else math.inf  # walking area: y < the nearest spot
 
@@ -264,8 +272,10 @@ class Tracker:
 
     def _pose(self, now: float) -> ListenerPose:
         live = self.mode in ("tracked", "frozen")
+        z = 0.0 if self.mode == "fixed" else self.ear_z  # fixed = no tracker: the origin, quality lost
         return ListenerPose(
-            position=[round(self.position[0], 3), round(self.position[1], 3), 0.0],
+            position=[round(self.position[0], 3), round(self.position[1], 3), z],
+            quality="ok" if live else "lost",
             mode=self.mode,
             source="none" if self.mode == "fixed" else self.source,
             residual_m=round(self.residual, 3) if live and self.residual is not None else None,

@@ -1,4 +1,4 @@
-"""LLM vs grammar: timeout, validation, label tag fill, and the real Bitdeer client shape."""
+"""LLM vs grammar: timeout, validation, label tag fill, and the real Claude client shape."""
 import asyncio
 import json
 
@@ -7,13 +7,13 @@ import pytest
 
 from conftest import OBJECTS, Harness, snapshot
 from earmark_contracts import UnknownTag
-from earmark_concierge.intent import BitdeerChooser, IntentRouter
+from earmark_concierge.intent import AnthropicChooser, IntentRouter
 from earmark_concierge.tools import InvalidToolCall, validate_llm_call
 from earmark_concierge.world import World
 
 
 class FakeChooser:
-    vendor = "bitdeer"
+    vendor = "anthropic"
 
     def __init__(self, calls=None, delay=0.0, error=None):
         self.calls = calls if calls is not None else []
@@ -45,7 +45,7 @@ async def test_valid_llm_call_wins():
     d = await r.decide("I want to put sugar in my coffee", world())
     assert (d.path, d.llm_status, d.call.name, d.call.args) == ("llm", "ok", "guide_to_object",
                                                                  {"object_id": "sugar"})
-    assert d.llm_ms is not None and d.vendor == "bitdeer"
+    assert d.llm_ms is not None and d.vendor == "anthropic"
 
 
 async def test_llm_timeout_falls_back_to_grammar():
@@ -105,8 +105,8 @@ async def test_eager_prefetch_is_reused_on_matching_final():
     assert d.path == "llm" and len(ch.seen) == 1
 
 
-async def test_bitdeer_chooser_request_shape():
-    """The real client sends reasoning_effort none, tool_choice required, one tool per turn."""
+async def test_anthropic_chooser_request_shape():
+    """The real client forces one tool, turns thinking off, and reads the tool_use block back."""
     captured = {}
 
     def handler(request: httpx2.Request) -> httpx2.Response:
@@ -114,23 +114,24 @@ async def test_bitdeer_chooser_request_shape():
         captured["auth"] = request.headers["authorization"]
         captured["body"] = json.loads(request.content)
         return httpx2.Response(200, json={
-            "id": "x", "object": "chat.completion", "created": 0, "model": "m",
-            "choices": [{"index": 0, "finish_reason": "tool_calls", "message": {
-                "role": "assistant", "content": None,
-                "tool_calls": [{"id": "c1", "type": "function",
-                                "function": {"name": "locate_object", "arguments": '{"name": "sugar"}'}}]}}],
+            "id": "msg_x", "type": "message", "role": "assistant", "model": "claude-haiku-5-5",
+            "content": [{"type": "tool_use", "id": "tu_1", "name": "locate_object", "input": {"name": "sugar"}}],
+            "stop_reason": "tool_use", "stop_sequence": None,
+            "usage": {"input_tokens": 10, "output_tokens": 5},
         })
 
-    ch = BitdeerChooser("sk-test", "https://api-inference.bitdeer.ai/v1", "nvidia/test-model", 1.5)
+    ch = AnthropicChooser("sk-test", "claude-haiku-5-5", 1.5)
     ch.client = ch.client.with_options(http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)))
     calls = await ch.choose("where's the sugar", world())
     assert calls == [("locate_object", '{"name": "sugar"}')]
     b = captured["body"]
-    assert captured["url"] == "https://api-inference.bitdeer.ai/v1/chat/completions"
+    assert captured["url"] == "https://api.anthropic.com/v1/messages"
     assert captured["auth"] == "Bearer sk-test"
-    assert b["model"] == "nvidia/test-model" and b["tool_choice"] == "required"
-    assert b["reasoning_effort"] == "none" and b["parallel_tool_calls"] is False
-    assert [t["function"]["name"] for t in b["tools"]] == [
+    assert b["model"] == "claude-haiku-5-5"
+    assert b["tool_choice"] == {"type": "any", "disable_parallel_tool_use": True}
+    assert b["thinking"] == {"type": "disabled"} and b["output_config"] == {"effort": "low"}
+    assert "temperature" not in b
+    assert [t["name"] for t in b["tools"]] == [
         "locate_object", "guide_to_object", "chirp_fob", "label_object", "last_seen",
-        "stop_guidance", "list_objects", "freeze_listener", "recenter_listener"]
-
+        "put_in_place", "place_history", "stop_guidance", "list_objects", "freeze_listener", "recenter_listener"]
+    assert all("input_schema" in t for t in b["tools"])

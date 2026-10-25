@@ -10,7 +10,7 @@ import Foundation
 public enum HeadSigns {
     /// CoreMotion attitude yaw follows the right-hand rule about the vertical +Z axis, so it is positive
     /// when the head turns LEFT (counterclockwise seen from above). Earmark wants positive = RIGHT, hence -1.
-    /// Derived from Apple's axis figures, UNVERIFIED on hardware (docs/vendor-notes/apple-spatial-audio.md section 1).
+    /// Derived from Apple's axis figures, UNVERIFIED on hardware (docs/sponsors/vendor-notes/apple-spatial-audio.md section 1).
     ///
     /// On-device sign check (mac/README.md, gate step 1): open SpatialSpike, press Recenter facing forward,
     /// then turn your head to the RIGHT. The yaw readout must go POSITIVE, and a ping placed at 0 deg must
@@ -23,7 +23,7 @@ public enum HeadSigns {
     ///
     /// On-device check: face forward, press Recenter, then look UP. The pitch readout must go POSITIVE.
     /// If it goes negative, change this value to -1 and rebuild. If nodding moves the roll readout instead
-    /// of pitch, the axes are swapped on that AirPods model: note it in docs/STATUS.md (elevation is a weak
+    /// of pitch, the axes are swapped on that AirPods model: note it in docs/project/STATUS.md (elevation is a weak
     /// cue anyway, and guidance uses azimuth only).
     public static let pitchSign: Double = 1
 

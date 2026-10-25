@@ -12,7 +12,7 @@ from conftest import SPOT_POS, snapshot
 from earmark_contracts import Hello, StatusMsg, dump
 from fakes import FakeBus, wait_until
 
-BLANK = ["CARTESIA_API_KEY", "CARTESIA_VOICE_ID", "MOSS_PROJECT_ID", "MOSS_PROJECT_KEY", "BITDEER_API_KEY"]
+BLANK = ["CARTESIA_API_KEY", "CARTESIA_VOICE_ID", "MOSS_PROJECT_ID", "MOSS_PROJECT_KEY", "ANTHROPIC_API_KEY"]
 
 
 def free_port() -> int:

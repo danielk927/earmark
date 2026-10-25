@@ -32,7 +32,10 @@ export const seedArgs = {
     ),
     anchors: v.optional(v.array(v.object({ anchor: v.string(), label: v.string(), position }))),
     // Wearer geometry for the hub's UWB tracker; accepted so config/space.json seeds as-is, not stored.
-    tracking: v.optional(v.object({ phone_z: v.optional(v.number()), head_offset_m: v.optional(v.number()) })),
+    tracking: v.optional(v.object({
+      phone_z: v.optional(v.number()), head_offset_m: v.optional(v.number()),
+      ear_z_m: v.optional(v.number()), mark_z_m: v.optional(v.number()),
+    })),
   }),
   registry: v.object({
     household: v.object({ name: v.string(), timezone: v.string() }),

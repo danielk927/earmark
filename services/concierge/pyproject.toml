@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "Earmark voice concierge: speech in, intent, object resolution, guidance and speech out."
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "anthropic>=2.3.0",
     "earmark-contracts",
     "httpx>=0.28.1",
     "moss>=1.21,<2",
-    "openai>=3.37.0",
     "python-dotenv>=1.2.4",
     "rapidfuzz>=3.14.6",
     "tzdata>=2026.5",

@@ -27,5 +27,8 @@ class SpaceIndex:
     def area_position(self, area: str) -> list[float] | None:
         return self._areas.get(area)
 
+    def area_label(self, area: str) -> str:
+        return next((a.label for a in self.space.areas if a.area == area), area)
+
     def receiver_position(self, receiver: str) -> list[float] | None:
         return self._receivers.get(receiver)

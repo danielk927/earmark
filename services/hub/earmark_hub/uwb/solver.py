@@ -1,4 +1,4 @@
-"""UWB position math (docs/UWB-PRD.md 5 and 8.2). Pure and deterministic; the tracker owns all state.
+"""UWB position math (docs/project/UWB-PRD.md 5 and 8.2). Pure and deterministic; the tracker owns all state.
 
 2D Earmark coordinates in meters: +x right, +y forward (toward the counter). Yaw in degrees
 from calibrated forward, positive turning right.

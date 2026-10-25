@@ -11,6 +11,7 @@ const kindLook: Record<string, { icon: IconName; label: string }> = {
   missing: { icon: "missing", label: "Not detected" },
   roaming: { icon: "roaming", label: "Nearby" },
   unknown_tag: { icon: "newItem", label: "New tag" },
+  stored: { icon: "placed", label: "Put in a place" },
 };
 
 const LIMIT = 100;
@@ -22,7 +23,7 @@ export function TimelinePage() {
   const now = useNow(60_000);
 
   return (
-    <Page title="Timeline" lead="Recent pickups and put-downs, newest first.">
+    <Page title="Timeline" lead="Recent pickups, put-downs, and places, newest first.">
       {!map || !events ? (
         <Loading what="the timeline" />
       ) : events.length === 0 ? (

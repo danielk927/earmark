@@ -23,7 +23,7 @@ import websockets
 
 ROOT = Path(__file__).resolve().parents[2]
 BLANK = [
-    "CARTESIA_API_KEY", "CARTESIA_VOICE_ID", "MOSS_PROJECT_ID", "MOSS_PROJECT_KEY", "BITDEER_API_KEY",
+    "CARTESIA_API_KEY", "CARTESIA_VOICE_ID", "MOSS_PROJECT_ID", "MOSS_PROJECT_KEY", "ANTHROPIC_API_KEY",
     "CONVEX_SITE_URL", "EARMARK_HUB_SECRET",
 ]
 SPEECH = {"speak", "speak_cached", "speak_text"}

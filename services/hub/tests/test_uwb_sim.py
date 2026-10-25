@@ -1,4 +1,4 @@
-"""`uwb_sim` adapter (docs/UWB-PRD.md 8.6) feeding a Tracker on a virtual clock: tracked -> frozen, pose rate."""
+"""`uwb_sim` adapter (docs/project/UWB-PRD.md 8.6) feeding a Tracker on a virtual clock: tracked -> frozen, pose rate."""
 from __future__ import annotations
 
 import math

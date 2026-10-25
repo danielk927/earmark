@@ -5,7 +5,7 @@ import simd
 
 /// Option B: PHASE with binaural output, its listener driven manually by our own head tracker.
 /// No entitlements or provisioning profile needed (automatic head tracking and the personal HRTF profile
-/// would need paid-team entitlements; docs/vendor-notes/apple-spatial-audio.md section 4).
+/// would need paid-team entitlements; docs/sponsors/vendor-notes/apple-spatial-audio.md section 4).
 /// Each cue is a one-shot PHASESoundEvent at the target's PHASESource.
 public final class PHASECueRenderer: SpatialRenderer {
     public let kind = RendererKind.phaseManual
@@ -26,6 +26,7 @@ public final class PHASECueRenderer: SpatialRenderer {
     private var attenuation = DistanceAttenuation()
     private var ducked = false
     private var masterGain: Float = 1
+    private var proximityGain: Float = 1
     private var running = false
 
     private static let gainParameter = "earmark.cue.gain"
@@ -184,6 +185,7 @@ public final class PHASECueRenderer: SpatialRenderer {
     public func setDucked(_ ducked: Bool) { lock.withLock { self.ducked = ducked } }
     public func setTimbre(_ timbre: PingTimbre) { lock.withLock { self.timbre = timbre } }
     public func setMasterGain(_ gain: Float) { lock.withLock { masterGain = min(max(gain, 0), 1) } }
+    public func setProximityGain(_ gain: Float) { lock.withLock { proximityGain = min(max(gain, 0), 1) } }
 
     // MARK: Playback
 
@@ -198,7 +200,7 @@ public final class PHASECueRenderer: SpatialRenderer {
             params.addSpatialMixerParameters(identifier: mixerID, source: source, listener: listener)
             do {
                 let ev = try PHASESoundEvent(engine: engine, assetIdentifier: id + ".event", mixerParameters: params)
-                let gain = Double(masterGain * (ducked ? AVAudioCueRenderer.duckGain : 1))
+                let gain = Double(masterGain * proximityGain * (ducked ? AVAudioCueRenderer.duckGain : 1))
                 ev.metaParameters[Self.gainParameter + "." + id]?.value = NSNumber(value: gain)
                 let key = ObjectIdentifier(ev)
                 active[key] = ev

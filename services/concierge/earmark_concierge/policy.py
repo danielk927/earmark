@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from earmark_contracts import RegistryObject
 
 from .phrasing import (
-    LOST_MESSAGE, Grammar, cap, clock_time, direction_phrase, join_and, join_or, number_word,
+    LOST_MESSAGE, Grammar, cap, clock_phrase, clock_time, direction_phrase, join_and, join_or, number_word,
     relative_spot_phrase, the, time_phrase,
 )
 from .world import Sighting, World
@@ -41,12 +41,20 @@ class LabelAction:
 
 
 @dataclass
+class PlaceAction:
+    object_id: str
+    area: str | None = None
+    position: list[float] | None = None
+
+
+@dataclass
 class Plan:
     text: str | None = None
     phrase_id: str | None = None
     guide: GuideTarget | None = None
     chirp: str | None = None
     label: LabelAction | None = None
+    place: PlaceAction | None = None
     stop: bool = False
     listener_command: str | None = None  # freeze | recenter -> listener_command on the bus
     clarify: list[str] = field(default_factory=list)
@@ -62,11 +70,25 @@ def where_phrase(world: World, s: Sighting) -> str | None:
         return f"near {world.area_label(s.area)}"
     if s.near is not None:
         return f"near {world.receiver_label(s.near)}"
+    if s.position is not None:
+        return "at the spot you saved"
     return None
 
 
 def _chirp_suffix(obj: RegistryObject, g: Grammar) -> str:
     return f" I'll make {g.it} beep." if obj.fob_id else ""
+
+
+def where_from(world: World, pos: list[float], now: float | None = None) -> str:
+    """Direction phrase for a room position from the listener, whichever producer made the pose.
+
+    UWB poses carry a mode (tracked words or clock face). Beacon-locator poses have none: clock
+    face from where they stand, turned to where they face.
+    """
+    where, mode, yaw = world.listener_view(now)
+    if mode is None:
+        return direction_phrase(world.relative(pos))
+    return direction_phrase(pos, where, mode, yaw)
 
 
 def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Plan:
@@ -92,14 +114,23 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
 
     if st is not None and st.precision == "exact" and st.location.position:
         pos = list(st.location.position)
-        where, mode, yaw = world.listener_view(now)
         # Lost: no trustworthy direction. Say so (the core marks it said for this guidance) and
         # still start guidance so the sound ping works once tracking returns.
-        text = LOST_MESSAGE if mode == "lost" else f"{cap(name)} {g.is_} {direction_phrase(pos, where, mode, yaw)}."
+        lost = world.listener_view(now)[1] == "lost"
         return Plan(
-            text=text,
+            text=LOST_MESSAGE if lost else f"{cap(name)} {g.is_} {where_from(world, pos, now)}.",
             guide=GuideTarget(obj.object_id, obj.name, pos, "exact"),
             object_id=obj.object_id,
+        )
+
+    # A saved place has a position measured at setup, so the ping can lead there however long ago it was noted.
+    if st is not None and st.precision == "area" and st.location.area and st.location.position:
+        pos = list(st.location.position)
+        noted = f" I noted that {time_phrase(st.last_seen_t, now, tz)}." if st.last_seen_t else ""
+        return Plan(
+            text=(f"{cap(name)} {g.is_} in {world.area_label(st.location.area)}, "
+                  f"{where_from(world, pos, now)}.{noted}"),
+            guide=GuideTarget(obj.object_id, obj.name, pos, "area"), object_id=obj.object_id,
         )
 
     fresh = st is not None and (st.last_seen_t is None or now - st.last_seen_t <= stale_s)
@@ -112,8 +143,9 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
             where = f"farther away from {label}" if loc.distance_class == "far" else f"near {label}"
         else:
             where = "nearby"
+        noted = f" I noted that {time_phrase(st.last_seen_t, now, tz)}." if loc.area and st.last_seen_t else ""
         return Plan(
-            text=f"{cap(name)} {g.is_} {where}.{_chirp_suffix(obj, g)}",
+            text=f"{cap(name)} {g.is_} {where}.{noted}{_chirp_suffix(obj, g)}",
             chirp=obj.fob_id, object_id=obj.object_id,
         )
 
@@ -206,6 +238,65 @@ def recenter_listener() -> Plan:
     return Plan(listener_command="recenter", text="Okay, recentered.")
 
 
+def put_in_place(world: World, obj: RegistryObject, area: str) -> Plan:
+    g = Grammar(obj.name)
+    return Plan(text=f"Got it, {the(obj.name)} {g.is_} in {world.area_label(area)}.",
+                place=PlaceAction(obj.object_id, area), object_id=obj.object_id)
+
+
+# The phone is held at chest height, but the item is down where the hand put it.
+HAND_HEIGHT_M = 1.0
+
+
+def put_here(obj: RegistryObject, listener: list[float]) -> Plan:
+    """'I'm leaving my keys here': keep the spot the locator says the user is standing at."""
+    spot = [round(listener[0], 2), round(listener[1], 2), HAND_HEIGHT_M]
+    return Plan(text=f"Got it, I'll remember where you left {the(obj.name)}.",
+                place=PlaceAction(obj.object_id, position=spot), object_id=obj.object_id)
+
+
+def ask_place(world: World, obj: RegistryObject) -> Plan:
+    """'Here' can't be saved without a fresh position from the locator."""
+    labels = [world.area_label(a) for a in world.area_ids()]
+    hint = f" I know {join_and(labels)}." if labels else ""
+    return Plan(text=f"I can't tell where you are, so tell me the place. For example, I put {the(obj.name)} in "
+                     f"{labels[0] if labels else 'the drawer'}.{hint}", object_id=obj.object_id)
+
+
+def unknown_place(world: World) -> Plan:
+    labels = [world.area_label(a) for a in world.area_ids()]
+    return Plan(text=f"I don't know that place. I know {join_and(labels)}." if labels
+                else "I don't know any places yet.")
+
+
+def place_history(world: World, obj: RegistryObject, now: float) -> Plan:
+    """Earlier places, newest first, each with when it was noted."""
+    g = Grammar(obj.name)
+    name = the(obj.name)
+    tz = world.timezone
+    trail = [s for s in world.history.get(obj.object_id, []) if where_phrase(world, s) and s.t is not None]
+    if not trail:
+        return Plan(text=f"I haven't noted a place for {name} yet.", object_id=obj.object_id)
+    cur = trail[-1]
+    text = f"{cap(name)} {g.is_} {where_phrase(world, cur)}, noted {time_phrase(cur.t, now, tz)}."
+    if len(trail) == 1:
+        text += f" I don't know of an earlier place for {g.it}."
+    else:
+        prev = trail[-2]
+        subject = "they" if g.plural else "it"
+        text += (f" Before that, {subject} {g.was} {where_phrase(world, prev)}, "
+                 f"noted {time_phrase(prev.t, now, tz)}.")
+    return Plan(text=text, object_id=obj.object_id)
+
+
+def arrived(world: World, obj: RegistryObject, pos: list[float]) -> str:
+    """The user is within half a meter: say where to reach (height, then side), from where they stand."""
+    g = Grammar(obj.name)
+    rel = world.relative(pos)
+    height = "up high" if pos[2] >= 1.3 else "down low" if pos[2] <= 0.5 else "at chest height"
+    return f"You're here. {cap(the(obj.name))} {g.is_} {height}, {clock_phrase(rel[0], rel[1])}."
+
+
 def stop() -> Plan:
     return Plan(phrase_id=PHRASE_STOPPING, stop=True)
 
@@ -241,9 +332,7 @@ def pickup_wrong(world: World, target: RegistryObject, actual: RegistryObject | 
             if rel:
                 return f"{first} {tname} {g.is_} {rel}."
     if st is not None and st.precision == "exact" and st.location.position:
-        where, mode, yaw = world.listener_view()
-        return (f"{first} {tname} {g.is_} "
-                f"{direction_phrase(list(st.location.position), where, mode, yaw)}.")
+        return f"{first} {tname} {g.is_} {where_from(world, list(st.location.position))}."
     return f"{first} I'm not sure where {the(target.name)} {g.is_} right now."
 
 

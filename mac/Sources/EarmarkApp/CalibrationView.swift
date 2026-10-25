@@ -141,7 +141,9 @@ final class CalibrationModel: ObservableObject {
                 Anchor(anchor: $0.id, label: $0.label,
                        position: Calibration.position(forwardCm: $0.forwardCm, sideCm: $0.sideCm, heightCm: $0.heightCm))
             }
-            space.tracking = Tracking(phoneZ: (phoneZCm * 10).rounded() / 1000, headOffsetM: (headOffsetCm * 10).rounded() / 1000)
+            // earZM / markZM are set elsewhere (hub config); keep whatever space.json already has.
+            space.tracking = Tracking(phoneZ: (phoneZCm * 10).rounded() / 1000, headOffsetM: (headOffsetCm * 10).rounded() / 1000,
+                                      earZM: space.tracking?.earZM, markZM: space.tracking?.markZM)
             try Calibration.write(space, to: fileURL)
             if core.busConnected {
                 core.sendReset()
@@ -243,7 +245,7 @@ struct CalibrationView: View {
         let pose = m.core.listenerPose
         let health = pose?.anchors?.first { $0.anchor == row.id }
         let state: UWBText.AnchorState
-        if pose?.blocked.contains(row.id) == true { state = .blocked }
+        if pose?.blocked?.contains(row.id) == true { state = .blocked }
         else if let health { state = health.online ? .online : .offline }
         else { state = .unknown }
         let severity = MapList.anchorSeverity(state)

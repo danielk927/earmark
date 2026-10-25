@@ -1,4 +1,4 @@
-"""Bluetooth key-finder fobs (bleak). See docs/vendor-notes/bleak.md.
+"""Bluetooth key-finder fobs (bleak). See docs/sponsors/vendor-notes/bleak.md.
 
 Scanning: one continuous BleakScanner; advertisements from configured fobs (matched by
 CoreBluetooth address, or by advertised name cached per address) feed a time-weighted

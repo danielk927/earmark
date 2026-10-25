@@ -1,14 +1,14 @@
 [project]
 name = "earmark-memory-agent"
 version = "0.1.0"
-description = "Earmark memory agent: a Fetch.ai uAgent (Chat Protocol) that answers caregiver questions from Earmark's Convex records, reasoning with a Bitdeer-hosted model."
+description = "Earmark memory agent: a Fetch.ai uAgent (Chat Protocol) that answers caregiver questions from Earmark's Convex records, reasoning with Claude."
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "earmark-contracts",
     "uagents>=0.26.1,<0.27",
-    "openai>=1.60,<3",
     "httpx>=0.27,<1",
     "python-dotenv>=1.0,<2",
+    "anthropic>=2.3.0",
 ]
 
 [project.scripts]

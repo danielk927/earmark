@@ -1,4 +1,4 @@
-# Earmark memory agent (Fetch.ai uAgent + Bitdeer)
+# Earmark memory agent (Fetch.ai uAgent + Claude)
 
 ![tag:innovationlab](https://img.shields.io/badge/innovationlab-3D8BD3)
 ![tag:hackathon](https://img.shields.io/badge/hackathon-5F43F1)
@@ -6,7 +6,7 @@
 A caregiver asks a question in ASI:One, such as "Did Mom take her evening pills?".
 This agent looks up the answer in Earmark's Convex records and replies with times in the household's time zone.
 It is a uAgent that speaks the Agent Chat Protocol over an Agentverse mailbox.
-It reasons with a Bitdeer-hosted chat model in a multi-step tool-calling loop, and falls back to a deterministic keyword router when the model is unavailable.
+It reasons with Claude in a multi-step tool-calling loop, and falls back to a deterministic keyword router when the model is unavailable.
 It never gives medical advice.
 
 | | |
@@ -19,7 +19,7 @@ It never gives medical advice.
 
 Extra resources it needs, all optional offline:
 - A Convex deployment with Earmark's read endpoints ([`convex/`](../../convex/README.md), https://docs.convex.dev).
-- A Bitdeer Model Studio API key (https://www.bitdeer.ai/en/model/apikeys, docs https://developers.bitdeer.ai/docs/guides).
+- An Anthropic API key (https://console.anthropic.com).
 - An Agentverse account (https://agentverse.ai) and an ASI:One account (https://asi1.ai) for registration and chat.
 
 ## Example questions
@@ -50,7 +50,7 @@ Not picked up or put down in the last week: the pepper (no pickup or put-down on
 ASI:One --ChatMessage--> Agentverse mailbox --> earmark-memory (uAgent)
                                                   | ack, then MemoryPipeline.answer(question)
                                                   |   guard:    dosing/health question -> facts built by code
-                                                  |   llm:      Bitdeer tool loop (<= 4 tool calls)
+                                                  |   llm:      Claude tool loop (<= 4 tool calls)
                                                   |   fallback: keyword router + templates
                                                   v
                                    Convex GET /api/object, /api/objects, /api/history,
@@ -62,7 +62,7 @@ ASI:One --ChatMessage--> Agentverse mailbox --> earmark-memory (uAgent)
   Every response is parsed with the `earmark_contracts` pydantic models.
 - **Household time** (`earmark_memory/household.py`): "yesterday", "last night", "on Thursday", "October 23", and "evening" (doses from 17:00) or "morning" (before 12:00) are resolved in code.
   The model sees pre-formatted times such as "8:15 AM today", never raw timestamps to convert.
-- **LLM loop** (`earmark_memory/llm.py`): OpenAI-compatible client against Bitdeer with `reasoning_effort: "none"`, an 8 s request timeout, `max_retries=0`, and a 20 s total budget.
+- **LLM loop** (`earmark_memory/llm.py`): Anthropic SDK client with thinking set to `between_tools`, effort `low`, an 8 s request timeout, `max_retries=0`, and a 20 s total budget.
   The model may make up to 4 tool calls; after that tools are switched off (`tool_choice: "none"`) so it must answer.
 - **Guards** (`earmark_memory/pipeline.py`):
   - Questions about dosing or health never reach the model; code answers with the dose facts.
@@ -107,7 +107,7 @@ The suite covers:
 - The fixture: every response validates against `contracts/schemas/convex_http.schema.json` and the pydantic models, and the adherence rule is tested at its boundaries.
 - The HTTP tool layer against a local fixture server: the secret header, query names, timeouts, unreachable hosts, off-contract bodies, and error responses.
 - Offline Q&A with the LLM disabled: the example questions, medical questions, and Convex being down.
-- The LLM loop with a scripted model (multi-step calls, the 4-call cap, the time budget, the guards) and the real `openai` client against a mock transport (request shape, `reasoning_effort: "none"`, no retries).
+- The LLM loop with a scripted model (multi-step calls, the 4-call cap, the time budget, the guards) and the real `anthropic` client against a mock transport (request shape, thinking and effort settings, no retries).
 - The Chat Protocol handler with a fake context, agent construction, and a real two-agent uAgents exchange (in a subprocess, offline).
 
 ## Configure
@@ -116,25 +116,24 @@ The suite covers:
 | - | - | - |
 | `CONVEX_SITE_URL` | unset: the offline fixture | Convex HTTP actions base URL, e.g. `https://<name>.convex.site` or `http://127.0.0.1:3211` locally. Must be https except on localhost. |
 | `EARMARK_READ_SECRET` | none (required with `CONVEX_SITE_URL`) | Sent as `X-Earmark-Secret` on every read. |
-| `BITDEER_API_KEY` | unset: keyword router only | Bitdeer Model Studio key. |
-| `BITDEER_BASE_URL` | `https://api-inference.bitdeer.ai/v1` | OpenAI-compatible endpoint. |
-| `BITDEER_AGENT_MODEL` | `deepseek-ai/DeepSeek-V4.1-Flash-1017` | Chat model with tool calling that can turn reasoning off. |
+| `ANTHROPIC_API_KEY` | unset: keyword router only | Anthropic API key. |
+| `ANTHROPIC_AGENT_MODEL` | `claude-sonnet-5-5` | Chat model with tool calling. |
 | `MEMORY_AGENT_SEED` | none (required for the mailbox) | The agent's identity; it fixes the address. Long, random, secret, never committed. |
 | `MEMORY_AGENT_NAME` | `earmark-memory` | Agent name. |
 | `MEMORY_AGENT_PORT` | `8010` | Local port for the Inspector and REST endpoints (8001 to 8003 are taken on the demo Mac). |
 
-Fixed in code (`earmark_memory/config.py`): Convex timeout 5 s, Bitdeer request timeout 8 s, LLM total budget 20 s, at most 4 tool calls, `max_tokens` 500, `reasoning_effort` `none`.
+Fixed in code (`earmark_memory/config.py`): Convex timeout 5 s, Claude request timeout 8 s, LLM total budget 20 s, at most 4 tool calls, `max_tokens` 500, effort `low`.
 The concierge's `LLM_TIMEOUT_S` is not used here.
 
 ## Register on Agentverse and chat through ASI:One (human steps)
 
-These follow `docs/vendor-notes/fetchai.md` section 5.
+These follow `docs/sponsors/vendor-notes/fetchai.md` section 5.
 The browser steps are needed once per agent address.
 
 1. Create accounts at https://agentverse.ai and https://asi1.ai, and stay logged in to both in Chrome.
 2. Put `MEMORY_AGENT_SEED` in the repo-root `.env`.
    Use a long random phrase, for example from `python3 -c 'import secrets; print(secrets.token_urlsafe(32))'`, and never commit it.
-   Also set `CONVEX_SITE_URL`, `EARMARK_READ_SECRET`, and `BITDEER_API_KEY`.
+   Also set `CONVEX_SITE_URL`, `EARMARK_READ_SECRET`, and `ANTHROPIC_API_KEY`.
 3. Start the agent: `cd services/memory_agent && uv run earmark-memory run`.
    The terminal prints `Starting agent with address: agent1q...` and an `Agent inspector available at https://agentverse.ai/inspect/?uri=http%3A//127.0.0.1%3A8010&address=agent1q...` line.
    Until you connect it, it also logs `Agent mailbox not found: create one using the agent inspector`.
@@ -158,8 +157,8 @@ Never run two copies with the same seed at once (for example the laptop and Azur
 - **Convex**: when `CONVEX_SITE_URL` is unset (or with `--fixture`), `earmark_memory/fixture.py` serves the contract from `config/objects.seed.json`, `config/space.json`, and two scripted days of history with a fixed clock (Friday 2025-10-24 17:00).
   It has one missed dose (yesterday's 20:00), keys roaming near the hub receiver, and the pepper never detected.
   Verified against the real backend too: with the local Convex deployment running, every example question was answered correctly from its seed data.
-- **Bitdeer**: no key exists tonight, so the model path has only run against scripted models and a mock HTTP transport.
-  Without `BITDEER_API_KEY`, the keyword router answers.
+- **Claude**: no key exists tonight, so the model path has only run against scripted models and a mock HTTP transport.
+  Without `ANTHROPIC_API_KEY`, the keyword router answers.
 - **Agentverse / ASI:One**: not exercised (needs the human's browser login).
   The Chat Protocol was tested with a fake context and with two real uAgents talking offline.
 
@@ -183,6 +182,6 @@ Never run two copies with the same seed at once (for example the laptop and Azur
 
 ## Open issues
 
-- Bitdeer latency and tool-calling quality are unverified until a key exists; with a key, ask the example questions and check the `llm round` log lines.
+- Claude latency and tool-calling quality are unverified until a key exists; with a key, ask the example questions and check the `llm round` log lines.
 - Whether ASI:One shows the reply word for word is unverified (fetchai.md section 6); check the wording survives on the first live chat.
 - Not built (product decisions for the human): Interactive Cards, the Payment Protocol, multi-agent orchestration.

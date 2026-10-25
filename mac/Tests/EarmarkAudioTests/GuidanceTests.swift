@@ -143,93 +143,72 @@ import Testing
 }
 
 @Suite struct WalkingGuidanceTests {
-    @Test func distanceFactorIsFlatNearAndLinearToFourMeters() {
-        #expect(Guidance.distanceFactor(distanceM: 0) == 1)
-        #expect(Guidance.distanceFactor(distanceM: 1) == 1)
-        #expect(abs(Guidance.distanceFactor(distanceM: 2.5) - 1.3) < 1e-12)
-        #expect(abs(Guidance.distanceFactor(distanceM: 4) - 1.6) < 1e-12)
-        #expect(abs(Guidance.distanceFactor(distanceM: 10) - 1.6) < 1e-12)     // clamped
-        // Far = slower, close = faster, aligned = fastest.
-        #expect(Guidance.pingInterval(errorDeg: 0, distanceM: 0.5) == 0.15)
-        #expect(abs(Guidance.pingInterval(errorDeg: 0, distanceM: 4) - 0.24) < 1e-12)
-        #expect(abs(Guidance.pingInterval(errorDeg: 90, distanceM: 4) - 1.44) < 1e-12)
-        var prev = 0.0
-        for cm in stride(from: 0, through: 600, by: 5) {
-            let v = Guidance.pingInterval(errorDeg: 30, distanceM: Double(cm) / 100)
-            #expect(v >= prev)
-            prev = v
-        }
-    }
+    // The app keeps the listener at the origin and passes guidance the target relative to the user (`retarget`).
 
-    @Test func updateUsesTheVectorFromTheListener() {
-        let target = EarmarkPoint(0.16, 0.58, 0)
-        // Seated convenience == listener at the origin.
-        var a = Guidance(target: target)
-        var b = Guidance(target: target)
-        #expect(a.update(headYawDeg: 10, now: 0).state == b.update(headYawDeg: 10, listener: .zero, now: 0).state)
-
-        // 2 m to the left of the counter mark, facing the counter: the jar is to the right.
-        var g = Guidance(target: target)
-        let s = g.update(headYawDeg: 0, listener: [-2, 0.58, 0], now: 0).state
+    @Test func relativeTargetGivesAzimuthDistanceAndProximityPing() {
+        // User stands 2 m to the left of the counter mark; the jar is at (0.16, 0.58): relative target (2.16, 0).
+        var g = Guidance(target: [2.16, 0, 0])
+        let s = g.update(headYawDeg: 0, now: 0).state
         #expect(abs(s.targetAzimuthDeg - 90) < 1e-9)
         #expect(abs(s.errorDeg - 90) < 1e-9)
         #expect(s.turn == .right)
         #expect(abs(s.distanceM - 2.16) < 1e-9)
-        #expect(abs(s.pingIntervalSec - 0.9 * Guidance.distanceFactor(distanceM: 2.16)) < 1e-12)
+        #expect(s.pingIntervalSec == 0.9)                      // no locator distance: angle curve only
+        var h = Guidance(target: [2.16, 0, 0])
+        let near = h.update(headYawDeg: 0, now: 0, distanceM: 2.16).state
+        #expect(abs(near.pingIntervalSec - 0.9 * Guidance.proximityScale(distanceM: 2.16)) < 1e-12)
+        #expect(near.pingIntervalSec < 0.9)
     }
 
-    @Test func behindAndLockComeFromTheRelativeVector() {
-        // Walked past the counter (listener beyond the jar): the jar is behind.
-        var g = Guidance(target: [0, 0.58, 0])
-        let r = g.update(headYawDeg: 0, listener: [0.3, 1.5, 0], now: 0)
+    @Test func behindAndLockComeFromTheRetargetedVector() {
+        // Walked past the counter (listener beyond the jar): the jar is behind. Relative target = (0, 0.58, 0) - (0.3, 1.5, 0).
+        var g = Guidance(target: [-0.3, -0.92, 0])
+        let r = g.update(headYawDeg: 0, now: 0)
         #expect(r.state.zone == .behind)
         guard case .behind(let turn, _)? = r.events.first else { Issue.record("no behind event"); return }
         #expect(turn == .left)   // target at about -162 deg: the shorter turn is left
 
         // 3 m back, facing the jar exactly: locks after the dwell, just like seated.
-        var h = Guidance(target: [0.16, 0.58, 0])
-        let listener = EarmarkPoint(0, -2.42, 0)
-        let az = Geometry.azimuthDeg([0.16, 0.58, 0], from: listener)
+        let rel = EarmarkPoint(0.16, 0.58 + 2.42, 0)
+        var h = Guidance(target: rel)
+        let az = Geometry.azimuthDeg(rel)
         var locked = false
         for i in 0...25 {
-            let r = h.update(headYawDeg: az, listener: listener, now: Double(i) * 0.02)
+            let r = h.update(headYawDeg: az, now: Double(i) * 0.02)
             if r.events.contains(.locked(errorDeg: 0)) { locked = true }
         }
         #expect(locked)
     }
+
+    @Test func retargetingMidWalkChangesTheVectorButKeepsZone() {
+        var g = Guidance(target: [0, 2, 0])
+        _ = g.update(headYawDeg: 0, now: 0)
+        g.retarget([0, -1, 0])                                  // user walked past the target
+        let r = g.update(headYawDeg: 0, now: 0.02)
+        #expect(r.state.zone == .behind)
+        #expect(abs(r.state.distanceM - 1) < 1e-9)
+    }
 }
 
-@Suite struct ListenerGlideTests {
-    @Test func glidesLinearlyOverTheDurationAndNeverJumps() {
-        var glide = ListenerGlide(duration: 0.4)
-        let target = EarmarkPoint(0.12, -1.85, 0)
-        glide.setTarget(target, now: 10)
-        let maxStep = glide.speed * 0.02 + 1e-9
-        var prev = glide.position(at: 10)
-        #expect(prev == .zero)
-        for i in 1...30 {
-            let p = glide.position(at: 10 + Double(i) * 0.02)
-            #expect(simd_distance(p, prev) <= maxStep)
-            prev = p
-        }
-        #expect(prev == target)
-        #expect(simd_distance(glide.position(at: 10.2), target / 2) < 1e-9)   // halfway at half the duration
+@Suite struct GuidanceProximityTests {
+    @Test func louderAndFasterAsTheUserWalksCloser() {
+        #expect(Guidance.proximityGain(distanceM: nil) == 1)
+        #expect(Guidance.proximityGain(distanceM: 0.3) == 1)
+        #expect(abs(Guidance.proximityGain(distanceM: 4) - 0.25) < 1e-6)
+        #expect(Guidance.proximityGain(distanceM: 1) > Guidance.proximityGain(distanceM: 2))
+        #expect(Guidance.proximityScale(distanceM: nil) == 1)
+        #expect(abs(Guidance.proximityScale(distanceM: 0) - 0.4) < 1e-9)
+        #expect(Guidance.proximityScale(distanceM: 3) == 1)
+        #expect(Guidance.proximityScale(distanceM: 9) == 1)
     }
 
-    @Test func retargetingMidGlideStartsFromWhereTheListenerIs() {
-        var glide = ListenerGlide(duration: 0.4)
-        glide.setTarget([0, -2, 0], now: 0)
-        let mid = glide.position(at: 0.1)                  // a quarter of the way
-        glide.setTarget([1, -2, 0], now: 0.1)
-        #expect(glide.position(at: 0.1) == mid)            // no jump at the retarget
-        #expect(glide.position(at: 0.5) == EarmarkPoint(1, -2, 0))
-        glide.setTarget([1, -2, 0], now: 0.6)              // same target again: nothing restarts
-        #expect(glide.position(at: 0.6) == EarmarkPoint(1, -2, 0))
-    }
-
-    @Test func zeroDurationSnaps() {
-        var glide = ListenerGlide(duration: 0)
-        glide.setTarget([1, 1, 0], now: 0)
-        #expect(glide.position(at: 0) == EarmarkPoint(1, 1, 0))
+    @Test func retargetKeepsTheLock() {
+        var g = Guidance(target: EarmarkPoint(0, 2, 0))
+        _ = g.update(headYawDeg: 0, now: 0)
+        _ = g.update(headYawDeg: 0, now: 0.5)
+        #expect(g.locked)
+        g.retarget(EarmarkPoint(0, 1, 0))
+        #expect(g.locked)
+        #expect(g.target == EarmarkPoint(0, 1, 0))
     }
 }

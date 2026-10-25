@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mic_audio.schema.json",
+  "title": "mic_audio",
+  "description": "Locator -> hub speech audio, sent ONLY while push-to-talk is active (LOCATOR_BRIEF.md section 2.4, section 8.5). Mono, 16-bit little-endian PCM. Chunks are 40 ms (640 samples at 16 kHz = 1280 bytes). Positioning continues during PTT; the beacon chirps stay audible in the speech audio on purpose (no speech-band filtering).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "seq", "sample_rate", "encoding", "chunk_b64"],
+  "properties": {
+    "type": {
+      "const": "mic_audio",
+      "description": "Message type discriminator."
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Resets to 0 at each ptt start and increments by 1 per chunk."
+    },
+    "sample_rate": {
+      "type": "integer",
+      "minimum": 8000,
+      "description": "Configurable; default 16000. Must equal what the hub expects for Cartesia STT — confirm with the other repo (section 2.4)."
+    },
+    "encoding": {
+      "const": "pcm_s16le",
+      "description": "Mono, 16-bit little-endian PCM."
+    },
+    "chunk_b64": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "Base64 of one PCM chunk. 40 ms at 16 kHz = 640 samples = 1280 bytes (1708 base64 chars)."
+    }
+  }
+}

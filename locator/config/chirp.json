@@ -1,0 +1,10 @@
+{
+  "f_lo": 2000,
+  "f_hi": 4500,
+  "length_ms": 12,
+  "slot_ms": 50,
+  "n_slots": 6,
+  "marker": { "beacon": "B1", "direction": "down" },
+  "others_direction": "up",
+  "version": 1
+}

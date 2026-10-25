@@ -1,0 +1,32 @@
+name: EarmarkPhone
+options:
+  bundleIdPrefix: com.earmark
+  deploymentTarget:
+    iOS: '17.0'
+packages:
+  EarmarkPhone:
+    path: .
+targets:
+  EarmarkPhone:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies:
+      - package: EarmarkPhone
+        product: PhoneCore
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: Earmark Phone
+        CFBundleShortVersionString: '1.0'
+        CFBundleVersion: '1'
+        UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        NSMicrophoneUsageDescription: Earmark listens for the chirps other phones play, to work out where you are standing.
+        NSLocalNetworkUsageDescription: Earmark sends what the microphone hears to the Mac in the same room.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        SWIFT_VERSION: '5.0'
+        TARGETED_DEVICE_FAMILY: '1'

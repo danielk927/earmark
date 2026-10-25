@@ -1,0 +1,52 @@
+name: Locator parity
+on:
+  pull_request:
+    paths: ['locator/**', '.github/workflows/locator-parity.yml']
+  push:
+    branches: [main]
+    paths: ['locator/**', '.github/workflows/locator-parity.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: locator-parity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  parity:
+    name: Python-Swift parity (portable=${{ matrix.portable }})
+    runs-on: macos-14
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        portable: ['0', '1']
+    steps:
+      - uses: actions/checkout@v4
+      # PR #1 owns Swift. Use a reproducible side checkout only until it merges;
+      # afterwards the same-checkout package is always authoritative.
+      - name: Checkout Swift dependency before PR 1 merges
+        if: ${{ hashFiles('locator/ios/EarmarkCore/Package.swift') == '' }}
+        uses: actions/checkout@v4
+        with:
+          ref: d9d622083c49742ab3e28c6ef363c96dffd114da
+          path: .parity-swift
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m pip install numpy
+      - name: Compare every seeded acceptance recording
+        env:
+          EARMARK_PORTABLE_DSP: ${{ matrix.portable }}
+          EARMARK_PARITY_OUT: ${{ runner.temp }}/locator-parity
+        run: |
+          if [[ ! -f locator/ios/EarmarkCore/Package.swift ]]; then
+            export EARMARK_CORE_DIR="$GITHUB_WORKSPACE/.parity-swift/locator/ios/EarmarkCore"
+          fi
+          bash locator/scripts/parity_check.sh
+      - name: Retain exact audio, truth, and both fix streams
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: locator-parity-${{ matrix.portable }}
+          path: ${{ runner.temp }}/locator-parity
+          if-no-files-found: warn

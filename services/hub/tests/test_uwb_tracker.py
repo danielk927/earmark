@@ -1,4 +1,4 @@
-"""Listener tracker (docs/UWB-PRD.md 8.2-8.5): modes, freeze/unfreeze, voice override, NFC re-anchor, lost/fixed.
+"""Listener tracker (docs/project/UWB-PRD.md 8.2-8.5): modes, freeze/unfreeze, voice override, NFC re-anchor, lost/fixed.
 
 The Tracker is driven directly at 10 Hz with explicit `now` values and noise-free ranges computed from a head
 position and the anchors in config/space.json, exactly as the wearer app would send them.
@@ -483,4 +483,4 @@ def test_pose_quality_fields(space):
     assert p.mode == "tracked" and [h.online for h in p.anchors] == [True, False, False]
     rows = rig.tr.ingest_anchors(rig.now)
     assert [(r.anchor, r.online) for r in rows] == [("uwb_1", True), ("uwb_2", False), ("uwb_3", False)]
-    assert rows[0].position == [-0.9, 0.75, -0.25] and rows[0].last_seen_t == rig.now
+    assert rows[0].position == [-0.9, 0.75, 1.3] and rows[0].last_seen_t == rig.now

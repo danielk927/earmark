@@ -1,31 +1,12 @@
 {
   "type": "listener_pose",
   "position": [
-    0.12,
-    -1.85,
-    0.0
+    0.0,
+    0.0,
+    1.55
   ],
-  "mode": "tracked",
-  "source": "uwb",
-  "residual_m": 0.06,
-  "anchors_used": 3,
-  "blocked": [],
-  "anchors": [
-    {
-      "anchor": "uwb_1",
-      "online": true,
-      "distance_m": 2.71
-    },
-    {
-      "anchor": "uwb_2",
-      "online": true,
-      "distance_m": 2.83
-    },
-    {
-      "anchor": "uwb_3",
-      "online": true,
-      "distance_m": 1.52
-    }
-  ],
+  "quality": "ok",
+  "beacons_heard": 5,
+  "source": "beacons",
   "t": 1761350400.12
 }

@@ -49,7 +49,7 @@ cat > "$ENTITLEMENTS" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Hardened runtime: the microphone needs this (docs/vendor-notes/apple-spatial-audio.md section 7). -->
+    <!-- Hardened runtime: the microphone needs this (docs/sponsors/vendor-notes/apple-spatial-audio.md section 7). -->
     <key>com.apple.security.device.audio-input</key><true/>
 </dict>
 </plist>

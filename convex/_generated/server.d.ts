@@ -30,9 +30,9 @@ import type { DataModel } from "./dataModel.js";
 type Env = {
   readonly CONVEX_CLOUD_URL: string;
   readonly CONVEX_SITE_URL: string;
-  readonly BITDEER_API_KEY: string | undefined;
-  readonly BITDEER_BASE_URL: string | undefined;
-  readonly BITDEER_VISION_MODEL: string | undefined;
+  readonly ANTHROPIC_API_KEY: string | undefined;
+  readonly ANTHROPIC_BASE_URL: string | undefined;
+  readonly ANTHROPIC_VISION_MODEL: string | undefined;
   readonly EARMARK_HUB_SECRET: string | undefined;
   readonly EARMARK_READ_SECRET: string | undefined;
 };

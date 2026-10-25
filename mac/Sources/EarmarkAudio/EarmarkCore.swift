@@ -72,6 +72,10 @@ public final class EarmarkCore {
     public private(set) var guide: GuideStart?
     public private(set) var guideTarget: EarmarkPoint?
     public private(set) var guidanceState: GuidanceState?
+    /// Where the locator says the user stands (room frame); the mat origin until a fix arrives.
+    public private(set) var listenerPosition = EarmarkPoint(0, 0, 0)
+    /// Distance in meters (horizontal) to the guide target while a locator fix is fresh; nil otherwise.
+    public private(set) var targetDistanceM: Double?
     public private(set) var lastFeedback: GuideFeedback?
     public private(set) var preferredRenderer: RendererKind
     public private(set) var rendererFailures: [String] = []
@@ -84,15 +88,8 @@ public final class EarmarkCore {
     public private(set) var isSpeaking = false
     public private(set) var userSpeaking = false
     public private(set) var devices = DeviceReport()
-    /// Latest `listener_pose` (UWB, sound, or simulator); nil when none arrived for `listenerPoseStaleSec`.
+    /// Latest `listener_pose` (UWB, beacons, sound, or simulator); nil when none arrived for `fixTimeout`.
     public private(set) var listenerPose: ListenerPose?
-    /// Where the audio and guidance put the listener right now: the glided pose, or the origin.
-    public private(set) var listenerPosition: EarmarkPoint = .zero
-    /// Seconds the listener glides between positions (hub `uwb.blend_s`).
-    public var listenerGlideSec: Double {
-        get { glide.duration }
-        set { glide.duration = max(0, newValue) }
-    }
     public var distanceAttenuation = DistanceAttenuation() { didSet { renderer?.setDistanceAttenuation(distanceAttenuation) } }
     /// Every listener_pose as it arrives (main thread); the calibration screen averages them.
     public var onListenerPose: ((ListenerPose) -> Void)?
@@ -116,15 +113,15 @@ public final class EarmarkCore {
 
     // Timing
     private var guidance: Guidance?
+    private var lastFixAt: Double?
+    /// A locator fix older than this is dropped and the user is assumed to be back on the mat (brief: 5 s).
+    public static let fixTimeout = 5.0
     private var lastHeadPoseSent = -Double.infinity
     private var lastStatusSent = -Double.infinity
     private var lastStatusKey = ""
     private var captionID = 0
-    private var glide = ListenerGlide()
     private var lastListenerPoseAt = -Double.infinity
     public static let headPosePeriod = 0.1
-    /// No listener_pose for this long: back to the origin (today's seated behavior).
-    public static let listenerPoseStaleSec = 2.0
     public static let statusHeartbeat = 10.0
 
     public init(head: HeadTracking, speech: SpeechOutput, bus: BusSink,
@@ -213,7 +210,6 @@ public final class EarmarkCore {
         r.setTarget(guideTarget)
         let (yaw, pitch) = listenerAngles()
         r.setListener(yawDeg: yaw, pitchDeg: pitch)
-        r.setListener(position: listenerPosition)
         if let s = guidanceState {
             r.setRepeatingCue(s.zone == .behind ? .behind : .ping)
             r.setPingInterval(s.pingIntervalSec)
@@ -287,14 +283,14 @@ public final class EarmarkCore {
             if t.source != .apple { setHeard(t.text, final: t.isFinal, source: t.source.rawValue) }
         case .status(let st):
             if st.component != .macApp { componentStatus[st.component.rawValue] = st }
+        case .listenerPose(let p):
+            applyListenerPose(p)
         case .reset:
             reset()
-        case .listenerPose(let p):
-            ingestListenerPose(p)
         case .listenerCommand(let c):
             // "recenter" (concierge voice command): same path as the R key. "freeze" is the hub's job.
             if c.action == .recenter { recenter() }
-        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .other,
+        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other,
              .uwbToken, .uwbRange, .motionState:
             break
         }
@@ -318,10 +314,11 @@ public final class EarmarkCore {
         }
         guide = g
         guideTarget = p
-        guidance = Guidance(target: p, config: guidanceConfig)
+        let rel = relativeTarget(p)
+        guidance = Guidance(target: rel, config: guidanceConfig)
         guidanceState = nil
         lastFeedback = nil
-        renderer?.setTarget(p)
+        renderer?.setTarget(rel)
         renderer?.setRepeatingCue(.ping)
         Log.app(String(format: "guiding to %@ at (%.2f, %.2f, %.2f), azimuth %.0f deg, elevation %.0f deg",
                        g.objectId, p.x, p.y, p.z, Geometry.azimuthDeg(p), Geometry.elevationDeg(p)))
@@ -335,8 +332,45 @@ public final class EarmarkCore {
         guideTarget = nil
         guidance = nil
         guidanceState = nil
+        targetDistanceM = nil
+        renderer?.setProximityGain(1)
         renderer?.setPingInterval(nil)
         renderer?.setTarget(nil)
+    }
+
+    /// The target as the listener sees it: the room-frame target minus where the user stands.
+    private func relativeTarget(_ p: EarmarkPoint) -> EarmarkPoint {
+        EarmarkPoint(p.x - listenerPosition.x, p.y - listenerPosition.y, p.z - listenerPosition.z)
+    }
+
+    /// The listener stays at the origin of the audio scene; a pose moves the TARGET (`retarget`) instead.
+    /// `lost` poses are shown (map, status) but not applied; a `fixed` UWB pose means seated at the origin, not a walking fix.
+    private func applyListenerPose(_ p: ListenerPose) {
+        let now = clock()
+        if p.mode != listenerPose?.mode {
+            Log.app("listener mode -> \(p.mode?.rawValue ?? "none") (source \(p.source.rawValue), \(p.anchorsUsed ?? 0) anchors)")
+            note("<- listener_pose \(p.mode?.rawValue ?? p.quality.rawValue)")
+        }
+        listenerPose = p
+        lastListenerPoseAt = now
+        onListenerPose?(p)
+        guard p.quality != .lost else { return }
+        if p.mode == .fixed {
+            listenerPosition = EarmarkPoint(0, 0, 0)
+            lastFixAt = nil
+        } else {
+            guard let pt = Geometry.point(p.position) else { return }
+            listenerPosition = pt
+            lastFixAt = now
+        }
+        retarget()
+    }
+
+    private func retarget() {
+        guard let t = guideTarget else { return }
+        let rel = relativeTarget(t)
+        guidance?.retarget(rel)
+        renderer?.setTarget(rel)
     }
 
     private func reset() {
@@ -364,36 +398,8 @@ public final class EarmarkCore {
 
     // MARK: Listener position (main thread)
 
-    /// The renderer and guidance follow the pose (glided); `fixed` (or an unusable position) means the origin.
-    private func ingestListenerPose(_ p: ListenerPose) {
-        let now = clock()
-        if p.mode != listenerPose?.mode {
-            Log.app("listener mode -> \(p.mode.rawValue) (source \(p.source.rawValue), \(p.anchorsUsed) anchors)")
-            note("<- listener_pose \(p.mode.rawValue)")
-        }
-        listenerPose = p
-        lastListenerPoseAt = now
-        let target: EarmarkPoint = p.mode == .fixed ? .zero : (Geometry.point(p.position) ?? .zero)
-        glide.setTarget(target, now: now)
-        advanceListener(now)
-        onListenerPose?(p)
-    }
-
-    /// Falls back to the origin when poses stop, then moves the renderer along the glide.
-    private func advanceListener(_ now: Double) {
-        if listenerPose != nil && now - lastListenerPoseAt > Self.listenerPoseStaleSec {
-            Log.app("no listener_pose for \(Self.listenerPoseStaleSec) s: listener back at the origin")
-            listenerPose = nil
-            glide.setTarget(.zero, now: now)
-            changed()
-        }
-        let p = glide.position(at: now)
-        guard p != listenerPosition else { return }
-        listenerPosition = p
-        renderer?.setListener(position: p)
-    }
-
-    /// True while a tracker (UWB, sound, simulator) is placing the listener: tracked, frozen, or lost.
+    /// True while a tracker (UWB, beacons, sound, simulator) is placing the listener: a recent pose whose mode is not `fixed`
+    /// (tracked, frozen, or lost for UWB; poses without a mode count as tracked).
     public var listenerTracked: Bool { listenerPose.map { $0.mode != .fixed } ?? false }
 
     /// Sends `reset` so the hub reloads config/space.json (calibration screen).
@@ -450,6 +456,7 @@ public final class EarmarkCore {
     public func ingestGate(_ out: GateOutput) {
         switch out {
         case .began:
+            send(.ptt(Ptt(state: .start)), log: false)
             let route = lock.withLock { () -> MicRoute in utteranceRoute = _route; return _route }
             if route == .apple { apple?.beginUtterance() }
             DispatchQueue.main.async { self.userSpeaking = true; self.changed() }
@@ -467,6 +474,7 @@ public final class EarmarkCore {
             case .none: break
             }
         case .ended:
+            send(.ptt(Ptt(state: .stop)), log: false)
             let route = lock.withLock { () -> MicRoute in let r = utteranceRoute; utteranceRoute = .none; return r }
             if route == .apple { apple?.endUtterance() }
             DispatchQueue.main.async { self.userSpeaking = false; self.changed() }
@@ -500,16 +508,30 @@ public final class EarmarkCore {
     public func tick() {
         let now = clock()
         let (yaw, pitch) = listenerAngles()
-        advanceListener(now)
+
+        if listenerPose != nil, now - lastListenerPoseAt > Self.fixTimeout {
+            listenerPose = nil
+            changed()
+        }
+        if let at = lastFixAt, now - at > Self.fixTimeout {
+            lastFixAt = nil
+            listenerPosition = EarmarkPoint(0, 0, 0)
+            retarget()
+        }
 
         if var g = guidance {
-            let (state, events) = g.update(headYawDeg: yaw, listener: listenerPosition, now: now)
+            let fresh = lastFixAt != nil
+            let distance = fresh ? Geometry.horizontalDistance(g.target) : nil
+            targetDistanceM = distance
+            let (state, events) = g.update(headYawDeg: yaw, now: now, distanceM: distance)
             guidance = g
             guidanceState = state
             let r = renderer
             r?.setRepeatingCue(state.zone == .behind ? .behind : .ping)
             r?.setPingInterval(state.pingIntervalSec)
+            r?.setProximityGain(Guidance.proximityGain(distanceM: distance, config: guidanceConfig))
             for e in events { feedback(e, objectId: guide?.objectId ?? "") }
+            if let d = distance, d <= guidanceConfig.arriveM, let id = guide?.objectId { arrive(objectId: id) }
         }
 
         // 10 Hz whenever the AirPods track, so it also covers UWB (the hub needs facing for the head offset).
@@ -530,6 +552,16 @@ public final class EarmarkCore {
                 send(.status(status), log: changedKey)
             }
         }
+    }
+
+    /// Within half a meter of the target: stop pinging, play the arrival tone, and tell the concierge so it can say where to reach.
+    private func arrive(objectId: String) {
+        renderer?.playLockedTone()
+        let msg = GuideFeedback(objectId: objectId, event: .arrived, turn: nil, errorDeg: (guidanceState?.errorDeg ?? 0).rounded1)
+        lastFeedback = msg
+        Log.app("guide_feedback arrived at \(objectId)")
+        send(.guideFeedback(msg))
+        stopGuidance(reason: "arrived")
     }
 
     private func feedback(_ e: GuidanceEvent, objectId: String) {
@@ -566,7 +598,7 @@ public final class EarmarkCore {
             "hfp_suspected": .bool(devices.hfpSuspected),
         ]
         info["yaw"] = .number(latestPose.yawDeg.rounded1)
-        info["uwb_mode"] = .string(listenerPose?.mode.rawValue ?? "off")
+        info["uwb_mode"] = .string(listenerPose?.mode?.rawValue ?? "off")
         info["uwb_anchors_used"] = .number(Double(listenerPose?.anchorsUsed ?? 0))
         info["uwb_residual_m"] = listenerPose?.residualM.map { JSONScalar.number(($0 * 100).rounded() / 100) } ?? JSONScalar.null
         var detail: String

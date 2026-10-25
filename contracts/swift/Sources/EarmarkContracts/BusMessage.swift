@@ -36,7 +36,7 @@ public enum Precision: String, Codable, Sendable { case exact, area, proximity, 
 public enum DistanceClass: String, Codable, Sendable { case near, mid, far }
 public enum ObjectStatus: String, Codable, Sendable { case onSpot = "on_spot", held, missing, roaming }
 public enum Component: String, Codable, Sendable {
-    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent",
+    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent", locator,
          iosAnchor = "ios_anchor", iosWearer = "ios_wearer"
 }
 
@@ -79,8 +79,12 @@ public struct Anchor: Codable, Sendable, Equatable {
 public struct Tracking: Codable, Sendable, Equatable {
     public var phoneZ: Double?
     public var headOffsetM: Double?
-    public init(phoneZ: Double? = nil, headOffsetM: Double? = nil) {
-        self.phoneZ = phoneZ; self.headOffsetM = headOffsetM
+    /// Ear height in the room frame (floor = 0); the UWB listener_pose z.
+    public var earZM: Double?
+    /// Height given to a tap-marked object when the tracker is 2D.
+    public var markZM: Double?
+    public init(phoneZ: Double? = nil, headOffsetM: Double? = nil, earZM: Double? = nil, markZM: Double? = nil) {
+        self.phoneZ = phoneZ; self.headOffsetM = headOffsetM; self.earZM = earZM; self.markZM = markZM
     }
 }
 
@@ -263,7 +267,7 @@ public struct Transcript: Codable, Sendable, Equatable {
 }
 
 public struct GuideFeedback: Codable, Sendable, Equatable {
-    public enum Event: String, Codable, Sendable { case behind, front, locked }
+    public enum Event: String, Codable, Sendable { case behind, front, locked, arrived }
     public enum Turn: String, Codable, Sendable { case left, right }
     public var objectId: String
     public var event: Event
@@ -302,6 +306,13 @@ public struct HeadPose: Codable, Sendable, Equatable {
     public init(yaw: Double, pitch: Double, t: Double = BusCoding.now) {
         self.yaw = yaw; self.pitch = pitch; self.t = t
     }
+}
+
+public struct Ptt: Codable, Sendable, Equatable {
+    public enum State: String, Codable, Sendable { case start, stop }
+    public var state: State
+    public var t: Double
+    public init(state: State, t: Double = BusCoding.now) { self.state = state; self.t = t }
 }
 
 public struct Status: Codable, Sendable, Equatable {
@@ -368,7 +379,7 @@ public struct MotionState: Codable, Sendable, Equatable {
 }
 
 public enum ListenerMode: String, Codable, Sendable { case tracked, frozen, lost, fixed }
-public enum PoseSource: String, Codable, Sendable { case uwb, sound, sim, none }
+public enum PoseSource: String, Codable, Sendable { case beacons, uwb, sound, steps, sim, manual, none }
 
 public struct AnchorHealth: Codable, Sendable, Equatable {
     public var anchor: String
@@ -387,33 +398,27 @@ public struct AnchorHealth: Codable, Sendable, Equatable {
     }
 }
 
-/// Hub -> bus. Where the listener's head is. Source-agnostic (UWB, sound, simulator).
+/// Locator or hub -> bus. Where the listener's ears are, room frame. One shape for both producers: the beacon
+/// locator sends `beaconsHeard`; the UWB tracker sends `mode`, `residualM`, `anchorsUsed`, `blocked`, `anchors`.
+/// Consumers only need `position` and `quality`.
 public struct ListenerPose: Codable, Sendable, Equatable {
+    public enum Quality: String, Codable, Sendable { case ok, degraded, lost }
     public var position: Vec3
-    public var mode: ListenerMode
+    public var quality: Quality
     public var source: PoseSource
+    public var beaconsHeard: Int?
+    public var mode: ListenerMode?
     public var residualM: Double?
-    public var anchorsUsed: Int
-    public var blocked: [String]
+    public var anchorsUsed: Int?
+    public var blocked: [String]?
     public var anchors: [AnchorHealth]?
     public var t: Double
-    public init(position: Vec3, mode: ListenerMode, source: PoseSource, residualM: Double?, anchorsUsed: Int,
-                blocked: [String], anchors: [AnchorHealth]? = nil, t: Double = BusCoding.now) {
-        self.position = position; self.mode = mode; self.source = source; self.residualM = residualM
-        self.anchorsUsed = anchorsUsed; self.blocked = blocked; self.anchors = anchors; self.t = t
-    }
-    private enum CodingKeys: String, CodingKey { case position, mode, source, residualM, anchorsUsed, blocked, anchors, t }
-    // `residual_m` is required-nullable in the schema, so encode an explicit null.
-    public func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(position, forKey: .position)
-        try c.encode(mode, forKey: .mode)
-        try c.encode(source, forKey: .source)
-        try c.encode(residualM, forKey: .residualM)
-        try c.encode(anchorsUsed, forKey: .anchorsUsed)
-        try c.encode(blocked, forKey: .blocked)
-        try c.encodeIfPresent(anchors, forKey: .anchors)
-        try c.encode(t, forKey: .t)
+    public init(position: Vec3, quality: Quality, source: PoseSource, beaconsHeard: Int? = nil, mode: ListenerMode? = nil,
+                residualM: Double? = nil, anchorsUsed: Int? = nil, blocked: [String]? = nil, anchors: [AnchorHealth]? = nil,
+                t: Double = BusCoding.now) {
+        self.position = position; self.quality = quality; self.source = source; self.beaconsHeard = beaconsHeard
+        self.mode = mode; self.residualM = residualM; self.anchorsUsed = anchorsUsed; self.blocked = blocked
+        self.anchors = anchors; self.t = t
     }
 }
 
@@ -443,6 +448,8 @@ public enum BusMessage: Sendable {
     case transcript(Transcript)
     case playback(Playback)
     case headPose(HeadPose)
+    case listenerPose(ListenerPose)
+    case ptt(Ptt)
     case status(Status)
     case reset(Reset)
     case pickup(Pickup)
@@ -450,7 +457,6 @@ public enum BusMessage: Sendable {
     case uwbToken(UwbToken)
     case uwbRange(UwbRange)
     case motionState(MotionState)
-    case listenerPose(ListenerPose)
     case listenerCommand(ListenerCommand)
     /// A valid bus type this app does not act on (detection, chirp, trial_*, label, unknown_tag).
     case other(type: String)
@@ -472,6 +478,8 @@ public enum BusMessage: Sendable {
         case .transcript: "transcript"
         case .playback: "playback"
         case .headPose: "head_pose"
+        case .listenerPose: "listener_pose"
+        case .ptt: "ptt"
         case .status: "status"
         case .reset: "reset"
         case .pickup: "pickup"
@@ -479,7 +487,6 @@ public enum BusMessage: Sendable {
         case .uwbToken: "uwb_token"
         case .uwbRange: "uwb_range"
         case .motionState: "motion_state"
-        case .listenerPose: "listener_pose"
         case .listenerCommand: "listener_command"
         case .other(let type): type
         }
@@ -508,6 +515,8 @@ extension BusMessage: Codable {
         case "transcript": self = .transcript(try one.decode(Transcript.self))
         case "playback": self = .playback(try one.decode(Playback.self))
         case "head_pose": self = .headPose(try one.decode(HeadPose.self))
+        case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
+        case "ptt": self = .ptt(try one.decode(Ptt.self))
         case "status": self = .status(try one.decode(Status.self))
         case "reset": self = .reset(try one.decode(Reset.self))
         case "pickup": self = .pickup(try one.decode(Pickup.self))
@@ -515,7 +524,6 @@ extension BusMessage: Codable {
         case "uwb_token": self = .uwbToken(try one.decode(UwbToken.self))
         case "uwb_range": self = .uwbRange(try one.decode(UwbRange.self))
         case "motion_state": self = .motionState(try one.decode(MotionState.self))
-        case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
         case "listener_command": self = .listenerCommand(try one.decode(ListenerCommand.self))
         default: self = .other(type: type)
         }
@@ -540,6 +548,8 @@ extension BusMessage: Codable {
         case .transcript(let m): try m.encode(to: encoder)
         case .playback(let m): try m.encode(to: encoder)
         case .headPose(let m): try m.encode(to: encoder)
+        case .listenerPose(let m): try m.encode(to: encoder)
+        case .ptt(let m): try m.encode(to: encoder)
         case .status(let m): try m.encode(to: encoder)
         case .reset(let m): try m.encode(to: encoder)
         case .pickup(let m): try m.encode(to: encoder)
@@ -547,7 +557,6 @@ extension BusMessage: Codable {
         case .uwbToken(let m): try m.encode(to: encoder)
         case .uwbRange(let m): try m.encode(to: encoder)
         case .motionState(let m): try m.encode(to: encoder)
-        case .listenerPose(let m): try m.encode(to: encoder)
         case .listenerCommand(let m): try m.encode(to: encoder)
         case .other: break
         }

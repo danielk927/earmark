@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "fs": 48000,
+  "chirp": {
+    "f_lo": 2000,
+    "f_hi": 4500,
+    "length_ms": 12,
+    "slot_ms": 50,
+    "n_slots": 6,
+    "marker": { "beacon": "B1", "direction": "down" },
+    "others_direction": "up",
+    "version": 1
+  },
+  "gate_ms": 3.0,
+  "lookback_ms": 2.0,
+  "snr_min": 8.0,
+  "snr_acquire": 10.0,
+  "resid_max_ms": 0.30,
+  "resid_ok_ms": 0.15,
+  "height_prior": {
+    "hand": { "mean_m": 1.25, "sigma_m": 0.25 },
+    "pocket": { "mean_m": 1.30, "sigma_m": 0.20 }
+  },
+  "ear_offset_m": {
+    "hand": [0.0, 0.0, 0.35],
+    "pocket": [0.0, 0.0, 0.30]
+  },
+  "kalman": {
+    "accel_sigma_mps2": 1.5,
+    "meas_sigma_ok_m": 0.05,
+    "meas_sigma_degraded_m": 0.15
+  },
+  "lost_timeout_s": 1.5,
+  "air_temperature_c": 22.0,
+  "mic_audio": { "sample_rate": 16000, "chunk_ms": 40 },
+  "hub": { "url": "", "token": "", "auth_mode": "query" }
+}

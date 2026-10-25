@@ -1,4 +1,4 @@
-"""Cartesia Sonic streaming TTS over one shared WebSocket (docs/vendor-notes/cartesia.md, section 4).
+"""Cartesia Sonic streaming TTS over one shared WebSocket (docs/sponsors/vendor-notes/cartesia.md, section 4).
 
 The whole sentence is sent in one generation request with continue=false and
 max_buffer_delay_ms=0 (our text is complete before TTS). Chunks are routed by

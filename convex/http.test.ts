@@ -5,6 +5,7 @@ import {
   examples,
   expectSchema,
   get,
+  eventId,
   HUB,
   pickupEvent,
   post,
@@ -96,6 +97,39 @@ describe("POST /ingest", () => {
       expectSchema("ingest_response", again.body);
       expect(again.body).toMatchObject({ ok: true, accepted_events: 0, duplicate_events: n });
     }
+  });
+
+  test("a stored event is accepted and reads back as 'Put in the drawer.'", async () => {
+    const stored = {
+      event_id: eventId(),
+      kind: "stored",
+      object_id: "keys",
+      t: NOW - 60,
+      data: { area: "drawer", label: "the drawer", source: "voice" },
+    };
+    const state = stateUpdate("keys", NOW - 60, {
+      status: "roaming",
+      precision: "area",
+      location: { spot: null, position: [1.5, 0, 0.7], area: "drawer" },
+    });
+    const r = await post(t, "/ingest", { events: [stored], states: [state] });
+    expect(r.body).toMatchObject({ ok: true, accepted_events: 1, accepted_states: 1 });
+    const h = await get(t, "/api/history?objectId=keys");
+    expectSchema("history_response", h.body);
+    expect(h.body.events[0]).toMatchObject({ kind: "stored", spot: null, detail: "Put in the drawer." });
+  });
+
+  test("a stored event with only a position reads back as a saved spot", async () => {
+    const stored = {
+      event_id: eventId(),
+      kind: "stored",
+      object_id: "keys",
+      t: NOW - 30,
+      data: { position: [0.8, -0.4, 1.0], source: "voice" },
+    };
+    expect((await post(t, "/ingest", { events: [stored], states: [] })).body).toMatchObject({ accepted_events: 1 });
+    const h = await get(t, "/api/history?objectId=keys");
+    expect(h.body.events[0]).toMatchObject({ kind: "stored", detail: "Put at a spot you saved." });
   });
 
   test("duplicates inside one batch are counted once", async () => {

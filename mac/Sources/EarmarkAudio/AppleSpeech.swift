@@ -11,7 +11,7 @@ public protocol TranscriberInput: AnyObject {
     func cancel()
 }
 
-/// `SFSpeechRecognizer` fallback (docs/vendor-notes/apple-speech.md): on-device when supported,
+/// `SFSpeechRecognizer` fallback (docs/sponsors/vendor-notes/apple-speech.md): on-device when supported,
 /// partial results for captions, `contextualStrings` from registry names and aliases, and a fresh task per
 /// utterance (the gate opens and closes utterances), rolled over before the one-minute limit.
 public final class AppleSpeechRecognizer: TranscriberInput {

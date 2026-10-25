@@ -14,7 +14,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("command", nargs="?", default="run", choices=["run", "synth-phrases"])
     p.add_argument("--text", help="inject one typed transcript after the snapshot arrives, then keep running")
     p.add_argument("--repl", action="store_true", help="read typed transcripts from stdin")
-    p.add_argument("--no-llm", action="store_true", help="force the keyword grammar (no Bitdeer)")
+    p.add_argument("--no-llm", action="store_true", help="force the keyword grammar (no Claude)")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,

@@ -299,8 +299,8 @@ final class WearerController: ObservableObject {
     private static func describe(_ pose: ListenerPose) -> String {
         let x = pose.position.count > 0 ? pose.position[0] : 0
         let y = pose.position.count > 1 ? pose.position[1] : 0
-        var text = "\(pose.mode.rawValue), \(pose.anchorsUsed) anchors, x \(String(format: "%.2f", x)) m, y \(String(format: "%.2f", y)) m"
-        if !pose.blocked.isEmpty { text += ", blocked: " + pose.blocked.joined(separator: ", ") }
+        var text = "\(pose.mode?.rawValue ?? "none"), \(pose.anchorsUsed ?? 0) anchors, x \(String(format: "%.2f", x)) m, y \(String(format: "%.2f", y)) m"
+        if let blocked = pose.blocked, !blocked.isEmpty { text += ", blocked: " + blocked.joined(separator: ", ") }
         return text
     }
 }

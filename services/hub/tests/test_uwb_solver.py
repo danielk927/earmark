@@ -1,4 +1,4 @@
-"""UWB solver math (docs/UWB-PRD.md 5 and 8.2): trilateration, outliers, two-anchor fixes, gates, smoothing."""
+"""UWB solver math (docs/project/UWB-PRD.md 5 and 8.2): trilateration, outliers, two-anchor fixes, gates, smoothing."""
 from __future__ import annotations
 
 import math

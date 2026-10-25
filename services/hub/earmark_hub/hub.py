@@ -1,6 +1,6 @@
 """The hub: adapters and bus clients in, debounced state out to the bus and Convex.
 
-UWB (docs/UWB-PRD.md 8): `uwb_token` is relayed only to its addressee; `uwb_range`, `motion_state`,
+UWB (docs/project/UWB-PRD.md 8): `uwb_token` is relayed only to its addressee; `uwb_range`, `motion_state`,
 `head_pose` and `listener_command` feed the tracker, whether they come from a bus client or an adapter;
 NFC `pickup`/`placed` re-anchor a frozen listener. The tracker's `listener_pose` goes to the bus at
 `uwb.solve_hz` (and at once on every mode change) and, throttled, to Convex.
@@ -24,6 +24,7 @@ from earmark_contracts import (
     ObjectState,
     Pickup,
     PickupResult,
+    PlaceItem,
     RegistryObject,
     RegistryUpdate,
     Reset,
@@ -45,7 +46,7 @@ from .config import ROOT, ConvexEnv, HubConfig
 from .convex import ConvexClient, ConvexSync
 from .registry import RegistryStore
 from .space import SpaceIndex
-from .state import Placed, Removed, StateEngine
+from .state import Placed, Removed, StateEngine, Stored
 from .uwb.relay import TokenRelay
 from .uwb.tracker import Tracker
 
@@ -68,6 +69,7 @@ class Hub:
         self.relay = TokenRelay()
         self.tracker = Tracker(cfg.uwb, self.space, self.clock.now())
         self.pose: ListenerPose = self.tracker.pose  # latest published listener_pose (fixed at the origin first)
+        self.client_pose: ListenerPose | None = None  # latest listener_pose from the beacon locator, if any
         self.registry = RegistryStore(cfg.path("cache", root), cfg.path("seed", root))
         self.engine = StateEngine(self.space, self.registry.objects, placement_reads=cfg.debounce.placement_reads,
                                   removal_s=cfg.debounce.removal_s)
@@ -187,11 +189,20 @@ class Hub:
             n = self.bus.send_to_device(msg.to, msg)
             log.debug("uwb_token relayed", extra={"from": msg.from_, "to": msg.to, "delivered": n})
             return
+        if isinstance(msg, ListenerPose):  # from the beacon locator
+            if self.cfg.uwb.enabled and self.tracker.mode != "fixed":
+                return  # ponytail: UWB owns the listener while it tracks; no blending of two trackers
+            self.client_pose = msg
         self.bus.broadcast(msg, exclude=client)
         if isinstance(msg, TRACKER_INPUTS):
             self._to_tracker(client, msg)
         if isinstance(msg, Label):
             self._label(msg)
+        elif isinstance(msg, PlaceItem):
+            if msg.area is not None:
+                self._apply(self.engine.place_in_area(msg.object_id, msg.area, msg.t))
+            else:
+                self._apply(self.engine.place_at_position(msg.object_id, msg.position, msg.t))
         elif isinstance(msg, Reset):
             await self.reset()
         elif isinstance(msg, Chirp):
@@ -228,6 +239,13 @@ class Hub:
                     self.sync.add_event(kind, o.object_id, o.t, {"spot": o.spot, "tag": o.tag, "source": o.source})
                 if isinstance(o, Placed):
                     self._publish_poses(self.tracker.on_contact(o.spot, self.clock.now(), "placed"))
+                continue
+            if isinstance(o, Stored):
+                log.info("stored", extra={"object_id": o.object_id, "area": o.area, "position": o.position})
+                if self.sync is not None:
+                    where = ({"area": o.area, "label": self.space.area_label(o.area)} if o.area is not None
+                             else {"position": o.position})
+                    self.sync.add_event("stored", o.object_id, o.t, {**where, "source": "voice"})
                 continue
             self.bus.broadcast(o)
             if isinstance(o, ObjectState):

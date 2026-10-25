@@ -19,7 +19,7 @@ public enum Angles {
 public enum Geometry {
     /// Earmark world point -> AVAudio3DPoint (and PHASE): +x right, +y up, -z forward.
     /// The matrix [[1,0,0],[0,0,1],[0,-1,0]] has determinant +1 (a rotation, no mirror).
-    /// VERIFIED LOCALLY by offline rendering (docs/vendor-notes/apple-spatial-audio.md section 2).
+    /// VERIFIED LOCALLY by offline rendering (docs/sponsors/vendor-notes/apple-spatial-audio.md section 2).
     public static func avPoint(_ p: EarmarkPoint) -> AVAudio3DPoint {
         AVAudio3DPoint(x: Float(p.x), y: Float(p.z), z: Float(-p.y))
     }
@@ -78,41 +78,6 @@ public enum Geometry {
         let r = ((h % 12) + 12) % 12
         return r == 0 ? 12 : r
     }
-}
-
-/// Glides the listener position to each new target in a straight line over `duration` seconds
-/// (PRD 10.1, hub `uwb.blend_s`, default 0.4 s), so the audio never jumps. Pure; EarmarkCore samples it every tick
-/// and hands the result to the renderer, so every renderer (and guidance) gets the same smooth path.
-/// A new target restarts the glide from wherever the listener is now; the same target again is ignored.
-/// ponytail: linear restart-per-update; at a steady walk it trails by about `duration` x speed. Lower the
-/// glide in Settings if that lag is audible.
-public struct ListenerGlide: Sendable, Equatable {
-    public var duration: Double
-    public private(set) var from: EarmarkPoint
-    public private(set) var to: EarmarkPoint
-    private var startT = -Double.infinity
-
-    public init(duration: Double = 0.4, position: EarmarkPoint = .zero) {
-        self.duration = duration
-        self.from = position
-        self.to = position
-    }
-
-    public mutating func setTarget(_ p: EarmarkPoint, now: Double) {
-        guard p != to else { return }
-        from = position(at: now)
-        to = p
-        startT = now
-    }
-
-    public func position(at now: Double) -> EarmarkPoint {
-        guard duration > 0 else { return to }
-        let u = min(max((now - startT) / duration, 0), 1)
-        return from + (to - from) * u
-    }
-
-    /// Meters per second on the current leg: the most the listener can move in `dt` is `speed * dt`.
-    public var speed: Double { duration > 0 ? simd_distance(from, to) / duration : .infinity }
 }
 
 /// Wrap-aware exponential smoothing for angles in degrees.

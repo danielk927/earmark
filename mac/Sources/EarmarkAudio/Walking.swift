@@ -18,8 +18,11 @@ public enum UWBText {
     /// Status bar value, e.g. "3/3 anchors · ±0.06 m · Frozen". `anchorCount` = anchors in space.json (0 if unknown).
     public static func statusValue(pose: ListenerPose?, anchorCount: Int) -> String {
         guard let pose, pose.mode != .fixed else { return pose == nil ? "Off - fixed position" : "Fixed position" }
-        let total = max(anchorCount, pose.anchors?.count ?? 0, pose.anchorsUsed)
-        var parts = ["\(pose.anchorsUsed)/\(total) anchors"]
+        // A pose without a mode comes from the beacon / sound locator, not the UWB tracker: no anchors to count.
+        guard pose.mode != nil else { return "Locator (\(pose.source.rawValue), \(pose.quality.rawValue))" }
+        let used = pose.anchorsUsed ?? 0
+        let total = max(anchorCount, pose.anchors?.count ?? 0, used)
+        var parts = ["\(used)/\(total) anchors"]
         if let r = pose.residualM { parts.append(String(format: "\u{00B1}%.2f m", r)) }
         parts.append(pose.mode == .frozen ? "Frozen" : mode(pose.mode))
         return parts.joined(separator: " \u{00B7} ")
@@ -60,7 +63,7 @@ public enum UWBText {
             let health = pose?.anchors?.first { $0.anchor == id }
             let position = a.flatMap { Geometry.point($0.position) }
             let state: AnchorState
-            if pose?.blocked.contains(id) == true { state = .blocked }
+            if pose?.blocked?.contains(id) == true { state = .blocked }
             else if let health { state = health.online ? .online : .offline }
             else { state = .unknown }
             var distance = health?.online == true ? health?.distanceM : nil
@@ -77,6 +80,7 @@ public enum UWBText {
     /// The wearer line under the map.
     public static func wearerLine(pose: ListenerPose?, listener: EarmarkPoint) -> String {
         let fromMark = String(format: "%.1f m from the counter mark", Geometry.horizontalDistance(listener))
+        if let pose, pose.mode == nil { return "You: located by the \(pose.source.rawValue) locator, \(fromMark)." }
         switch pose?.mode {
         case nil: return "You: fixed position at the counter mark (no walking tracker)."
         case .fixed?: return "You: fixed position at the counter mark."

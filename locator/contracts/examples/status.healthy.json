@@ -1,0 +1,6 @@
+{
+  "type": "status",
+  "component": "locator",
+  "ok": true,
+  "detail": "beacons 5/5, 3.3 fix/s, quality ok, src beacons"
+}

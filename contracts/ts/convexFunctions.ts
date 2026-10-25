@@ -172,7 +172,7 @@ export interface PhotoSuggestion {
   name: string;
   aliases: string[];
   description: string;
-  /** Bitdeer model id that produced the suggestion. */
+  /** Claude model id that produced the suggestion. */
   model: string;
   latencyMs: number;
   /** Always true on success: the uploaded photo has been deleted from storage. */
@@ -213,7 +213,7 @@ export const fn = {
   },
   labeling: {
     generateUploadUrl: makeFunctionReference<"mutation", Record<string, never>, string>("labeling:generateUploadUrl"),
-    /** Sends the photo to the Bitdeer multimodal model, deletes it, returns a suggestion. Nothing is saved. */
+    /** Sends the photo to Claude, deletes it, returns a suggestion. Nothing is saved. */
     suggestFromPhoto: makeFunctionReference<"action", { storageId: string }, PhotoSuggestion>(
       "labeling:suggestFromPhoto",
     ),

@@ -7,7 +7,7 @@ import {
   MAX_PHOTO_BYTES,
   PHOTO_TYPES,
   requestSuggestion,
-} from "./lib/bitdeer";
+} from "./lib/claude";
 
 /** Abandoned uploads (no suggestFromPhoto call) are deleted after this long. */
 const PHOTO_MAX_AGE_MS = 10 * 60 * 1000;
@@ -35,7 +35,7 @@ export const photoInfo = internalQuery({
 });
 
 /**
- * Step 2: send the photo to the Bitdeer multimodal model and return a suggestion.
+ * Step 2: send the photo to Claude and return a suggestion.
  * The photo is deleted in every case (success, model error, timeout, missing key)
  * before this returns. Nothing is saved: the dashboard confirms and then calls
  * objects:create or objects:update.
@@ -55,10 +55,10 @@ export const suggestFromPhoto = action({
     if (info === null) throw new ConvexError("That photo was not found (it may have expired). Upload it again.");
     let photoDeleted = false;
     try {
-      const apiKey = env.BITDEER_API_KEY;
+      const apiKey = env.ANTHROPIC_API_KEY;
       if (!apiKey) {
         throw new ConvexError(
-          "Photo suggestions are not set up: BITDEER_API_KEY is missing on the Convex deployment. Type the name instead.",
+          "Photo suggestions are not set up: ANTHROPIC_API_KEY is missing on the Convex deployment. Type the name instead.",
         );
       }
       const mime = (info.contentType ?? "").toLowerCase().split(";")[0].trim();
@@ -71,10 +71,10 @@ export const suggestFromPhoto = action({
       const blob = await ctx.storage.get(info.storageId);
       if (blob === null) throw new ConvexError("That photo was not found (it may have expired). Upload it again.");
       const bytes = new Uint8Array(await blob.arrayBuffer());
-      const model = env.BITDEER_VISION_MODEL || DEFAULT_VISION_MODEL;
+      const model = env.ANTHROPIC_VISION_MODEL || DEFAULT_VISION_MODEL;
       const suggestion = await requestSuggestion({
         fetchImpl: fetch,
-        baseUrl: env.BITDEER_BASE_URL || DEFAULT_BASE_URL,
+        baseUrl: env.ANTHROPIC_BASE_URL || DEFAULT_BASE_URL,
         apiKey,
         model,
         mime,

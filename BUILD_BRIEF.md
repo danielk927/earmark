@@ -35,7 +35,7 @@ When an object is picked up, Earmark confirms it ("Got it, that's the sugar") or
 1. **The contracts are law.** Every component communicates only through the schemas in `contracts/` (section 4). If a component needs a contract change, it stops and proposes the change to the orchestrator. Components never edit contracts unilaterally.
 2. **Detection-agnostic by design.** Nothing downstream of the hub may know or care which detection method produced an event. Detection methods are adapters.
 3. **Math lives in code, never in an LLM.** Directions, distances, angles, debouncing, and medication-adherence rules are deterministic code with tests. LLMs only (a) choose which tool to call and (b) phrase responses.
-4. **Verify every third-party API against its current official docs before writing integration code.** Do not invent endpoints, package names, parameter names, or model IDs. Put every URL, model ID, and voice ID in config or environment variables, never hard-coded. Record what you verified in `docs/vendor-notes/<vendor>.md` with the doc URLs.
+4. **Verify every third-party API against its current official docs before writing integration code.** Do not invent endpoints, package names, parameter names, or model IDs. Put every URL, model ID, and voice ID in config or environment variables, never hard-coded. Record what you verified in `docs/sponsors/vendor-notes/<vendor>.md` with the doc URLs.
 5. **Demo safety over cleverness:**
    - The local loop (detection → hub → concierge → Mac app → AirPods) must work with no internet except the speech API, and must degrade gracefully when that fails (cached phrases, then macOS `say`).
    - Every external call has a timeout and a fallback.
@@ -43,7 +43,7 @@ When an object is picked up, Earmark confirms it ("Got it, that's the sugar") or
 6. **Secrets** go in `.env` (gitignored). Commit `.env.example` with every variable documented. Never print secrets in logs.
 7. **Accessibility is a feature, not a polish item.** The dashboard must be fully usable with a screen reader and keyboard: semantic HTML, ARIA where needed, visible focus, high contrast, no information conveyed by color alone, and both light and dark modes.
 8. **No medical advice, anywhere.** Agents report what the events show and nothing more.
-9. **Always runnable.** Every step ends with something that runs. Commit small, often, with clear messages. Keep `docs/STATUS.md` current.
+9. **Always runnable.** Every step ends with something that runs. Commit small, often, with clear messages. Keep `docs/project/STATUS.md` current.
 10. **Ask the human only when blocked** on keys, hardware facts, measurements, signing, or a product decision. Batch your questions.
 11. **AirPods spatial guidance is the core of the product, and it must work through Earmark's own app.**
     - The app itself renders the spatial audio and applies head tracking. It never depends on the system's Spatial Audio menu, which only applies to supported media content.
@@ -54,7 +54,7 @@ When an object is picked up, Earmark confirms it ("Got it, that's the sugar") or
 
 ## 2.5 Official sponsor resources (read these before writing integration code)
 
-These are the sponsors' own Cal Hacks materials. They override anything in this brief that conflicts with them. Save a copy or summary of each to `docs/sponsor-packs/<sponsor>.md`. If a link can't be fetched (for example, a Google Doc that requires sign-in), ask the human to export it as PDF or Markdown into `docs/sponsor-packs/`.
+These are the sponsors' own Cal Hacks materials. They override anything in this brief that conflicts with them. Save a copy or summary of each to `docs/sponsors/sponsor-packs/<sponsor>.md`. If a link can't be fetched (for example, a Google Doc that requires sign-in), ask the human to export it as PDF or Markdown into `docs/sponsors/sponsor-packs/`.
 
 | Sponsor | Resources | What to extract |
 |---|---|---|
@@ -351,7 +351,7 @@ Each component gets a `README.md` covering how to run, test, and configure it. "
   - **Modes:** always-listening, and push-to-talk (hold Space) for the noisy judging hall. Show which speech engine is active in the status bar.
 - **CRITICAL audio-routing rule:** using the AirPods microphone on a Mac can switch the AirPods to a low-quality hands-free audio mode, which can destroy the stereo cues spatial audio depends on.
   - Default the **input to the Mac's built-in microphone** (or a configured USB mic) and keep the **AirPods output-only**.
-  - Verify this early on real hardware and record the result in `docs/STATUS.md`.
+  - Verify this early on real hardware and record the result in `docs/project/STATUS.md`.
   - Show the current input and output devices in the UI.
   - Also note in the README: turn off the system's own Spatial Audio setting for AirPods during the demo, so it doesn't process the app's audio a second time.
 - **Judge-facing UI:**
@@ -378,7 +378,7 @@ Each component gets a `README.md` covering how to run, test, and configure it. "
 
 ### 5.G Memory agent (`services/memory_agent/`, Fetch.ai + Bitdeer)
 
-- A uAgent implementing the **Chat Protocol**, registered on **Agentverse** (via mailbox) so it can be discovered through **ASI:One**. Verify the current requirements in Fetch.ai's official docs and the Cal Hacks hack pack, and record them in `docs/vendor-notes/fetchai.md`.
+- A uAgent implementing the **Chat Protocol**, registered on **Agentverse** (via mailbox) so it can be discovered through **ASI:One**. Verify the current requirements in Fetch.ai's official docs and the Cal Hacks hack pack, and record them in `docs/sponsors/vendor-notes/fetchai.md`.
 - Reasoning uses a **Bitdeer-hosted model** through the OpenAI-compatible endpoint. The agent's tools call Convex's read endpoints only.
 - **Example questions:** "Where did Dad leave his keys?", "Did Mom take her evening pills?", "What hasn't been touched in a week?"
 - Answers come strictly from the data, with the data's timestamps. No medical advice.
@@ -424,10 +424,10 @@ Every integration must be load-bearing and visible in the demo or the Devpost.
 
 | Criterion | Deliverable |
 |---|---|
-| **Customer understanding** | `docs/CUSTOMER.md`: who the users are (blind and low-vision people, plus caregivers), the specific jobs Earmark does, and why existing tools fall short (camera apps describe a scene but don't remember where things are or tell identical containers apart). If the team talks to any blind or low-vision person or an accessibility professional this weekend, record what they said with permission. **Never invent interviews or quotes.** |
+| **Customer understanding** | `docs/project/CUSTOMER.md`: who the users are (blind and low-vision people, plus caregivers), the specific jobs Earmark does, and why existing tools fall short (camera apps describe a scene but don't remember where things are or tell identical containers apart). If the team talks to any blind or low-vision person or an accessibility professional this weekend, record what they said with permission. **Never invent interviews or quotes.** |
 | **Measurable usefulness** | Trial mode (5.I) with real results on the dashboard, plus live metrics: guidance latency, time to find, and medication adherence. |
-| **Path from prototype to production** | `docs/PRODUCTION.md` covering: hardware cost per home, the iPhone port (same Apple frameworks), Azure hosting for the cloud parts, multi-household support, security and data retention, battery life for fobs, and a step-by-step rollout plan. If Azure credits are available, actually deploy the dashboard (for example, Azure Static Web Apps) and the memory agent (for example, Azure Container Apps) and link them. |
-| **Responsible design** | `docs/RESPONSIBLE_DESIGN.md` covering: no cameras in the home; one-time caregiver photos deleted after labeling; data minimization (object names, spots, and timestamps only); caregiver access controls; no medical advice; honest uncertainty (the system says when it isn't sure and never guesses which bottle is which); and safe failure modes (fallbacks, and what happens when detection is wrong). |
+| **Path from prototype to production** | `docs/project/PRODUCTION.md` covering: hardware cost per home, the iPhone port (same Apple frameworks), Azure hosting for the cloud parts, multi-household support, security and data retention, battery life for fobs, and a step-by-step rollout plan. If Azure credits are available, actually deploy the dashboard (for example, Azure Static Web Apps) and the memory agent (for example, Azure Container Apps) and link them. |
+| **Responsible design** | `docs/project/RESPONSIBLE_DESIGN.md` covering: no cameras in the home; one-time caregiver photos deleted after labeling; data minimization (object names, spots, and timestamps only); caregiver access controls; no medical advice; honest uncertainty (the system says when it isn't sure and never guesses which bottle is which); and safe failure modes (fallbacks, and what happens when detection is wrong). |
 | **End-to-end functionality** | The definition of done in section 8, demonstrated live. |
 
 ---
@@ -452,7 +452,7 @@ tools: Read, Write, Edit, Bash, Grep, Glob, WebFetch
 isolation: worktree
 ---
 You implement exactly one component of Earmark. Before editing, list the files you will own. Never edit files outside your owned directories, and never edit anything in contracts/ or config/space.json. If you need a contract change, stop and return a written proposal instead.
-Verify any third-party API against its official docs before using it, and write what you verified to docs/vendor-notes/<vendor>.md (append only).
+Verify any third-party API against its official docs before using it, and write what you verified to docs/sponsors/vendor-notes/<vendor>.md (append only).
 Build against the simulator and mocks, not real hardware or keys. If a key is missing, implement behind an interface with a mock and say so.
 Before returning, run your component's tests and its acceptance check. Return: files changed, how to run, what is verified, what is mocked, and open issues.
 ```
@@ -476,7 +476,7 @@ name: researcher
 description: Fetches and summarizes current official docs for one vendor SDK. Use in Phase 0.
 tools: Read, Write, WebFetch, WebSearch
 ---
-Find the official documentation for the assigned vendor. Summarize only what Earmark needs: install command, auth, the exact calls we will make, request and response shapes, rate limits, and gotchas. Include doc URLs for every claim. Write to docs/vendor-notes/<vendor>.md and return a 10-line summary. If you cannot verify something, say so explicitly rather than guessing.
+Find the official documentation for the assigned vendor. Summarize only what Earmark needs: install command, auth, the exact calls we will make, request and response shapes, rate limits, and gotchas. Include doc URLs for every claim. Write to docs/sponsors/vendor-notes/<vendor>.md and return a 10-line summary. If you cannot verify something, say so explicitly rather than guessing.
 ```
 
 ### 7.3 Phases
@@ -494,10 +494,10 @@ Find the official documentation for the assigned vendor. Summarize only what Ear
    - Apple: head tracking plus `AVAudioEnvironmentNode`
    - `bleak` on macOS, and Apple's Speech framework on macOS
 
-   Each one writes `docs/vendor-notes/<vendor>.md` and flags anything in this brief that contradicts the official materials.
+   Each one writes `docs/sponsors/vendor-notes/<vendor>.md` and flags anything in this brief that contradicts the official materials.
 2b. Before any Convex code is written, apply Convex's AI code-generation guidelines to the repo.
 3. While they run, create the repo skeleton, `.gitignore`, `.env.example`, a task runner (`Makefile` or `justfile` with `dev`, `test`, `demo-sim`, `demo-live`, `seed`, and `reset`), `contracts/` with schemas, examples, and types, the placeholder `config/space.json`, `config/objects.seed.json`, `convex/schema.ts`, and all of `scenarios/`.
-4. Write `docs/ARCHITECTURE.md` and `docs/STATUS.md`. Commit.
+4. Write `docs/project/ARCHITECTURE.md` and `docs/project/STATUS.md`. Commit.
 5. **Checkpoint:** report a status table, list the env vars the human must fill in, list the research findings that change the plan, and **stop for human confirmation**.
 
 **Phase 0.5: Spatial audio spike and gate (you, with the human, sequential; do this before or alongside the start of Phase 1)**
@@ -515,7 +515,7 @@ The riskiest, most important piece gets proven first, on real hardware.
    - **Sign check:** with the ping straight ahead, turning the head left moves it into the right ear, and looking up moves it down. If not, flip `yawSign` or `pitchSign` and re-run.
    - **Fixed-in-room test:** place the ping at 0°, then have the tester turn their head slowly 90° left and right. The ping must sound like it stays put in the room rather than following the head.
    - **Pointing test:** with eyes closed, the tester points at the perceived source for 10 random positions in the front half of the room. **Pass: at least 8 of 10 within ±20°.** Also run 4 trials from behind and log any front/back confusions.
-3. Record the results for each renderer in `docs/STATUS.md`. Pick the renderer that passes with the best pointing accuracy.
+3. Record the results for each renderer in `docs/project/STATUS.md`. Pick the renderer that passes with the best pointing accuracy.
 4. **If neither passes,** stop and report to the human with the measured numbers and the specific failure (sign, drift, front/back confusion, latency, or audio-routing degradation). Propose fixes in order: recheck the routing rule, adjust the cue sound, exaggerate the cues, or fall back as in the 5.E fallback ladder. **Do not proceed with the full Mac app until the spatial gate passes or the human accepts a fallback.**
 5. mac-app-builder (Phase 1) builds the production `SpatialRenderer` from the winning spike code.
 
@@ -563,8 +563,8 @@ Fix all P0 and P1 findings yourself, or by dispatching implementers to the affec
 
 - `make reset` returns everything to the demo starting state in under 10 seconds.
 - `make demo-live` runs the full stack with real adapters. `make demo-sim` is the fallback, if hardware fails, with no code changes.
-- Polish the seed data. Write the README quick start, `docs/DEVPOST.md`, an architecture diagram, and a 2-minute demo script, and keep everything in `docs/STATUS.md` up to date.
-- Write `docs/CUSTOMER.md`, `docs/PRODUCTION.md`, and `docs/RESPONSIBLE_DESIGN.md` (6.1). Draft them early, in Phase 2, and finish them here.
+- Polish the seed data. Write the README quick start, `docs/DEVPOST.md`, an architecture diagram, and a 2-minute demo script, and keep everything in `docs/project/STATUS.md` up to date.
+- Write `docs/project/CUSTOMER.md`, `docs/project/PRODUCTION.md`, and `docs/project/RESPONSIBLE_DESIGN.md` (6.1). Draft them early, in Phase 2, and finish them here.
 - Run trial mode with at least two teammates, in both modes, and put the real results into the Devpost and the pitch.
 - If the human has Azure credits working, deploy the dashboard and the memory agent to Azure and verify both from a phone on cellular data.
 - Help the human record a local demo video as a backup.
@@ -595,7 +595,7 @@ All of these must pass with the simulator. The first five must also pass with at
 
 1. Visa + Apify Restock Agent
 2. Creao summary
-3. Azure deployment (keep `docs/PRODUCTION.md` either way)
+3. Azure deployment (keep `docs/project/PRODUCTION.md` either way)
 4. Dashboard Timeline page
 5. Photo-assisted labeling
 6. Fetch.ai agent polish (keep a minimal working version)
@@ -615,9 +615,9 @@ All of these must pass with the simulator. The first five must also pass with at
   - Convex: login and deployment
   - Fetch.ai / Agentverse
 - Whether the team has activated Azure for Students credits, and which account to use
-- Access to the Fetch.ai and Moss Google Docs. If they can't be fetched, the human exports them into `docs/sponsor-packs/`.
+- Access to the Fetch.ai and Moss Google Docs. If they can't be fetched, the human exports them into `docs/sponsors/sponsor-packs/`.
 - The links inside the Bitdeer starter pack PDF (Getting Started, Model Catalog, Integrations, workshop demo code), if they can't be found from bitdeer.ai
-- Whether anyone on the team has spoken with, or can quickly speak with, a blind or low-vision person or an accessibility professional, for `docs/CUSTOMER.md`
+- Whether anyone on the team has spoken with, or can quickly speak with, a blind or low-vision person or an accessibility professional, for `docs/project/CUSTOMER.md`
 - The Apple ID or team to use for Xcode signing on the demo Mac
 - Tape-measure positions for each spot, relative to the listening position (Phase 4)
 - Approval for any stretch item

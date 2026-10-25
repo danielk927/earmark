@@ -10,7 +10,7 @@ const contractsDir = fileURLToPath(new URL("../contracts/ts", import.meta.url));
 export default defineConfig(({ mode }) => {
   // VITE_CONVEX_URL (shell or dashboard/.env*) wins. Otherwise fall back to the CONVEX_URL that
   // `npx convex dev` writes to the repo-root .env.local, so local dev needs no copy step.
-  // Only CONVEX_URL is read from the root; envPrefix is not widened (see docs/vendor-notes/convex.md).
+  // Only CONVEX_URL is read from the root; envPrefix is not widened (see docs/sponsors/vendor-notes/convex.md).
   const own = loadEnv(mode, dashboardDir, "VITE_");
   const root = loadEnv(mode, repoRoot, "CONVEX_URL");
   const convexUrl = own.VITE_CONVEX_URL ?? root.CONVEX_URL ?? "";

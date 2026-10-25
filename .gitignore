@@ -39,3 +39,10 @@ var/
 
 # agent worktrees (Claude Code isolation)
 .claude/worktrees/
+
+# local notes with secrets
+api keys
+api keys.md
+.env.local
+.playwright-mcp/
+.playwright-mcp/

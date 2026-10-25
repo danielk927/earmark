@@ -114,7 +114,7 @@ scenarios: ## Regenerate scenarios/*.jsonl from scripts/gen_scenarios.py
 # ---------------------------------------------------------------- tests
 
 .PHONY: test
-test: contracts-test hub-test concierge-test convex-test memory-test dashboard-test mac-test e2e-test ## Run every test suite
+test: contracts-test hub-test concierge-test ranging-test convex-test memory-test dashboard-test mac-test e2e-test ## Run every test suite
 
 .PHONY: contracts-test
 contracts-test: ## Contracts: every example, config file, and scenario (Python, TS, Swift)
@@ -130,6 +130,14 @@ hub-test:
 concierge-test:
 	cd services/concierge && uv run --quiet pytest -q && uvx --quiet ruff check .
 
+.PHONY: ranging-test
+ranging-test: ## Phone position service, with virtual phones
+	cd services/ranging && uv run --quiet pytest -q && uvx --quiet ruff check .
+
+.PHONY: ranging
+ranging: ## Phone position service (phones connect to it; see locator/docs/PHONE_BEACONS.md)
+	cd services/ranging && uv run --quiet earmark-ranging serve
+
 .PHONY: convex-test
 convex-test:
 	npm test --silent && npm run --silent typecheck
@@ -144,7 +152,7 @@ dashboard-test:
 
 .PHONY: mac-test
 mac-test:
-	@if [ -f mac/Package.swift ]; then cd mac && swift test 2>&1 | tail -3; else echo "mac app not built yet"; fi
+	@if [ -f mac/Package.swift ]; then cd mac && swift test --scratch-path /tmp/earmark-mac-build 2>&1 | tail -3  # outside Documents: macOS file metadata there breaks code signing; else echo "mac app not built yet"; fi
 
 .PHONY: e2e-test
 e2e-test:

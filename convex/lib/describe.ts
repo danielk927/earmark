@@ -49,6 +49,10 @@ export function describeEvent(e: EventFacts, names: Names, subject: boolean): st
       const name = str(e.data.name) ?? who ?? "an item";
       return `Tag labeled as ${name}${where ? ` on ${where}` : ""}.`;
     }
+    case "stored": {
+      const place = str(e.data.label) ?? str(e.data.area);
+      return place ? `${lead("put")} in ${place}.` : `${lead("put")} at a spot you saved.`;
+    }
     case "chirp": {
       const start = e.data.action !== "stop";
       const thing = subject && who ? `The ${who} fob` : "The fob";

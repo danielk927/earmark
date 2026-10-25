@@ -3,7 +3,7 @@
 The hub turns raw detections (NFC spot readers, BLE fobs, the simulator) into debounced object state.
 For walking guidance it also turns UWB distances from the wearer iPhone into the listener's position (`listener_pose`, see "UWB walking guidance" below).
 It runs the local WebSocket bus at `ws://127.0.0.1:8765` (or on the private network for the iPhones) and syncs to Convex.
-Spec: `BUILD_BRIEF.md` sections 5.A, 5.B and 5.I, and `docs/UWB-PRD.md` section 8; the contracts in `contracts/` are authoritative.
+Spec: `BUILD_BRIEF.md` sections 5.A, 5.B and 5.I, and `docs/project/UWB-PRD.md` section 8; the contracts in `contracts/` are authoritative.
 
 ## Run
 
@@ -77,7 +77,7 @@ cd services/hub && uv run pytest -q
 ```
 
 219 tests, about 23 s.
-The `test_uwb_*.py` files cover the UWB module (`docs/UWB-PRD.md` 12.1): solver accuracy and outlier rejection, the freeze state machine, NFC re-anchor, lost to fixed, the token relay and bus secret, and `uwb_sim` pose rate.
+The `test_uwb_*.py` files cover the UWB module (`docs/project/UWB-PRD.md` 12.1): solver accuracy and outlier rejection, the freeze state machine, NFC re-anchor, lost to fixed, the token relay and bus secret, and `uwb_sim` pose rate.
 They include an end-to-end smoke test that starts the real `earmark-hub --adapters simulator --scenario scenarios/full_demo.jsonl --speed 10 --no-convex` process and asserts the pickup sequence salt(2), sugar(3), sugar(1) over the WebSocket.
 A second one runs `earmark-sim`, `earmark-send` and `earmark-tail` against a running hub.
 No test touches real Bluetooth, serial ports, Convex, `config/`, or `var/`.
@@ -151,7 +151,7 @@ Pure and deterministic: time comes only from event timestamps and `tick(now)`, a
 
 ### UWB walking guidance (`earmark_hub/uwb/`)
 
-Spec: `docs/UWB-PRD.md` section 8.
+Spec: `docs/project/UWB-PRD.md` section 8.
 The phones send distances; the hub does all the math and publishes one `listener_pose` that the Mac app, concierge, and dashboard follow.
 
 - **Token relay** (`relay.py`): each `uwb_token` goes only to the client whose `hello.device_id` equals `to` (`uwb_1`, `uwb_2`, `uwb_3`, `wearer`), never to the whole bus.
@@ -191,7 +191,7 @@ With no secret set, every non-loopback client is refused, and the hub warns at s
   Non-detection lines (e.g. `transcript`) are published as if sent by component `simulator`.
   `earmark-sim` runs the same simulator as a bus client.
 - `nfc_serial`: parses `SPOT <n> TAG <uid>`, `SPOT <n> EMPTY`, `SPOT <n> ERROR <reason>` (errors become a hub `status`); raw lines go to `logs/serial.log`; it re-detects and reopens the port when the board is unplugged.
-- `ble_fobs`: follows `docs/vendor-notes/bleak.md`.
+- `ble_fobs`: follows `docs/sponsors/vendor-notes/bleak.md`.
   One continuous scan; fobs matched by CoreBluetooth address (or advertised name, cached per address); time-weighted RSSI EMA; thresholds -> `distance_class`; `lost` after `stale_s` without advertisements.
   Chirp: connect with the scanner's `BLEDevice`, log every service and characteristic, resolve Alert Level `2a06` through service `1802`, choose the write type from the characteristic's properties, write `alert_level`, hold the connection until `stop` or `chirp_timeout_s`, write `0x00`, optionally write `link_loss_value` to `1803/2a06`, and disconnect.
   If the connect times out while scanning, it retries once with the scanner paused.

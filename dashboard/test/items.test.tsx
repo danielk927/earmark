@@ -183,20 +183,20 @@ describe("Photo-assisted labeling", () => {
     });
   });
 
-  it("explains a missing Bitdeer key and saves nothing", async () => {
+  it("explains a missing Anthropic key and saves nothing", async () => {
     serve();
     photoSetup();
     convexMock
       .action("labeling:suggestFromPhoto")
       .mockRejectedValue(
-        new Error("[CONVEX A(labeling:suggestFromPhoto)] [Request ID: 1] Server Error\nUncaught Error: BITDEER_API_KEY is not set\n    at handler"),
+        new Error("[CONVEX A(labeling:suggestFromPhoto)] [Request ID: 1] Server Error\nUncaught Error: ANTHROPIC_API_KEY is not set\n    at handler"),
       );
     renderAt("/items");
     const u = user();
     await u.click(screen.getByRole("button", { name: "Start from a photo" }));
     await u.upload(screen.getByLabelText("Choose a photo"), photo());
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Photo suggestions are not set up on this Earmark server yet (no Bitdeer API key)");
+    expect(alert).toHaveTextContent("Photo suggestions are not set up on this Earmark server yet (no Anthropic API key)");
     expect(alert).toHaveTextContent("Nothing was saved.");
     expect(screen.queryByText("Photo deleted.")).not.toBeInTheDocument();
     expect(convexMock.mutation("objects:create")).not.toHaveBeenCalled();

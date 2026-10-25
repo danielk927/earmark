@@ -38,9 +38,9 @@ All are optional at deploy time, so a fresh deployment pushes before they are se
 | - | - | - |
 | `EARMARK_HUB_SECRET` | every HTTP route | every route answers 401 |
 | `EARMARK_READ_SECRET` | `GET /api/*` only | only the hub secret works |
-| `BITDEER_API_KEY` | `labeling:suggestFromPhoto` | the action deletes the photo and throws "Photo suggestions are not set up: BITDEER_API_KEY is missing..." |
-| `BITDEER_BASE_URL` | same | `https://api-inference.bitdeer.ai/v1` |
-| `BITDEER_VISION_MODEL` | same | `deepseek-ai/DeepSeek-V4.1-Flash-1017` |
+| `ANTHROPIC_API_KEY` | `labeling:suggestFromPhoto` | the action deletes the photo and throws "Photo suggestions are not set up: ANTHROPIC_API_KEY is missing..." |
+| `ANTHROPIC_BASE_URL` | same | `https://api.anthropic.com/v1` |
+| `ANTHROPIC_VISION_MODEL` | same | `claude-haiku-5-5` |
 
 Clients only need the URLs from `.env.local`: `CONVEX_URL` (client, dashboard) and `CONVEX_SITE_URL` (HTTP actions, hub, agents).
 
@@ -111,13 +111,13 @@ Doses are materialized in mutations, never computed from the clock in a query: o
 
 1. The dashboard calls `labeling:generateUploadUrl`, POSTs the photo to it (with its `Content-Type`), and gets `{ storageId }`.
 2. It calls `labeling:suggestFromPhoto({ storageId })`.
-   The action reads the photo, sends it inline as a base64 `data:` URL `image_url` part to `${BITDEER_BASE_URL}/chat/completions` with `reasoning_effort: "none"`, a strict `json_schema` response format, `temperature: 0`, `max_tokens: 300`, and an 8 s timeout.
+   The action reads the photo, sends it inline as a base64 `image` block to `${ANTHROPIC_BASE_URL}/messages` with thinking disabled, effort `low`, a `json_schema` output format, `max_tokens: 300`, and an 8 s timeout.
 3. The photo is deleted in a `finally` block on success and on every failure.
    It returns `{ name, aliases, description, model, latencyMs, photoDeleted: true }` and saves nothing.
 4. The dashboard shows the suggestion, the human confirms or edits, and the dashboard saves with `objects:create` or `objects:update`.
 
-Accepted types are JPEG, PNG, WebP, and GIF up to 4 MB; downscale in the browser first (about 1024 px, JPEG) to stay near Bitdeer's 1 MB guidance.
-Errors are readable sentences (timeout, HTTP status and Bitdeer error code, unreadable reply, missing key) and never contain the key.
+Accepted types are JPEG, PNG, WebP, and GIF up to 4 MB; downscale in the browser first (about 1024 px, JPEG) to keep uploads small.
+Errors are readable sentences (timeout, HTTP status and Claude error type, unreadable reply, missing key) and never contain the key.
 A cron deletes any stored file older than 10 minutes, so an upload that is never sent for a suggestion does not persist.
 
 ## Seed and reset
@@ -141,7 +141,7 @@ Tested at many times of day and across both DST transitions: there is always exa
 - `http.test.ts`: every route via `t.fetch`, the auth matrix, 400s, idempotent ingest, label create and rename, registry version changes; every response is validated against the contract schemas with ajv (draft 2020-12, all schema files loaded).
 - `functions.test.ts`: every client function called through the contract references.
 - `seed.test.ts`: exactly one missed dose, idempotency, reset preserves trials byte for byte.
-- `labeling.test.ts`: mocked Bitdeer `fetch`, the request shape, photo deletion on every path, timeout, the sweeper.
+- `labeling.test.ts`: mocked Claude `fetch`, the request shape, photo deletion on every path, timeout, the sweeper.
 - `contract.test.ts`: compile-time and run-time checks against `contracts/ts/convexFunctions.ts`.
 
 ## Moving to a cloud deployment later
@@ -175,11 +175,11 @@ A cloud deployment is what makes remote family labeling, an Azure-hosted dashboa
 
 ## What is mocked
 
-- Bitdeer: only in tests (`vi.stubGlobal("fetch", ...)`). No `BITDEER_API_KEY` exists tonight, so the live action has not run against the real model; without a key it fails cleanly and deletes the photo.
+- Claude: only in tests (`vi.stubGlobal("fetch", ...)`). No `ANTHROPIC_API_KEY` exists tonight, so the live action has not run against the real model; without a key it fails cleanly and deletes the photo.
 - The local deployment uses dummy secrets.
 - The seed's two days of history are synthetic demo data (event ids start with `seed-`); trials are never seeded.
 
 ## Not done / open
 
 - Client functions have no authentication: anyone with the deployment URL can call them. Caregiver access control needs Convex auth (for example Clerk) before a real household uses it.
-- Real Bitdeer latency and suggestion quality are unverified until a key exists.
+- Real Claude latency and suggestion quality are unverified until a key exists.

@@ -27,8 +27,10 @@ import Testing
         return p
     }
 
+    static let fixedPose = ListenerPose(position: [0, 0, 1.55], quality: .ok, source: .none, mode: .fixed)
+
     @Test func mapListsEveryAnchorWithItsStateInWords() {
-        let lines = UWBText.anchors(space: Self.space, pose: Self.pose("01"), listener: [0.12, -1.85, 0])
+        let lines = UWBText.anchors(space: Self.space, pose: Self.pose("03"), listener: [0.12, -1.85, 0])
         #expect(lines.map(\.text) == [
             "UWB Reader/Emitter 1: online, 2.7 m from you.",
             "UWB Reader/Emitter 2: online, 2.8 m from you.",
@@ -38,8 +40,8 @@ import Testing
     }
 
     @Test func blockedAndUnreportedAnchorsAreSpelledOut() {
-        // Example 02: frozen, uwb_2 blocked, no per-anchor health.
-        let lines = UWBText.anchors(space: Self.space, pose: Self.pose("02"), listener: [0.03, -0.02, 0])
+        // Example 04: frozen, uwb_2 blocked, no per-anchor health.
+        let lines = UWBText.anchors(space: Self.space, pose: Self.pose("04"), listener: [0.03, -0.02, 0])
         #expect(lines[1].state == .blocked)
         #expect(lines[1].text.hasPrefix("UWB Reader/Emitter 2: blocked"))
         #expect(lines[0].state == .unknown)
@@ -50,7 +52,7 @@ import Testing
     }
 
     @Test func anchorsTheHubReportsButSpaceLacksStillShow() {
-        let lines = UWBText.anchors(space: nil, pose: Self.pose("01"), listener: .zero)
+        let lines = UWBText.anchors(space: nil, pose: Self.pose("03"), listener: .zero)
         #expect(lines.map(\.label) == ["UWB Reader/Emitter 1", "UWB Reader/Emitter 2", "UWB Reader/Emitter 3"])
         #expect(lines.allSatisfy { $0.position == nil && $0.state == .online })
     }
@@ -61,11 +63,13 @@ import Testing
         #expect(UWBText.mode(.lost) == "Lost")
         #expect(UWBText.mode(.fixed) == "Fixed position")
         #expect(UWBText.mode(nil) == "Fixed position")
-        #expect(UWBText.statusValue(pose: Self.pose("01"), anchorCount: 3) == "3/3 anchors \u{00B7} \u{00B1}0.06 m \u{00B7} Tracking")
-        #expect(UWBText.statusValue(pose: Self.pose("02"), anchorCount: 3) == "2/3 anchors \u{00B7} \u{00B1}0.11 m \u{00B7} Frozen")
-        #expect(UWBText.statusValue(pose: Self.pose("03"), anchorCount: 3) == "Fixed position")
+        #expect(UWBText.statusValue(pose: Self.pose("03"), anchorCount: 3) == "3/3 anchors \u{00B7} \u{00B1}0.06 m \u{00B7} Tracking")
+        #expect(UWBText.statusValue(pose: Self.pose("04"), anchorCount: 3) == "2/3 anchors \u{00B7} \u{00B1}0.11 m \u{00B7} Frozen")
+        #expect(UWBText.statusValue(pose: Self.fixedPose, anchorCount: 3) == "Fixed position")
+        // Example 01 comes from the beacon locator: no mode, no anchors to count.
+        #expect(UWBText.statusValue(pose: Self.pose("01"), anchorCount: 3) == "Locator (beacons, ok)")
         #expect(UWBText.statusValue(pose: nil, anchorCount: 0) == "Off - fixed position")
-        #expect(UWBText.wearerLine(pose: Self.pose("01"), listener: [0, -2, 0]) == "You: tracking, 2.0 m from the counter mark.")
+        #expect(UWBText.wearerLine(pose: Self.pose("03"), listener: [0, -2, 0]) == "You: tracking, 2.0 m from the counter mark.")
     }
 }
 

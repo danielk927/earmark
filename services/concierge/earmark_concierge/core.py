@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 from earmark_contracts import (
     Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, ListenerCommand, ListenerPose,
-    MicAudio, ObjectState, Pickup, PickupResult, Playback, RegistryObject, RegistryUpdate, Reset,
+    MicAudio, ObjectState, Pickup, PickupResult, PlaceItem, Playback, RegistryObject, RegistryUpdate, Reset,
     Snapshot, StatusMsg, SttMode, Transcript, TrialEnd, TrialStart, UnknownTag,
 )
 
@@ -300,6 +300,17 @@ class Concierge:
             return target
         if call.name == "chirp_fob":
             return policy.chirp(self.world, target, now, self.s.stale_s)
+        if call.name == "put_in_place":
+            place = call.args.get("place", "")
+            area = call.args.get("area") or (self.world.resolve_area(place) if place else None)
+            if area:
+                return policy.put_in_place(self.world, target, area)
+            if place:
+                return policy.unknown_place(self.world)
+            here = self.world.listener_position()
+            return policy.put_here(target, here) if here else policy.ask_place(self.world, target)
+        if call.name == "place_history":
+            return policy.place_history(self.world, target, now)
         if call.name == "last_seen":
             advice = target.is_medication and bool(ADVICE.search(grammar.normalize(text)))
             return policy.last_seen(self.world, target, now, self.started_t, medical_question=advice)
@@ -331,6 +342,10 @@ class Concierge:
         if plan.label:
             lb = plan.label
             await self.emit(Label(tag=lb.tag, name=lb.name, aliases=lb.aliases, spot=lb.spot))
+        if plan.place:
+            where = ({"area": plan.place.area} if plan.place.area is not None
+                     else {"position": plan.place.position})
+            await self.emit(PlaceItem(object_id=plan.place.object_id, t=time.time(), **where))
         if plan.text or plan.phrase_id:
             self.spawn(self.speaker.say(uid, plan.text, plan.phrase_id, turn))
         return uid
@@ -382,7 +397,7 @@ class Concierge:
 
     async def _on_listener_pose(self, msg: ListenerPose) -> None:
         prev = self.world.listener.mode if self.world.listener else None
-        self.world.listener = msg
+        self.world.apply_listener(msg)
         g = self.guiding
         if g is None or self.silent_trial is not None or msg.mode == prev:
             return
@@ -416,6 +431,13 @@ class Concierge:
 
     async def _on_feedback(self, msg: GuideFeedback) -> None:
         g = self.guiding
+        if msg.event == "arrived":
+            target = self.world.objects.get(msg.object_id)
+            if g is not None and g.object_id == msg.object_id and target is not None:
+                await self._stop_guidance("found")
+                if self.silent_trial is None:
+                    self.spawn(self.speaker.say(self._id("u"), policy.arrived(self.world, target, g.position)))
+            return
         if (g is None or msg.object_id != g.object_id or msg.event != "behind" or msg.turn is None
                 or self.silent_trial is not None):
             return
@@ -429,12 +451,12 @@ class Concierge:
 
     def status_msg(self) -> StatusMsg:
         d = self.last_decision
-        intent = "bitdeer" if self.router.chooser is not None else "grammar"
+        intent = "claude" if self.router.chooser is not None else "grammar"
         info: dict = {
             "stt_engine": self.stt.engine,
             "stt_reason": self.stt.reason,
             "intent_engine": intent,
-            "llm_model": self.s.bitdeer_chat_model if self.router.chooser is not None else None,
+            "llm_model": self.s.anthropic_chat_model if self.router.chooser is not None else None,
             "last_intent_path": d.path if d else None,
             "last_llm_status": d.llm_status if d else None,
             "last_llm_ms": round(d.llm_ms, 1) if d and d.llm_ms is not None else None,

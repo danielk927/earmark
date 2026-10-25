@@ -39,7 +39,7 @@ final class PoseModel: ObservableObject {
     @Published var rateHz = 0.0
     @Published var tracking = false
     @Published var guidance: GuidanceState?
-    /// Glided listener position (UWB walking guidance); the origin when seated.
+    /// Where the locator/UWB says the user stands (room frame); the origin when seated.
     @Published var listener: EarmarkPoint = .zero
     /// The head faces backward (|yaw| > 110 deg, back under 80): the map centers the listener so the cone stays visible.
     @Published var facingBack = false
@@ -90,10 +90,7 @@ final class AppModel: ObservableObject {
         didSet { if rendererChoice != oldValue { core.applyRenderer(rendererChoice); UserDefaults.standard.set(rendererChoice.rawValue, forKey: "renderer") } }
     }
     @Published var timbre: PingTimbre { didSet { core.timbre = timbre; UserDefaults.standard.set(timbre.rawValue, forKey: "timbre") } }
-    /// Walking guidance tuning, by ear (PRD 10.1). Glide defaults to config/hub.json `uwb.blend_s`.
-    @Published var listenerGlideSec: Double {
-        didSet { core.listenerGlideSec = listenerGlideSec; UserDefaults.standard.set(listenerGlideSec, forKey: "listenerGlideSec") }
-    }
+    /// Walking guidance tuning, by ear (PRD 10.1).
     @Published var attenuation: DistanceAttenuation {
         didSet {
             core.distanceAttenuation = attenuation
@@ -112,8 +109,6 @@ final class AppModel: ObservableObject {
         listenMode = listen
         timbre = d.string(forKey: "timbre").flatMap(PingTimbre.init(rawValue:)) ?? .tone
         enforceBuiltInMic = d.object(forKey: "enforceBuiltInMic") as? Bool ?? true
-        let glide = d.object(forKey: "listenerGlideSec") as? Double ?? AppModel.hubBlendSec() ?? 0.4
-        listenerGlideSec = glide
         var att = DistanceAttenuation()
         if let v = d.object(forKey: "attenuationReference") as? Double { att.referenceDistance = v }
         if let v = d.object(forKey: "attenuationMaximum") as? Double { att.maximumDistance = v }
@@ -130,18 +125,8 @@ final class AppModel: ObservableObject {
         core.listenMode = listen
         core.timbre = timbre
         core.micEnabled = !flags.noMic
-        core.listenerGlideSec = glide
         core.distanceAttenuation = att
         routes.enforceBuiltInMic = enforceBuiltInMic
-    }
-
-    /// `uwb.blend_s` from config/hub.json, if the hub config has it.
-    private static func hubBlendSec() -> Double? {
-        guard let url = RepoLocator.root()?.appendingPathComponent("config/hub.json"),
-              let data = try? Data(contentsOf: url),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let uwb = root["uwb"] as? [String: Any] else { return nil }
-        return (uwb["blend_s"] as? NSNumber)?.doubleValue
     }
 
     /// config/space.json in the repo (EARMARK_REPO_ROOT, the build_app.sh Info.plist key, or a parent folder).

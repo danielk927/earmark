@@ -196,6 +196,7 @@ export function makeFixtures(now: number, opts: { trials?: "example" | "none" } 
     ev("e-demo-1", "pickup", "salt", now - 40, 2, "Salt picked up from the center left spot."),
     ev("e-demo-2", "unknown_tag", null, now - 180, 1, "An unlabeled tag was put down on the far left spot."),
     ev("e-demo-3", "roaming", "keys", now - 300, null, "Keys came within middle range of the hub receiver."),
+    ev("e-demo-7", "stored", "keys", now - 500, null, "Keys put in the drawer."),
     ev("e-demo-4", "placed", "sugar", now - 600, 3, "Sugar put down on the center right spot."),
     ev("e-demo-5", "pickup", "sugar", now - 700, 3, "Sugar picked up from the center right spot."),
     ...medicationPickups.flatMap((p, i) => [
@@ -229,7 +230,13 @@ export function makeFixtures(now: number, opts: { trials?: "example" | "none" } 
         { spot: 3, label: "center right", position: [0.16, 0.58, 0.0] },
         { spot: 4, label: "far right", position: [0.42, 0.42, 0.0] },
       ],
-      areas: [{ area: "kitchen_counter", label: "the counter", position: [0, 0.6, 0] }],
+      areas: [
+        { area: "kitchen_counter", label: "the counter", position: [0, 0.6, 0] },
+        { area: "cupboard", label: "the cupboard", position: [0, 0.85, 0.3] },
+        { area: "drawer", label: "the drawer", position: [0.65, 0.25, 0] },
+        { area: "bag", label: "the bag", position: [-0.65, 0.25, 0] },
+        { area: "box", label: "the box", position: [-0.3, 0.9, 0] },
+      ],
       objects,
       states,
       unknownTags: [{ tag: UNKNOWN_TAG, spot: 1, t: now - 180 }],

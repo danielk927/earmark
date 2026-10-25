@@ -1,16 +1,16 @@
-"""The Bitdeer tool loop: request shape, multi-step tool use, limits, timeouts, and guards."""
+"""The Claude tool loop: request shape, multi-step tool use, limits, timeouts, and guards."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 
-import httpx
+import httpx2
 import pytest
 
 from earmark_memory.describe import SpaceLabels
 from earmark_memory.fixture import FixtureConvexReader
-from earmark_memory.llm import AssistantTurn, BitdeerChatModel, LlmError, ToolRequest
+from earmark_memory.llm import AnthropicChatModel, AssistantTurn, LlmError, ToolRequest, _to_anthropic
 from earmark_memory.pipeline import MemoryPipeline, looks_like_medical_advice
 
 
@@ -107,7 +107,7 @@ async def test_slow_model_hits_the_budget_and_falls_back(monkeypatch):
 
 
 async def test_llm_error_falls_back():
-    a = await pipeline_with(ScriptedModel([LlmError("Bitdeer returned HTTP 503")])).answer("Where did Dad leave his keys?")
+    a = await pipeline_with(ScriptedModel([LlmError("Claude returned HTTP 503")])).answer("Where did Dad leave his keys?")
     assert a.path == "fallback" and "HTTP 503" in a.reason
     assert "close to the counter" in a.text
 
@@ -155,88 +155,97 @@ def test_advice_detector(text, flag):
     assert looks_like_medical_advice(text) is flag
 
 
-# ---------------------------------------------------------------- the real OpenAI-compatible client
+# ---------------------------------------------------------------- the real Claude client
 
 
-def _completion(message: dict) -> dict:
+def _message(content: list[dict], stop_reason: str = "end_turn") -> dict:
     return {
-        "id": "x",
-        "object": "chat.completion",
-        "created": 0,
-        "model": "m",
-        "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+        "id": "msg_x", "type": "message", "role": "assistant", "model": "claude-sonnet-5-5", "content": content,
+        "stop_reason": stop_reason, "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 1},
     }
 
 
-async def test_bitdeer_request_shape_and_tool_call_parsing():
-    seen: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen.append(request)
-        return httpx.Response(
-            200,
-            json=_completion(
-                {
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [
-                        {"id": "t1", "type": "function", "function": {"name": "find_object", "arguments": '{"name": "keys"}'}}
-                    ],
-                }
-            ),
-        )
-
-    model = BitdeerChatModel(
-        api_key="sk-test",
-        base_url="https://api-inference.bitdeer.ai/v1",
-        model="deepseek-ai/DeepSeek-V4.1-Flash-1017",
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+def _model(handler) -> AnthropicChatModel:
+    return AnthropicChatModel(
+        api_key="sk-test", model="claude-sonnet-5-5", http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler))
     )
-    turn = await model.complete([{"role": "user", "content": "Where are the keys?"}], allow_tools=True)
+
+
+async def test_claude_request_shape_and_tool_call_parsing():
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        tool = {"type": "tool_use", "id": "t1", "name": "find_object", "input": {"name": "keys"}}
+        return httpx2.Response(200, json=_message([tool], "tool_use"))
+
+    turn = await _model(handler).complete(
+        [
+            {"role": "system", "content": "be brief"},
+            {"role": "user", "content": "Where are the keys?"},
+            {"role": "assistant", "content": "", "tool_calls": [{"id": "t0", "type": "function", "function": {"name": "list_objects", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "t0", "content": '{"ok": true}'},
+        ],
+        allow_tools=True,
+    )
     assert turn.tool_calls[0].name == "find_object" and json.loads(turn.tool_calls[0].arguments) == {"name": "keys"}
     req = seen[0]
-    assert str(req.url) == "https://api-inference.bitdeer.ai/v1/chat/completions"
+    assert str(req.url) == "https://api.anthropic.com/v1/messages"
     assert req.headers["authorization"] == "Bearer sk-test"
     body = json.loads(req.content)
-    assert body["model"] == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-    assert body["reasoning_effort"] == "none"
-    assert body["tool_choice"] == "auto" and {t["function"]["name"] for t in body["tools"]} == {
-        "find_object",
-        "list_objects",
-        "history",
-        "adherence",
-        "daily_summary",
+    assert body["model"] == "claude-sonnet-5-5" and body["max_tokens"] == 500
+    assert body["thinking"] == {"type": "between_tools"} and body["output_config"] == {"effort": "low"}
+    assert body["tool_choice"] == {"type": "auto"} and "temperature" not in body
+    assert {t["name"] for t in body["tools"]} == {"find_object", "list_objects", "history", "adherence", "daily_summary"}
+    assert body["system"] == [{"type": "text", "text": "be brief"}]
+    assert body["messages"][1]["content"] == [{"type": "tool_use", "id": "t0", "name": "list_objects", "input": {}}]
+    assert body["messages"][2] == {
+        "role": "user", "content": [{"type": "tool_result", "tool_use_id": "t0", "content": '{"ok": true}'}]
     }
-    assert body["max_tokens"] == 500
 
 
-async def test_bitdeer_errors_are_not_retried_and_become_llm_errors():
+async def test_parallel_tool_results_go_in_one_user_message():
+    system, chat = _to_anthropic(
+        [
+            {"role": "user", "content": "q"},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "a", "type": "function", "function": {"name": "history", "arguments": "{}"}},
+                {"id": "b", "type": "function", "function": {"name": "adherence", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "a", "content": "1"},
+            {"role": "tool", "tool_call_id": "b", "content": "2"},
+        ]
+    )
+    assert system == [] and len(chat) == 3
+    assert [b["tool_use_id"] for b in chat[2]["content"]] == ["a", "b"]
+
+
+async def test_claude_final_answer_text_and_no_tools_when_capped():
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        return httpx2.Response(200, json=_message([{"type": "text", "text": "Done."}]))
+
+    turn = await _model(handler).complete([{"role": "user", "content": "hi"}], allow_tools=False)
+    assert turn.content == "Done." and turn.tool_calls == []
+    assert bodies[0]["tool_choice"] == {"type": "none"}
+
+
+async def test_claude_errors_are_not_retried_and_become_llm_errors():
     seen = []
 
     def handler(request):
         seen.append(request)
-        return httpx.Response(503, json={"error": {"message": "busy", "type": "x", "param": None, "code": "SERVICE_UNAVAILABLE"}})
+        return httpx2.Response(503, json={"type": "error", "error": {"type": "overloaded_error", "message": "busy"}})
 
-    model = BitdeerChatModel(
-        api_key="sk-test",
-        base_url="https://api-inference.bitdeer.ai/v1",
-        model="m",
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
     with pytest.raises(LlmError, match="HTTP 503"):
-        await model.complete([{"role": "user", "content": "hi"}], allow_tools=False)
+        await _model(handler).complete([{"role": "user", "content": "hi"}], allow_tools=False)
     assert len(seen) == 1  # max_retries=0
 
 
-async def test_bitdeer_timeout_becomes_llm_error():
+async def test_claude_timeout_becomes_llm_error():
     def handler(request):
-        raise httpx.ReadTimeout("slow", request=request)
+        raise httpx2.ReadTimeout("slow", request=request)
 
-    model = BitdeerChatModel(
-        api_key="sk-test",
-        base_url="https://api-inference.bitdeer.ai/v1",
-        model="m",
-        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
-    )
     with pytest.raises(LlmError, match="timed out"):
-        await model.complete([{"role": "user", "content": "hi"}], allow_tools=False)
+        await _model(handler).complete([{"role": "user", "content": "hi"}], allow_tools=False)

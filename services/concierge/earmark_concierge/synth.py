@@ -1,7 +1,7 @@
 """Pre-synthesize config/phrases.json into config/phrases/<phrase_id>.wav with Cartesia's bytes endpoint.
 
 Same model snapshot, voice, encoding, and sample rate as live speech, so cached
-phrases sound identical (docs/vendor-notes/cartesia.md, section 5).
+phrases sound identical (docs/sponsors/vendor-notes/cartesia.md, section 5).
 """
 from __future__ import annotations
 

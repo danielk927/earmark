@@ -9,7 +9,7 @@ import sys
 from .bus import BusClient
 from .config import Settings
 from .core import Concierge
-from .intent import BitdeerChooser, IntentRouter
+from .intent import AnthropicChooser, IntentRouter
 from .latency import LatencyLog
 from .moss_index import MossIndex
 from .resolver import Resolver
@@ -28,9 +28,8 @@ def build(settings: Settings, emit, bus_connected=lambda: True) -> Concierge:
     index = (MossIndex(settings.moss_project_id, settings.moss_project_key, settings.moss_index_name)
              if settings.moss_enabled else None)
     resolver = Resolver(world, index, settings.moss_min_score, settings.moss_margin)
-    chooser = (BitdeerChooser(settings.bitdeer_api_key, settings.bitdeer_base_url,
-                              settings.bitdeer_chat_model, settings.llm_timeout_s)
-               if settings.bitdeer_enabled else None)
+    chooser = (AnthropicChooser(settings.anthropic_api_key, settings.anthropic_chat_model, settings.llm_timeout_s)
+               if settings.anthropic_enabled else None)
     router = IntentRouter(chooser, settings.llm_timeout_s)
     tts = SonicTts(settings) if settings.tts_enabled else None
     stt = CartesiaStt(settings, keyterms=lambda: ["Earmark"] + [
@@ -50,7 +49,7 @@ def build(settings: Settings, emit, bus_connected=lambda: True) -> Concierge:
 def describe(settings: Settings) -> str:
     return (f"bus={settings.bus_url} stt={'cartesia' if settings.cartesia_enabled else 'apple (no key)'} "
             f"tts={'cartesia' if settings.tts_enabled else 'system voice (no key/voice)'} "
-            f"llm={'bitdeer ' + settings.bitdeer_chat_model if settings.bitdeer_enabled else 'off (grammar)'} "
+            f"llm={'claude ' + settings.anthropic_chat_model if settings.anthropic_enabled else 'off (grammar)'} "
             f"resolver={'moss' if settings.moss_enabled else 'fallback (no key)'}")
 
 
@@ -74,7 +73,10 @@ async def run(settings: Settings, text: str | None = None, repl: bool = False) -
     log.info("concierge starting: %s", describe(settings))
 
     main = asyncio.current_task()
-    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown
+    try:
+        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown
+    except NotImplementedError:  # Windows has no loop signal handlers; terminate() kills the process
+        pass
     tasks = [asyncio.create_task(bus.run_forever()), asyncio.create_task(core.status_loop())]
     if text:
         tasks.append(asyncio.create_task(_inject_once(core, text)))

@@ -9,7 +9,7 @@ public enum PCM {
         AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
     }
 
-    /// 16 kHz mono interleaved Int16: what Cartesia Ink expects (docs/vendor-notes/cartesia.md section 3.4).
+    /// 16 kHz mono interleaved Int16: what Cartesia Ink expects (docs/sponsors/vendor-notes/cartesia.md section 3.4).
     public static let micFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true)!
     public static let micSampleRate = 16_000
     /// 100 ms of 16 kHz audio.
@@ -114,7 +114,7 @@ public struct SpeakChunkDecoder: Sendable {
 
 /// Stateful sample-rate / format converter around `AVAudioConverter`.
 /// Returns `.noDataNow` after each input so the resampler keeps its filter state across calls
-/// (docs/vendor-notes/apple-spatial-audio.md section 6); `flush()` drains the tail at end of stream.
+/// (docs/sponsors/vendor-notes/apple-spatial-audio.md section 6); `flush()` drains the tail at end of stream.
 public final class PCMResampler {
     public let input: AVAudioFormat
     public let output: AVAudioFormat

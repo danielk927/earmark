@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
+import math
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +21,8 @@ from earmark_contracts import (
 log = logging.getLogger(__name__)
 DEFAULT_TZ = "America/Los_Angeles"
 HEAD_YAW_FRESH_S = 2.0  # older head_pose readings are ignored for walking directions
+MAX_HISTORY = 10
+LISTENER_FRESH_S = 3.0  # a locator fix older than this is ignored
 
 
 @dataclass
@@ -56,7 +60,9 @@ class World:
         self.objects: dict[str, RegistryObject] = {}
         self.states: dict[str, ObjectState] = {}
         self.sightings: dict[str, Sighting] = {}
+        self.history: dict[str, list[Sighting]] = {}  # every place an object was noted, oldest first
         self.pickups: dict[str, LastPickup] = {}
+        self.listener_fix: tuple[list[float], float] | None = None  # last usable position, received at
         self.unknown_tag: UnknownTag | None = None
         self.listener: ListenerPose | None = None  # latest UWB/sim pose; None = origin, fixed
         self.head_yaw: float | None = None  # degrees from calibrated forward, right positive
@@ -72,6 +78,7 @@ class World:
         self.set_objects(msg.objects)
         self.registry_version = msg.registry_version
         self.states = {}
+        self.history = {}
         for st in msg.states:
             self.apply_state(st)
 
@@ -81,12 +88,21 @@ class World:
     def apply_state(self, st: ObjectState) -> None:
         self.states[st.object_id] = st
         loc = st.location
-        if loc.spot is not None or loc.area is not None or loc.near is not None:
-            self.sightings[st.object_id] = Sighting(
+        saved_spot = loc.position is not None and st.precision == "exact" and st.status == "roaming"
+        if loc.spot is not None or loc.area is not None or loc.near is not None or saved_spot:
+            sighting = Sighting(
                 spot=loc.spot, area=loc.area, near=loc.near,
                 position=list(loc.position) if loc.position else None,
                 t=st.last_seen_t if st.last_seen_t is not None else st.t,
             )
+            self.sightings[st.object_id] = sighting
+            trail = self.history.setdefault(st.object_id, [])
+            def place_of(s: Sighting) -> tuple:
+                return (s.spot, s.area, s.near)
+
+            if not trail or place_of(trail[-1]) != place_of(sighting):
+                trail.append(sighting)
+                del trail[:-MAX_HISTORY]
 
     def apply_pickup(self, msg: Pickup) -> None:
         self.pickups[msg.object_id] = LastPickup(from_spot=msg.from_spot, t=msg.t)
@@ -101,17 +117,44 @@ class World:
         self.head_yaw = msg.yaw
         self.head_yaw_t = time.time() if now is None else now
 
-    def listener_view(self, now: float | None = None) -> tuple[list[float] | None, str, float | None]:
-        """(position, mode, fresh yaw) for direction phrasing; (None, 'fixed', None) before any pose.
-
-        Yaw is None (room frame) unless a head_pose arrived within HEAD_YAW_FRESH_S.
-        """
+    def fresh_yaw(self, now: float | None = None) -> float | None:
+        """Head yaw, or None (room frame) unless a head_pose arrived within HEAD_YAW_FRESH_S."""
         now = time.time() if now is None else now
         fresh = (self.head_yaw is not None and self.head_yaw_t is not None
                  and now - self.head_yaw_t <= HEAD_YAW_FRESH_S)
-        yaw = self.head_yaw if fresh else None
+        return self.head_yaw if fresh else None
+
+    def listener_view(self, now: float | None = None) -> tuple[list[float] | None, str | None, float | None]:
+        """(position, mode, fresh yaw) for direction phrasing; (None, 'fixed', yaw) before any pose.
+
+        mode is None for the beacon locator, which has no walking modes.
+        """
         p = self.listener
+        yaw = self.fresh_yaw(now)
         return (list(p.position), p.mode, yaw) if p else (None, "fixed", yaw)
+
+    def apply_listener(self, msg: ListenerPose) -> None:
+        self.listener = msg
+        if msg.quality != "lost":
+            self.listener_fix = (list(msg.position), time.time())
+
+    def listener_position(self) -> list[float] | None:
+        """Where the locator last put the user, or None when it is old or missing."""
+        if self.listener_fix is None or time.time() - self.listener_fix[1] > LISTENER_FRESH_S:
+            return None
+        return self.listener_fix[0]
+
+    def relative(self, pos: list[float]) -> list[float]:
+        """A room position as seen by the user: from where they stand, turned to where they face.
+
+        With no fresh locator fix the user is assumed to be at the origin facing forward.
+        """
+        here = self.listener_position() or [0.0, 0.0, 0.0]
+        dx, dy = pos[0] - here[0], pos[1] - here[1]
+        yaw = self.fresh_yaw() or 0.0
+        r = math.hypot(dx, dy)
+        az = math.atan2(dx, dy) - math.radians(yaw)
+        return [r * math.sin(az), r * math.cos(az), pos[2] - here[2] if len(pos) > 2 else 0.0]
 
     def apply_unknown_tag(self, msg: UnknownTag) -> None:
         self.unknown_tag = msg
@@ -145,6 +188,21 @@ class World:
                 if a.area == area:
                     return a.label or "the " + a.area.replace("_", " ")
         return "the " + area.replace("_", " ")
+
+    def area_ids(self) -> list[str]:
+        return [a.area for a in self.space.areas] if self.space else []
+
+    def resolve_area(self, text: str) -> str | None:
+        """'the drawer' -> 'drawer'. Matches a saved place's id or label, ignoring 'the'/'my'."""
+        def norm(s: str) -> str:
+            return re.sub(r"^(?:the|my|a|an)\s+", "", " ".join(s.lower().replace("_", " ").split()))
+        wanted = norm(text)
+        if not wanted or self.space is None:
+            return None
+        for a in self.space.areas:
+            if wanted in (norm(a.area), norm(a.label or "")):
+                return a.area
+        return None
 
     def receiver_label(self, receiver: str) -> str:
         if self.space:

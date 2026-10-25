@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ptt.schema.json",
+  "title": "ptt",
+  "description": "Push-to-talk control (LOCATOR_BRIEF.md section 2.4). The Mac app publishes it on the bus and the locator consumes it; the locator's backup button also sends it to the bus. On start the locator begins streaming mic_audio chunks (seq from 0); on stop it flushes the last partial chunk and stops sending.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "state"],
+  "properties": {
+    "type": {
+      "const": "ptt",
+      "description": "Message type discriminator."
+    },
+    "state": {
+      "enum": ["start", "stop"],
+      "description": "Exactly these two strings, lowercase."
+    }
+  }
+}

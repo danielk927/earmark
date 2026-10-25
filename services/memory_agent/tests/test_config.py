@@ -8,10 +8,9 @@ from earmark_memory.pipeline import build_pipeline
 
 
 def test_defaults_and_blank_values():
-    s = load_settings({"BITDEER_API_KEY": "  ", "MEMORY_AGENT_SEED": ""})
-    assert (s.convex_site_url, s.read_secret, s.bitdeer_api_key, s.agent_seed) == (None, None, None, None)
-    assert s.bitdeer_base_url == "https://api-inference.bitdeer.ai/v1"
-    assert s.bitdeer_model == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    s = load_settings({"ANTHROPIC_API_KEY": "  ", "MEMORY_AGENT_SEED": ""})
+    assert (s.convex_site_url, s.read_secret, s.anthropic_api_key, s.agent_seed) == (None, None, None, None)
+    assert s.anthropic_model == "claude-sonnet-5-5"
     assert (s.agent_name, s.agent_port) == ("earmark-memory", 8010)
     assert not s.llm_enabled and not s.convex_configured
 
@@ -33,8 +32,8 @@ def test_dotenv_never_overrides_the_environment(tmp_path, monkeypatch):
 def test_fakes_are_chosen_when_keys_are_missing():
     p = build_pipeline(load_settings({}))
     assert isinstance(p.reader, FixtureConvexReader) and p.chat_model is None
-    p = build_pipeline(load_settings({"BITDEER_API_KEY": "sk-x"}), use_llm=True)
-    assert p.chat_model is not None and p.chat_model.model == "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+    p = build_pipeline(load_settings({"ANTHROPIC_API_KEY": "sk-x"}), use_llm=True)
+    assert p.chat_model is not None and p.chat_model.model == "claude-sonnet-5-5"
 
 
 def test_convex_url_without_secret_is_an_error():

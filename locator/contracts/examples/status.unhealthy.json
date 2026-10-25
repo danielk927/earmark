@@ -1,0 +1,6 @@
+{
+  "type": "status",
+  "component": "locator",
+  "ok": false,
+  "detail": "quality lost: no valid fix for 1.5 s"
+}

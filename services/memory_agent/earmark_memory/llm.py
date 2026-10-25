@@ -1,4 +1,4 @@
-"""Bitdeer-hosted chat model and the multi-step tool-calling loop.
+"""Claude chat model and the multi-step tool-calling loop.
 
 The model only chooses tools and phrases the answer; every fact it sees was fetched and
 formatted by code (tools.py). Any failure raises `LlmError` and the pipeline falls back.
@@ -14,11 +14,9 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any, Protocol
 
-import httpx
-import openai
-from openai import AsyncOpenAI
+import anthropic
 
-from .config import LLM_MAX_TOKENS, LLM_REASONING_EFFORT, LLM_REQUEST_TIMEOUT_S, LLM_TOTAL_BUDGET_S, MAX_TOOL_CALLS
+from .config import LLM_EFFORT, LLM_MAX_TOKENS, LLM_REQUEST_TIMEOUT_S, LLM_TOTAL_BUDGET_S, MAX_TOOL_CALLS
 from .household import HouseholdClock
 from .tools import TOOL_SPECS, Toolbox
 
@@ -68,47 +66,74 @@ class ChatModel(Protocol):
     async def complete(self, messages: list[dict[str, Any]], *, allow_tools: bool) -> AssistantTurn: ...
 
 
-class BitdeerChatModel:
-    """OpenAI-compatible client for Bitdeer: bounded timeout, no SDK retries, reasoning off."""
+def _to_anthropic(messages: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The loop's chat-style messages -> (system blocks, Claude messages).
+
+    Consecutive tool results go into one user message, as the API requires.
+    """
+    system: list[dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
+    for m in messages:
+        role = m["role"]
+        if role == "system":
+            system.append({"type": "text", "text": m["content"]})
+        elif role == "user":
+            out.append({"role": "user", "content": m["content"]})
+        elif role == "assistant":
+            blocks: list[dict[str, Any]] = [{"type": "text", "text": m["content"]}] if m.get("content") else []
+            for c in m.get("tool_calls", []):
+                fn = c["function"]
+                blocks.append({"type": "tool_use", "id": c["id"], "name": fn["name"], "input": json.loads(fn["arguments"] or "{}")})
+            out.append({"role": "assistant", "content": blocks})
+        else:  # tool
+            block = {"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}
+            if out and out[-1]["role"] == "user" and isinstance(out[-1]["content"], list):
+                out[-1]["content"].append(block)
+            else:
+                out.append({"role": "user", "content": [block]})
+    return system, out
+
+
+class AnthropicChatModel:
+    """Claude through the Anthropic SDK: bounded timeout, no SDK retries, thinking off between tool calls."""
 
     def __init__(
         self,
         *,
         api_key: str,
-        base_url: str,
         model: str,
         timeout_s: float = LLM_REQUEST_TIMEOUT_S,
-        http_client: httpx.AsyncClient | None = None,
+        http_client: Any = None,  # an httpx2.AsyncClient (tests pass a mock transport)
     ):
         self.model = model
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=0, http_client=http_client)
+        self._client = anthropic.AsyncAnthropic(api_key=api_key, timeout=timeout_s, max_retries=0, http_client=http_client)
+        self._tools = [
+            {"name": s["function"]["name"], "description": s["function"]["description"], "input_schema": s["function"]["parameters"]}
+            for s in TOOL_SPECS
+        ]
 
     async def complete(self, messages: list[dict[str, Any]], *, allow_tools: bool) -> AssistantTurn:
+        system, chat = _to_anthropic(messages)
         try:
-            resp = await self._client.chat.completions.create(
+            resp = await self._client.messages.create(
                 model=self.model,
-                messages=messages,
-                tools=TOOL_SPECS,
-                tool_choice="auto" if allow_tools else "none",
                 max_tokens=LLM_MAX_TOKENS,
-                temperature=0.2,
-                extra_body={"reasoning_effort": LLM_REASONING_EFFORT},
+                system=system,
+                messages=chat,
+                tools=self._tools,
+                tool_choice={"type": "auto"} if allow_tools else {"type": "none"},
+                thinking={"type": "between_tools"},
+                output_config={"effort": LLM_EFFORT},
             )
-        except openai.APITimeoutError as exc:
-            raise LlmError("Bitdeer request timed out") from exc
-        except openai.APIStatusError as exc:
-            raise LlmError(f"Bitdeer returned HTTP {exc.status_code}") from exc
-        except openai.APIError as exc:
-            raise LlmError(f"Bitdeer request failed ({type(exc).__name__})") from exc
-        if not resp.choices:
-            raise LlmError("Bitdeer returned no choices")
-        msg = resp.choices[0].message
-        calls = [
-            ToolRequest(c.id, c.function.name, c.function.arguments or "{}")
-            for c in (msg.tool_calls or [])
-            if getattr(c, "function", None) is not None
-        ]
-        return AssistantTurn(content=msg.content, tool_calls=calls)
+        except anthropic.APITimeoutError as exc:
+            raise LlmError("Claude request timed out") from exc
+        except anthropic.APIStatusError as exc:
+            raise LlmError(f"Claude returned HTTP {exc.status_code}") from exc
+        except anthropic.APIError as exc:
+            raise LlmError(f"Claude request failed ({type(exc).__name__})") from exc
+        text = "".join(b.text for b in resp.content if b.type == "text")
+        calls = [ToolRequest(b.id, b.name, json.dumps(b.input)) for b in resp.content if b.type == "tool_use"]
+        return AssistantTurn(content=text or None, tool_calls=calls)
 
 
 @dataclass

@@ -24,7 +24,7 @@ struct DebugPanel: View {
                         row("Last feedback", core.lastFeedback.map { "\($0.event.rawValue)\($0.turn.map { " " + $0.rawValue } ?? "")" } ?? "-")
                         row("Listener x / y", String(format: "%+.2f / %+.2f m", pose.listener.x, pose.listener.y))
                         row("Listener pose", core.listenerPose.map { p in
-                            "\(p.mode.rawValue), \(p.source.rawValue), \(p.anchorsUsed) anchors" + (p.residualM.map { String(format: ", res %.2f m", $0) } ?? "")
+                            "\(p.mode?.rawValue ?? "none"), \(p.source.rawValue), \(p.anchorsUsed ?? 0) anchors" + (p.residualM.map { String(format: ", res %.2f m", $0) } ?? "")
                         } ?? "none (origin)")
                         row("Target distance", g.map { String(format: "%.2f m", $0.distanceM) } ?? "-")
                     }
@@ -145,8 +145,6 @@ struct SettingsView: View {
                 Section("Walking guidance (UWB)") {
                     Button("Calibrate UWB anchors...") { showCalibration = true }
                         .accessibilityHint("Opens the anchor measurements, position check, and save to space.json")
-                    tuning("Listener glide", value: $m.listenerGlideSec, range: 0...1, step: 0.05, unit: "s",
-                           help: "How long the sound glides to each new position (hub blend_s, default 0.4 s). Lower follows a walk more tightly.")
                     tuning("Full volume within", value: $m.attenuation.referenceDistance, range: 0.2...2, step: 0.1, unit: "m",
                            help: "Cues closer than this are not attenuated (default 0.6 m, so the seated demo sounds the same).")
                     tuning("No quieter beyond", value: $m.attenuation.maximumDistance, range: 2...20, step: 0.5, unit: "m",

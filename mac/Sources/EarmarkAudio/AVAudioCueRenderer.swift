@@ -29,6 +29,7 @@ public final class AVAudioCueRenderer: SpatialRenderer {
     private var attenuation = DistanceAttenuation()
     private var ducked = false
     private var masterGain: Float = 1
+    private var proximityGain: Float = 1
     private var running = false
     private var graphBuilt = false
 
@@ -189,6 +190,10 @@ public final class AVAudioCueRenderer: SpatialRenderer {
         lock.withLock { masterGain = min(max(gain, 0), 1); applyGainLocked() }
     }
 
+    public func setProximityGain(_ gain: Float) {
+        lock.withLock { proximityGain = min(max(gain, 0), 1); applyGainLocked() }
+    }
+
     public func setTimbre(_ timbre: PingTimbre) {
         lock.withLock {
             guard timbre != self.timbre else { return }
@@ -205,7 +210,7 @@ public final class AVAudioCueRenderer: SpatialRenderer {
     }
 
     private func applyGainLocked() {
-        let g = masterGain * (ducked ? Self.duckGain : 1)
+        let g = masterGain * proximityGain * (ducked ? Self.duckGain : 1)
         if let env { env.outputVolume = g } else { panMixer?.outputVolume = g }
     }
 

@@ -9,7 +9,7 @@ Spot readers are modeled as polling firmware: every spot reports every TICK seco
 That is the raw signal the hub's debounce (2 matching reads to place, ~1.5 s of
 continuous absence to remove) is designed for.
 
-`uwb_walk` adds the wearer iPhone (docs/UWB-PRD.md 8.6): `uwb_range` to every anchor
+`uwb_walk` adds the wearer iPhone (docs/project/UWB-PRD.md 8.6): `uwb_range` to every anchor
 in config/space.json at UWB_HZ and `motion_state` (on change plus a 1 s heartbeat),
 computed with the hub's slant geometry (earmark_hub/uwb/tracker.wearer_geometry).
 
@@ -189,6 +189,24 @@ def scenarios():
     # The fob is first heard at t=2 (far), so the question at t=8 gets the proximity answer.
     s["roaming_keys"] = [fob_lost(0.0), say(8.0, "Where are my keys?")] + keys_far_to_near(2.0, 20.0)
 
+    # The user says where the keys went, asks for them, moves them, then asks where they were before.
+    s["put_in_place"] = [
+        {"type": "ptt", "state": "stop", "t": 0.0},  # a harmless first line: the clock starts at the first message
+        say(8.0, "I put my keys in the drawer."),
+        say(11.0, "Where are my keys?"),
+        say(17.0, "I put my keys in the bag."),
+        say(23.0, "Where did I put my keys before?"),
+    ]
+
+    # The locator says where the user stands; "leaving it here" saves that spot, and the ping leads back to it.
+    s["put_here"] = [
+        {"type": "listener_pose", "position": [0.8, -0.4, 1.5], "quality": "ok", "beacons_heard": 5,
+         "source": "beacons", "t": float(k) / 3} for k in range(3, 27)  # the locator reports about 3 times a second
+    ] + [say(8.0, "I'm leaving my keys here.")] + [
+        {"type": "listener_pose", "position": [0.0, 0.0, 1.5], "quality": "ok", "beacons_heard": 5,
+         "source": "beacons", "t": float(k) / 3} for k in range(30, 54)
+    ] + [say(15.0, "Where are my keys?")]
+
     s["label_new_item"] = spot_reads(15, [(3.0, 1, "unknown")]) + [
         say(7.0, "This is honey."),
     ]
@@ -217,7 +235,7 @@ def scenarios():
     full += [fob_lost(0.0)] + keys_far_to_near(50.0, 75.0)
     s["full_demo"] = full
 
-    # UWB walking guidance (docs/UWB-PRD.md 8.6 and 12.1 e2e):
+    # UWB walking guidance (docs/project/UWB-PRD.md 8.6 and 12.1 e2e):
     #  1. standing on the start mark, ranging: "Where's the sugar?"  -> tracked: meters phrasing
     #  2. walks to the counter at 0.6 m/s and stops at the origin    -> frozen: "You're at the counter."
     #  3. stays still well past still_for_s + average_window_s, then the wrong-jar flow:

@@ -30,6 +30,7 @@ export const eventKind = v.union(
   v.literal("pickup_result"),
   v.literal("unknown_tag"),
   v.literal("label"),
+  v.literal("stored"),
   v.literal("chirp"),
   v.literal("trial_start"),
   v.literal("trial_end"),

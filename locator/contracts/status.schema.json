@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "status.schema.json",
+  "title": "status",
+  "description": "Locator -> hub health heartbeat (LOCATOR_BRIEF.md section 2.4). Sent every 2 s and whenever something changes. ok is false when quality is lost, the mic isn't running, or the config is invalid. Debug data stays local: detail is a short human-readable summary, never a payload dump.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "component", "ok", "detail"],
+  "properties": {
+    "type": {
+      "const": "status",
+      "description": "Message type discriminator."
+    },
+    "component": {
+      "const": "locator",
+      "description": "Identifies this component on the bus."
+    },
+    "ok": {
+      "type": "boolean",
+      "description": "False when quality is lost, the mic isn't running, or the config is invalid."
+    },
+    "detail": {
+      "type": "string",
+      "description": "Short human-readable summary, e.g. 'beacons 5/5, 3.3 fix/s, quality ok, src beacons'."
+    }
+  }
+}

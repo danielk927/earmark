@@ -13,14 +13,15 @@ import json
 import time
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 Vec3 = Annotated[list[float], Field(min_length=3, max_length=3)]
 Source = Literal["simulator", "nfc", "ble", "camera", "ultrasonic"]
 Precision = Literal["exact", "area", "proximity", "none"]
 DistanceClass = Literal["near", "mid", "far"]
 Status = Literal["on_spot", "held", "missing", "roaming"]
-Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent", "ios_anchor", "ios_wearer"]
+Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent", "locator",
+                    "ios_anchor", "ios_wearer"]
 
 
 class _Model(BaseModel):
@@ -70,6 +71,8 @@ class Anchor(_Model):
 class Tracking(_Model):
     phone_z: float | None = None
     head_offset_m: float | None = Field(default=None, ge=0)
+    ear_z_m: float | None = None
+    mark_z_m: float | None = None
 
 
 class Space(_Model):
@@ -182,6 +185,7 @@ class Hello(_Msg):
     device_id: str | None = Field(default=None, min_length=1)
     role: Literal["anchor", "wearer"] | None = None
     secret: str | None = Field(default=None, repr=False)
+    token: str | None = None  # sent by the locator; accepted and ignored
 
 
 class Snapshot(_Msg):
@@ -211,6 +215,24 @@ class Label(_Msg):
     name: str = Field(min_length=1)
     aliases: list[str]
     spot: int | None = None
+
+
+class PlaceItem(_Msg):
+    type: Literal["place_item"] = "place_item"
+    object_id: str
+    area: str | None = Field(default=None, min_length=1)
+    position: Vec3 | None = None
+
+    @model_validator(mode="after")
+    def _where(self) -> "PlaceItem":
+        if self.area is None and self.position is None:
+            raise ValueError("place_item needs an area or a position")
+        return self
+
+
+class Ptt(_Msg):
+    type: Literal["ptt"] = "ptt"
+    state: Literal["start", "stop"]
 
 
 class MicAudio(_Msg):
@@ -275,7 +297,7 @@ class GuideStop(_Msg):
 class GuideFeedback(_Msg):
     type: Literal["guide_feedback"] = "guide_feedback"
     object_id: str
-    event: Literal["behind", "front", "locked"]
+    event: Literal["behind", "front", "locked", "arrived"]
     turn: Literal["left", "right"] | None
     error_deg: float
 
@@ -350,7 +372,7 @@ class Reset(_Msg):
 # ---------------------------------------------------------------- UWB walking guidance
 
 ListenerMode = Literal["tracked", "frozen", "lost", "fixed"]
-PoseSource = Literal["uwb", "sound", "sim", "none"]
+PoseSource = Literal["beacons", "uwb", "sound", "steps", "sim", "manual", "none"]
 
 
 class UwbToken(_Msg):
@@ -381,13 +403,16 @@ class AnchorHealth(_Model):
 
 
 class ListenerPose(_Msg):
+    """One shape for both producers: the beacon locator sends beacons_heard, the UWB tracker the rest."""
     type: Literal["listener_pose"] = "listener_pose"
     position: Vec3
-    mode: ListenerMode
+    quality: Literal["ok", "degraded", "lost"]
     source: PoseSource
-    residual_m: float | None
-    anchors_used: int = Field(ge=0)
-    blocked: list[str]
+    beacons_heard: int | None = Field(default=None, ge=0, le=5)
+    mode: ListenerMode | None = None
+    residual_m: float | None = None
+    anchors_used: int | None = Field(default=None, ge=0)
+    blocked: list[str] | None = None
     anchors: list[AnchorHealth] | None = None
 
 
@@ -398,7 +423,7 @@ class ListenerCommand(_Msg):
 
 BusMessage = Annotated[
     Union[
-        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, MicAudio,
+        Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, PlaceItem, Ptt, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
         UwbToken, UwbRange, MotionState, ListenerPose, ListenerCommand,
@@ -432,7 +457,7 @@ def dump(model: BaseModel) -> str:
 
 class HubEvent(_Model):
     event_id: str = Field(min_length=8)
-    kind: Literal["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "chirp", "trial_start", "trial_end"]
+    kind: Literal["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "stored", "chirp", "trial_start", "trial_end"]
     object_id: str | None
     t: float
     data: dict[str, Any]

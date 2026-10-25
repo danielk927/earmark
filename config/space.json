@@ -6,12 +6,18 @@
     { "spot": 3, "label": "center right", "position": [ 0.16, 0.58, 0.0] },
     { "spot": 4, "label": "far right",    "position": [ 0.42, 0.42, 0.0] }
   ],
-  "areas": [ { "area": "kitchen_counter", "label": "the counter", "position": [0, 0.6, 0] } ],
+  "areas": [
+    { "area": "kitchen_counter", "label": "the counter", "position": [0, 0.6, 0] },
+    { "area": "cupboard", "label": "the cupboard", "position": [0, 1.5, 1.0] },
+    { "area": "drawer", "label": "the drawer", "position": [1.5, 0, 0.4] },
+    { "area": "bag", "label": "the bag", "position": [-1.5, 0, 0.5] },
+    { "area": "box", "label": "the box", "position": [0, -1.5, 0.8] }
+  ],
   "receivers": [ { "receiver": "hub", "label": "the counter", "position": [0, 0.6, 0] } ],
   "anchors": [
-    { "anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9,  0.75, -0.25] },
-    { "anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [ 0.9,  0.75, -0.25] },
-    { "anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8,  -0.25] }
+    { "anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9,  0.75, 1.3] },
+    { "anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [ 0.9,  0.75, 1.3] },
+    { "anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8,  1.3] }
   ],
-  "tracking": { "phone_z": -0.35, "head_offset_m": 0.2 }
+  "tracking": { "phone_z": -0.35, "head_offset_m": 0.2, "ear_z_m": 1.55, "mark_z_m": 0.9 }
 }

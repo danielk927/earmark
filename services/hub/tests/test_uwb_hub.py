@@ -1,4 +1,4 @@
-"""UWB in the hub (docs/UWB-PRD.md 8, 9.4): token relay, bus auth for the iPhones, NFC re-anchor through the
+"""UWB in the hub (docs/project/UWB-PRD.md 8, 9.4): token relay, bus auth for the iPhones, NFC re-anchor through the
 state engine, and listener_pose on the bus. In-process hub with real WebSocket clients, real clock."""
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ def token(frm, to, b64="QUJD"):
     return UwbToken(**{"from": frm}, to=to, token_b64=b64)
 
 
-def ranges_from(space, head, phone_z=-0.35, offset=0.2, seq=0):
+def ranges_from(space, head, phone_z=1.2, offset=0.2, seq=0):  # space.json: ear_z_m 1.55 + phone_z -0.35
     """Wearer ranges to every anchor for a head at `head` facing the counter (phone `offset` m in front)."""
     phone = (head[0], head[1] + offset, phone_z)
     return [UwbRange(anchor=a.anchor, distance_m=round(math.dist(phone, a.position), 4), seq=seq)

@@ -71,6 +71,8 @@ class Speaker:
             t0 = time.perf_counter()
             if not self.mac_app_present():
                 kind = await self._say_local(text)
+                # Nothing on the bus speaks this, but the live room page shows it as a caption.
+                await self.emit(SpeakText(utterance_id=utterance_id, text=text))
             elif pid:
                 await self.emit(SpeakCached(phrase_id=pid, utterance_id=utterance_id, text=text))
                 kind = "speak_cached"

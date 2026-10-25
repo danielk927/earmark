@@ -17,7 +17,7 @@ import type * as ingest from "../ingest.js";
 import type * as labeling from "../labeling.js";
 import type * as lib_adherence from "../lib/adherence.js";
 import type * as lib_auth from "../lib/auth.js";
-import type * as lib_bitdeer from "../lib/bitdeer.js";
+import type * as lib_claude from "../lib/claude.js";
 import type * as lib_describe from "../lib/describe.js";
 import type * as lib_match from "../lib/match.js";
 import type * as lib_registry from "../lib/registry.js";
@@ -49,7 +49,7 @@ declare const fullApi: ApiFromModules<{
   labeling: typeof labeling;
   "lib/adherence": typeof lib_adherence;
   "lib/auth": typeof lib_auth;
-  "lib/bitdeer": typeof lib_bitdeer;
+  "lib/claude": typeof lib_claude;
   "lib/describe": typeof lib_describe;
   "lib/match": typeof lib_match;
   "lib/registry": typeof lib_registry;
