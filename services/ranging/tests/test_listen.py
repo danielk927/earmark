@@ -298,3 +298,69 @@ def test_a_beacon_phone_set_to_the_wrong_number_is_named():
     hint = svc.wrong_beacon_hint()
     assert hint is not None and "Beacon 2" in hint and "B1" in hint and "--only B2" in hint
     assert svc.missing_beacons() == [1]
+
+
+THREE = {1: (0.0, 1.2, 0.75), 2: (1.2, -0.6, 0.75), 3: (-1.2, -0.6, 0.75)}
+
+
+def _three_tracker():
+    from earmark_ranging.listen import BeaconSchedule
+
+    return Tracker({k: BeaconSchedule((k - 1) * 0.125, 0.5) for k in THREE}, C, THREE)  # each beacon chirps in its own slot
+
+
+def _hear(tracker, k, true_xy, z, t_cycle):
+    """Give the tracker the one chirp beacon `k` would have produced in cycle `t_cycle`; returns the ranges."""
+    d = math.dist((*true_xy, z), THREE[k])
+    det = Detection(t_cycle * 0.5 + (k - 1) * 0.125 + d / C, "up" if k % 2 else "down", 1.0, 100.0)
+    return tracker.add([det], t_cycle * 0.5 + 1.0)
+
+
+def _step(tracker, true_xy, cycle, beacons=(1, 2, 3)):
+    for k in beacons:
+        _hear(tracker, k, true_xy, 1.25, cycle)
+    return tracker.fix(cycle * 0.5 + 0.2)
+
+
+def test_with_three_beacons_configured_two_fresh_distances_publish_nothing():
+    # Used to fall back to the two-beacon solver; that flipped between answers, so now three are required.
+    tr = _three_tracker()
+    assert _step(tr, (0.1, 0.2), 40, beacons=(1, 2)) is None
+    assert _step(tr, (0.1, 0.2), 60, beacons=(1, 3)) is None  # B2's old distance is long stale
+    assert _step(tr, (0.1, 0.2), 61) is not None
+
+
+def test_steady_input_converges_to_the_truth():
+    tr = _three_tracker()
+    true = (0.2, 0.1)
+    got = None
+    for cycle in range(40, 50):
+        got = _step(tr, true, cycle) or got
+    assert got is not None and math.dist(got[0].position[:2], true) < 0.02
+
+
+def test_jumpy_input_stays_under_the_speed_limit():
+    from earmark_ranging.listen import FIX_SLACK_M, MAX_FIX_MPS
+
+    tr = _three_tracker()
+    published = []
+    for cycle in range(40, 80):
+        # every third reading is a wild one, far from where the user stands
+        true = (1.0, -0.4) if cycle % 3 == 0 else (0.1, 0.2)
+        got = _step(tr, true, cycle)
+        if got is not None:
+            published.append((cycle * 0.5 + 0.2, got[0].position))
+    assert len(published) > 10
+    assert all(abs(p[1][0] - 0.1) < 0.05 and abs(p[1][1] - 0.2) < 0.05 for p in published)
+    for (t0, p0), (t1, p1) in zip(published, published[1:], strict=False):
+        assert math.dist(p0, p1) <= FIX_SLACK_M + MAX_FIX_MPS * (t1 - t0)
+
+
+def test_a_real_move_is_followed_after_a_few_rejected_fixes():
+    tr = _three_tracker()
+    for cycle in range(40, 45):
+        _step(tr, (0.0, 0.0), cycle)
+    got = None
+    for cycle in range(45, 60):  # the user is now somewhere else for good
+        got = _step(tr, (0.9, 0.5), cycle) or got
+    assert got is not None and math.dist(got[0].position[:2], (0.9, 0.5)) < 0.05

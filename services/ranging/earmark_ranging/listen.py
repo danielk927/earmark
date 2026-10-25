@@ -13,8 +13,9 @@ Nothing in here talks to the network; the service feeds it detections and prints
 from __future__ import annotations
 
 import math
+from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 from earmark_contracts import ListenerPose
@@ -29,7 +30,11 @@ MAX_BEACONS = 4
 MIN_KEPT = 12  # chirps a calibration needs from each beacon
 MAX_RESIDUAL_S = 0.0003  # how ragged the fitted schedule may be
 MAX_PERIOD_PPM = 150.0  # two phone clocks differ by tens of ppm; more than this means the phone was moving
-MAX_JUMP_M = 2.0
+MAX_FIX_MPS = 1.5  # a position may move this fast at most; a faster fix is thrown away
+FIX_SLACK_M = 0.10  # plus this much measurement wobble
+MAX_REJECTS = 3  # after this many thrown-away fixes in a row, believe the next one so we can recover
+FIX_FORGET_S = 1.5  # after this long without a fix, start fresh (no speed check, no smoothing)
+SMOOTH_FIXES = 3  # the published x and y are the middle value of this many recent fixes
 MAX_WALK_MPS = 1.2  # a distance may change this fast at most (a blindfolded user walks slowly)
 JUMP_SLACK_M = 0.3  # plus this much measurement wobble
 JUMP_FORGET_S = 2.0  # after this long without a good distance, believe the next one
@@ -363,7 +368,8 @@ class Tracker:
         self.pending: dict[tuple[int, int], list[Detection]] = {}
         self.last_fix: Fix | None = None
         self.last_fix_t: float | None = None
-        self._outliers = 0
+        self._rejects = 0
+        self._recent: deque[tuple[float, float]] = deque(maxlen=SMOOTH_FIXES)
         self._suspect: dict[int, Range] = {}  # a distance that jumped; believed only if the next one agrees
 
     def _jumped(self, k: int, r: Range) -> bool:
@@ -415,28 +421,42 @@ class Tracker:
         return {k: r for k, r in self.latest.items() if now_t - r.t <= self.max_age}
 
     def fix(self, now_t: float) -> tuple[Fix, ListenerPose] | None:
-        """A position from the fresh distances, or None with fewer than three or when they disagree."""
+        """A steady position from the fresh distances, or None.
+
+        With three or more beacons configured it needs three fresh distances (two would flip between answers);
+        with exactly two configured it uses both. A fix that implies moving faster than a person walks is dropped,
+        and what is published is lightly smoothed.
+        """
         fresh = self.fresh(now_t)
         anchors = {f"B{k}": p for k, p in self.beacons.items()}
         dists = {f"B{k}": r.distance_m for k, r in fresh.items()}
+        if len(fresh) < min(len(self.beacons), 3):
+            return None
         if len(fresh) == 2:
             prefer = self.last_fix.position[:2] if self.last_fix else self.side_ref
             fix = locate_two(anchors, dists, prefer, z=self.z_prior[0] if self.z_prior else 1.25)
-        elif len(fresh) < 3:
-            return None
         else:
             fix = locate(anchors, dists, start=self.last_fix.position if self.last_fix else None, z_prior=self.z_prior)
         if fix is None:
             return None
-        if self.last_fix is not None and self.last_fix_t is not None and now_t - self.last_fix_t < 1.5:
-            if math.dist(fix.position, self.last_fix.position) > MAX_JUMP_M and self._outliers < 1:
-                self._outliers += 1  # one wild fix is ignored; two in a row means the user really moved
-                return None
-        self._outliers = 0
+        if self.last_fix is not None and self.last_fix_t is not None and now_t - self.last_fix_t < FIX_FORGET_S:
+            allowed = FIX_SLACK_M + MAX_FIX_MPS * max(now_t - self.last_fix_t, 0.0)
+            if math.dist(fix.position, self.last_fix.position) > allowed:
+                if self._rejects < MAX_REJECTS:
+                    self._rejects += 1
+                    return None
+                self._recent.clear()  # we moved for real: do not average with where we were
+        else:
+            self._recent.clear()
+        self._rejects = 0
         self.last_fix, self.last_fix_t = fix, now_t
-        pos = [round(fix.position[i] + self.ear_offset[i], 3) for i in range(3)]
+        self._recent.append(fix.position[:2])
+        x = float(np.median([p[0] for p in self._recent]))
+        y = float(np.median([p[1] for p in self._recent]))
+        shown = replace(fix, position=(x, y, fix.position[2]))
+        pos = [round(shown.position[i] + self.ear_offset[i], 3) for i in range(3)]
         quality = "ok" if fix.used >= 3 and fix.rms_m <= 0.10 else "degraded"  # two beacons cannot check themselves
-        return fix, ListenerPose(position=pos, quality=quality, beacons_heard=fix.used, source="beacons")
+        return shown, ListenerPose(position=pos, quality=quality, beacons_heard=fix.used, source="beacons")
 
 
 def known_distances(beacons: dict[int, Pos], distance: float | None = None, at: Pos | None = None) -> dict[int, float]:
