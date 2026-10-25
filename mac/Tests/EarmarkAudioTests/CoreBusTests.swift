@@ -1,6 +1,7 @@
 import EarmarkAudio
 import EarmarkContracts
 import Foundation
+import simd
 import Testing
 
 /// Bus message handling with a mock renderer and mock head tracker.
@@ -187,6 +188,88 @@ import Testing
         #expect(core.objects.contains { $0.objectId == "sugar" })
         core.handle(example("state_update", "03"))
         #expect(core.states["salt"]?.status == .held)
+    }
+
+    // MARK: UWB walking guidance
+
+    @Test func listenerPoseMovesTheRendererListenerAndGuidance() throws {
+        core.handle(example("guide_start", "01"))       // sugar at (0.16, 0.58, 0)
+        core.handle(example("listener_pose", "01"))     // tracked at (0.12, -1.85, 0)
+        #expect(core.listenerTracked)
+        #expect(core.listenerPose?.anchorsUsed == 3)
+        run(0.5)                                         // longer than the 0.4 s glide
+        #expect(simd_distance(renderer.listenerPosition, [0.12, -1.85, 0]) < 1e-9)
+        #expect(core.listenerPosition == renderer.listenerPosition)
+        let s = try #require(core.guidanceState)
+        let az = Geometry.azimuthDeg([0.16, 0.58, 0], from: [0.12, -1.85, 0])
+        #expect(abs(s.targetAzimuthDeg - az) < 1e-9)
+        #expect(abs(s.distanceM - Geometry.horizontalDistance([0.16, 0.58, 0], from: [0.12, -1.85, 0])) < 1e-9)
+        #expect(renderer.pingInterval == s.pingIntervalSec)
+        #expect(s.pingIntervalSec > Guidance.pingInterval(errorDeg: s.errorDeg))   // farther = slower
+    }
+
+    @Test func listenerGlideNeverJumps() {
+        core.handle(example("listener_pose", "01"))
+        run(0.6)
+        let path = [EarmarkPoint.zero] + renderer.listenerPositions
+        let maxStep = simd_length(EarmarkPoint(0.12, -1.85, 0)) / core.listenerGlideSec * 0.02 + 1e-9
+        #expect(path.count >= 20)                        // ~0.4 s of 20 ms steps
+        for (a, b) in zip(path, path.dropFirst()) { #expect(simd_distance(a, b) <= maxStep) }
+    }
+
+    @Test func fixedModeReturnsTheListenerToTheOrigin() {
+        core.handle(example("listener_pose", "01"))
+        run(0.5)
+        core.handle(example("listener_pose", "03"))     // fixed, source none
+        #expect(!core.listenerTracked)
+        run(0.5)
+        #expect(renderer.listenerPosition == .zero)
+        #expect(core.listenerPose?.mode == .fixed)
+    }
+
+    @Test func noPoseForTwoSecondsFallsBackToTheOrigin() {
+        core.handle(example("listener_pose", "01"))
+        run(1.5)
+        #expect(renderer.listenerPosition != .zero)      // still tracked
+        run(1.5)                                         // > 2 s without a pose, then the glide home
+        #expect(core.listenerPose == nil)
+        #expect(renderer.listenerPosition == .zero)
+    }
+
+    @Test func recenterCommandRecentersTheAirPods() {
+        head.setRawPose(yawDeg: 40)
+        #expect(renderer.yawDeg == 40)
+        core.handle(example("listener_command", "02"))  // recenter
+        #expect(abs(core.latestPose.yawDeg) < 1e-9)
+        #expect(renderer.yawDeg == 0)
+        #expect(core.captions.last?.text.hasPrefix("Recentered") == true)
+        core.handle(example("listener_command", "01"))  // freeze is the hub's: no recenter, no crash
+        #expect(core.captions.filter { $0.text.hasPrefix("Recentered") }.count == 1)
+    }
+
+    @Test func statusCarriesUWBKeys() throws {
+        run(0.1)
+        guard case .status(let off)? = busSink.ofType("status").last else { Issue.record("no status"); return }
+        #expect(off.info?["uwb_mode"] == .string("off"))
+        #expect(off.info?["uwb_residual_m"] == .null)
+        core.handle(example("listener_pose", "01"))
+        run(0.1)
+        guard case .status(let on)? = busSink.ofType("status").last else { Issue.record("no status"); return }
+        let info = try #require(on.info)
+        #expect(info["uwb_mode"] == .string("tracked"))
+        #expect(info["uwb_anchors_used"] == .number(3))
+        #expect(info["uwb_residual_m"] == .number(0.06))
+    }
+
+    @Test func headPoseKeepsFlowingWhileUWBIsActive() {
+        core.handle(example("listener_pose", "01"))
+        busSink.clear()
+        for _ in 0..<10 {                                // keep the pose fresh while ticking 1 s
+            core.handle(example("listener_pose", "01"))
+            run(0.1)
+        }
+        let n = busSink.ofType("head_pose").count
+        #expect(n >= 9 && n <= 11)
     }
 }
 

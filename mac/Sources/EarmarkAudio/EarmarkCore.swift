@@ -84,6 +84,18 @@ public final class EarmarkCore {
     public private(set) var isSpeaking = false
     public private(set) var userSpeaking = false
     public private(set) var devices = DeviceReport()
+    /// Latest `listener_pose` (UWB, sound, or simulator); nil when none arrived for `listenerPoseStaleSec`.
+    public private(set) var listenerPose: ListenerPose?
+    /// Where the audio and guidance put the listener right now: the glided pose, or the origin.
+    public private(set) var listenerPosition: EarmarkPoint = .zero
+    /// Seconds the listener glides between positions (hub `uwb.blend_s`).
+    public var listenerGlideSec: Double {
+        get { glide.duration }
+        set { glide.duration = max(0, newValue) }
+    }
+    public var distanceAttenuation = DistanceAttenuation() { didSet { renderer?.setDistanceAttenuation(distanceAttenuation) } }
+    /// Every listener_pose as it arrives (main thread); the calibration screen averages them.
+    public var onListenerPose: ((ListenerPose) -> Void)?
     public var micEnabled = true { didSet { updateRoute() } }
     public var listenMode: ListenMode = .pushToTalk
     public var timbre: PingTimbre = .tone { didSet { renderer?.setTimbre(timbre) } }
@@ -108,7 +120,11 @@ public final class EarmarkCore {
     private var lastStatusSent = -Double.infinity
     private var lastStatusKey = ""
     private var captionID = 0
+    private var glide = ListenerGlide()
+    private var lastListenerPoseAt = -Double.infinity
     public static let headPosePeriod = 0.1
+    /// No listener_pose for this long: back to the origin (today's seated behavior).
+    public static let listenerPoseStaleSec = 2.0
     public static let statusHeartbeat = 10.0
 
     public init(head: HeadTracking, speech: SpeechOutput, bus: BusSink,
@@ -173,6 +189,7 @@ public final class EarmarkCore {
         var chosen: SpatialRenderer?
         for kind in ladder {
             let r = makeRenderer(kind)
+            r.setDistanceAttenuation(distanceAttenuation)   // PHASE reads it while building, inside start()
             do {
                 try r.start()
                 chosen = r
@@ -196,6 +213,7 @@ public final class EarmarkCore {
         r.setTarget(guideTarget)
         let (yaw, pitch) = listenerAngles()
         r.setListener(yawDeg: yaw, pitchDeg: pitch)
+        r.setListener(position: listenerPosition)
         if let s = guidanceState {
             r.setRepeatingCue(s.zone == .behind ? .behind : .ping)
             r.setPingInterval(s.pingIntervalSec)
@@ -238,7 +256,7 @@ public final class EarmarkCore {
     // MARK: Bus input
 
     public func handle(_ message: BusMessage) {
-        note("<- \(summary(message))")
+        if case .listenerPose = message {} else { note("<- \(summary(message))") }   // 10 Hz: kept out of the log
         switch message {
         case .snapshot(let s):
             space = s.space
@@ -271,7 +289,13 @@ public final class EarmarkCore {
             if st.component != .macApp { componentStatus[st.component.rawValue] = st }
         case .reset:
             reset()
-        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .other:
+        case .listenerPose(let p):
+            ingestListenerPose(p)
+        case .listenerCommand(let c):
+            // "recenter" (concierge voice command): same path as the R key. "freeze" is the hub's job.
+            if c.action == .recenter { recenter() }
+        case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .other,
+             .uwbToken, .uwbRange, .motionState:
             break
         }
         changed()
@@ -336,6 +360,45 @@ public final class EarmarkCore {
     private func updateVocabulary() {
         guard let rec = apple as? AppleSpeechRecognizer else { return }
         rec.setVocabulary(objects.flatMap { [$0.name] + $0.aliases } + ["Earmark", "where's", "stop"])
+    }
+
+    // MARK: Listener position (main thread)
+
+    /// The renderer and guidance follow the pose (glided); `fixed` (or an unusable position) means the origin.
+    private func ingestListenerPose(_ p: ListenerPose) {
+        let now = clock()
+        if p.mode != listenerPose?.mode {
+            Log.app("listener mode -> \(p.mode.rawValue) (source \(p.source.rawValue), \(p.anchorsUsed) anchors)")
+            note("<- listener_pose \(p.mode.rawValue)")
+        }
+        listenerPose = p
+        lastListenerPoseAt = now
+        let target: EarmarkPoint = p.mode == .fixed ? .zero : (Geometry.point(p.position) ?? .zero)
+        glide.setTarget(target, now: now)
+        advanceListener(now)
+        onListenerPose?(p)
+    }
+
+    /// Falls back to the origin when poses stop, then moves the renderer along the glide.
+    private func advanceListener(_ now: Double) {
+        if listenerPose != nil && now - lastListenerPoseAt > Self.listenerPoseStaleSec {
+            Log.app("no listener_pose for \(Self.listenerPoseStaleSec) s: listener back at the origin")
+            listenerPose = nil
+            glide.setTarget(.zero, now: now)
+            changed()
+        }
+        let p = glide.position(at: now)
+        guard p != listenerPosition else { return }
+        listenerPosition = p
+        renderer?.setListener(position: p)
+    }
+
+    /// True while a tracker (UWB, sound, simulator) is placing the listener: tracked, frozen, or lost.
+    public var listenerTracked: Bool { listenerPose.map { $0.mode != .fixed } ?? false }
+
+    /// Sends `reset` so the hub reloads config/space.json (calibration screen).
+    public func sendReset() {
+        send(.reset(Reset()))
     }
 
     // MARK: Head pose (any thread)
@@ -437,9 +500,10 @@ public final class EarmarkCore {
     public func tick() {
         let now = clock()
         let (yaw, pitch) = listenerAngles()
+        advanceListener(now)
 
         if var g = guidance {
-            let (state, events) = g.update(headYawDeg: yaw, now: now)
+            let (state, events) = g.update(headYawDeg: yaw, listener: listenerPosition, now: now)
             guidance = g
             guidanceState = state
             let r = renderer
@@ -448,6 +512,8 @@ public final class EarmarkCore {
             for e in events { feedback(e, objectId: guide?.objectId ?? "") }
         }
 
+        // 10 Hz whenever the AirPods track, so it also covers UWB (the hub needs facing for the head offset).
+        // Without head tracking yaw is a fixed 0, so nothing is sent and the hub assumes facing the counter.
         if busConnected && head.state.isTracking && now - lastHeadPoseSent >= Self.headPosePeriod {
             lastHeadPoseSent = now
             send(.headPose(HeadPose(yaw: (yaw * 10).rounded() / 10, pitch: (pitch * 10).rounded() / 10)), log: false)
@@ -500,6 +566,9 @@ public final class EarmarkCore {
             "hfp_suspected": .bool(devices.hfpSuspected),
         ]
         info["yaw"] = .number(latestPose.yawDeg.rounded1)
+        info["uwb_mode"] = .string(listenerPose?.mode.rawValue ?? "off")
+        info["uwb_anchors_used"] = .number(Double(listenerPose?.anchorsUsed ?? 0))
+        info["uwb_residual_m"] = listenerPose?.residualM.map { JSONScalar.number(($0 * 100).rounded() / 100) } ?? JSONScalar.null
         var detail: String
         switch mode {
         case .spatialTracked: detail = "spatial + head tracking"
@@ -514,6 +583,7 @@ public final class EarmarkCore {
     private func statusKey(_ s: Status) -> String {
         var info = s.info ?? [:]
         info["yaw"] = nil
+        info["uwb_residual_m"] = nil   // changes on every pose; sent with the next real change or heartbeat
         return "\(s.ok)|\(s.detail)|" + info.keys.sorted().map { "\($0)=\(info[$0]!)" }.joined(separator: ",")
     }
 
@@ -545,6 +615,7 @@ public final class EarmarkCore {
         case .transcript(let t): "transcript \(t.source.rawValue)\(t.isFinal ? " final" : "")"
         case .pickup(let p): "pickup \(p.objectId)"
         case .pickupResult(let p): "pickup_result \(p.correct ? "correct" : "wrong: " + p.actual)"
+        case .listenerCommand(let c): "listener_command \(c.action.rawValue)"
         default: m.type
         }
     }

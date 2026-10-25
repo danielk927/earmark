@@ -4,8 +4,9 @@ import Foundation
 /// Option A (`AVAudioEnvironmentNode` with `.HRTFHQ` or `.auto`) and the exaggerated stereo-pan fallback.
 ///
 /// Graph: cuePlayer + lockedPlayer (mono) -> cue bus (environment node, or a plain mixer for stereo pan)
-/// -> main mixer -> output. The listener is rotated on every head-motion sample; sources stay fixed in
-/// the room. Speech never goes through this engine (see SpeechPlayer), so cues and speech stay separate layers.
+/// -> main mixer -> output. The listener is rotated on every head-motion sample and moved (already glided by
+/// EarmarkCore) on every listener_pose; sources stay fixed in the room. Speech never goes through this engine
+/// (see SpeechPlayer), so cues and speech stay separate layers.
 public final class AVAudioCueRenderer: SpatialRenderer {
     public let kind: RendererKind
     public let engine = AVAudioEngine()
@@ -24,6 +25,8 @@ public final class AVAudioCueRenderer: SpatialRenderer {
     private var target: EarmarkPoint?
     private var yawDeg = 0.0
     private var pitchDeg = 0.0
+    private var listenerPosition: EarmarkPoint = .zero
+    private var attenuation = DistanceAttenuation()
     private var ducked = false
     private var masterGain: Float = 1
     private var running = false
@@ -111,10 +114,7 @@ public final class AVAudioCueRenderer: SpatialRenderer {
         if let env {
             env.outputType = .headphones
             env.reverbParameters.enable = false
-            // Targets are within a few meters; keep level constant so the cue is direction only.
             env.distanceAttenuationParameters.distanceAttenuationModel = .inverse
-            env.distanceAttenuationParameters.referenceDistance = 10
-            env.distanceAttenuationParameters.maximumDistance = 100
             let algorithm: AVAudio3DMixingRenderingAlgorithm = kind == .avaudioAuto ? .auto : .HRTFHQ
             for p in [cuePlayer, lockedPlayer] {
                 p.renderingAlgorithm = algorithm
@@ -123,6 +123,7 @@ public final class AVAudioCueRenderer: SpatialRenderer {
             }
         }
         applyGainLocked()
+        applyAttenuationLocked()
         applyPoseLocked()
         graphBuilt = true
     }
@@ -163,6 +164,20 @@ public final class AVAudioCueRenderer: SpatialRenderer {
         }
     }
 
+    public func setListener(position: EarmarkPoint) {
+        lock.withLock {
+            listenerPosition = position
+            applyPoseLocked()
+        }
+    }
+
+    public func setDistanceAttenuation(_ attenuation: DistanceAttenuation) {
+        lock.withLock {
+            self.attenuation = attenuation
+            applyAttenuationLocked()
+        }
+    }
+
     public func setPingInterval(_ interval: TimeInterval?) { driver.setInterval(interval) }
     public func setRepeatingCue(_ cue: Cue) { driver.setCue(cue) }
 
@@ -194,8 +209,18 @@ public final class AVAudioCueRenderer: SpatialRenderer {
         if let env { env.outputVolume = g } else { panMixer?.outputVolume = g }
     }
 
+    /// Inverse model, reference 0.6 m, maximum 8 m, rolloff 1 by default (PRD 10.1). Stereo pan: no distance cue.
+    private func applyAttenuationLocked() {
+        guard let env else { return }
+        let p = env.distanceAttenuationParameters
+        p.referenceDistance = Float(max(attenuation.referenceDistance, 0.01))
+        p.maximumDistance = Float(max(attenuation.maximumDistance, attenuation.referenceDistance))
+        p.rolloffFactor = Float(max(attenuation.rolloffFactor, 0))
+    }
+
     private func applyPoseLocked() {
         if let env {
+            env.listenerPosition = Geometry.avPoint(listenerPosition)
             env.listenerAngularOrientation = AVAudio3DAngularOrientation(yaw: Float(yawDeg), pitch: Float(pitchDeg), roll: 0)
             if let target {
                 let p = Geometry.avPoint(target)
@@ -203,7 +228,7 @@ public final class AVAudioCueRenderer: SpatialRenderer {
                 lockedPlayer.position = p
             }
         } else if let target {
-            let pan = Self.exaggeratedPan(relativeAzimuthDeg: Geometry.azimuthDeg(target) - yawDeg)
+            let pan = Self.exaggeratedPan(relativeAzimuthDeg: Geometry.azimuthDeg(target, from: listenerPosition) - yawDeg)
             cuePlayer.pan = pan
             lockedPlayer.pan = pan
         }

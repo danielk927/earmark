@@ -111,6 +111,12 @@ private struct StatusBar: View {
                 StatusPill(icon: "timer", label: "OUTPUT LATENCY", value: String(format: "%.0f ms", latency),
                            severity: latency > 300 ? .warn : .neutral)
             }
+            GridRow {
+                StatusPill(icon: "figure.walk", label: "UWB WALKING",
+                           value: UWBText.statusValue(pose: core.listenerPose, anchorCount: core.space?.anchors?.count ?? 0),
+                           severity: uwbSeverity(core))
+                    .gridCellColumns(4)
+            }
         }
     }
 
@@ -127,6 +133,18 @@ private struct StatusBar: View {
         case .connected: .ok
         case .mock, .waiting: .warn
         default: .bad
+        }
+    }
+
+    /// Off or fixed is the normal seated demo (neutral); lost is a problem; fewer anchors than configured warns.
+    private func uwbSeverity(_ core: EarmarkCore) -> Severity {
+        guard let p = core.listenerPose else { return .neutral }
+        switch p.mode {
+        case .fixed: return .neutral
+        case .lost: return .bad
+        case .tracked, .frozen:
+            let total = max(core.space?.anchors?.count ?? 0, p.anchorsUsed)
+            return p.anchorsUsed < total || !p.blocked.isEmpty ? .warn : .ok
         }
     }
 
@@ -264,12 +282,11 @@ private struct GuidanceCard: View {
     }
 
     private func detail(_ s: GuidanceState) -> String {
+        // Clock face and distance are from where the listener is now (UWB), not from the counter mark.
         let hour = Geometry.clockHour(azimuthDeg: s.errorDeg)
-        let dist = core.guideTarget.map { Int((simdLength($0) * 100).rounded()) } ?? 0
-        return "At your \(hour) o'clock, about \(dist) cm away\nPing every \(Int((s.pingIntervalSec * 1000).rounded())) ms"
+        let dist = s.distanceM < 1 ? "\(Int((s.distanceM * 100).rounded())) cm" : String(format: "%.1f m", s.distanceM)
+        return "At your \(hour) o'clock, about \(dist) away\nPing every \(Int((s.pingIntervalSec * 1000).rounded())) ms"
     }
-
-    private func simdLength(_ p: EarmarkPoint) -> Double { (p.x * p.x + p.y * p.y + p.z * p.z).squareRoot() }
 }
 
 // MARK: Captions

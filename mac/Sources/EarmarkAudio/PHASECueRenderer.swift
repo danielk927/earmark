@@ -22,6 +22,8 @@ public final class PHASECueRenderer: SpatialRenderer {
     private var target: EarmarkPoint?
     private var yawDeg = 0.0
     private var pitchDeg = 0.0
+    private var listenerPosition: EarmarkPoint = .zero
+    private var attenuation = DistanceAttenuation()
     private var ducked = false
     private var masterGain: Float = 1
     private var running = false
@@ -39,10 +41,24 @@ public final class PHASECueRenderer: SpatialRenderer {
 
     /// PHASE rotations are right-handed about +Y (up), so a positive angle turns LEFT: negate Earmark yaw.
     /// VERIFIED LOCALLY: yaw +90 gives forward (1, 0, 0); pitch +30 gives forward y +0.5.
-    public static func listenerTransform(yawDeg: Double, pitchDeg: Double) -> simd_float4x4 {
+    /// The listener's position goes in the translation column (`PHASEObject.transform`: position in `columns.3`),
+    /// mapped like every other point (Geometry.avPoint).
+    public static func listenerTransform(yawDeg: Double, pitchDeg: Double, position: EarmarkPoint = .zero) -> simd_float4x4 {
         let yaw = simd_quatf(angle: Float(-yawDeg * .pi / 180), axis: SIMD3<Float>(0, 1, 0))
         let pitch = simd_quatf(angle: Float(pitchDeg * .pi / 180), axis: SIMD3<Float>(1, 0, 0))
-        return simd_float4x4(yaw * pitch)
+        var m = simd_float4x4(yaw * pitch)
+        let a = Geometry.avPoint(position)
+        m.columns.3 = SIMD4<Float>(a.x, a.y, a.z, 1)
+        return m
+    }
+
+    /// Geometric spreading (-6 dB per doubling of distance at rolloff 1). PHASE has no reference or maximum
+    /// distance on this model, so only the rolloff carries over from Settings; rolloff 0 = no distance model.
+    static func distanceModel(_ a: DistanceAttenuation) -> PHASEDistanceModelParameters? {
+        guard a.rolloffFactor > 0 else { return nil }
+        let d = PHASEGeometricSpreadingDistanceModelParameters()
+        d.rolloffFactor = a.rolloffFactor
+        return d
     }
 
     public static func sourceTransform(_ p: EarmarkPoint) -> simd_float4x4 {
@@ -96,7 +112,7 @@ public final class PHASECueRenderer: SpatialRenderer {
         e.outputSpatializationMode = .alwaysUseBinaural
 
         let l = PHASEListener(engine: e)
-        l.transform = Self.listenerTransform(yawDeg: yawDeg, pitchDeg: pitchDeg)
+        l.transform = Self.listenerTransform(yawDeg: yawDeg, pitchDeg: pitchDeg, position: listenerPosition)
         try e.rootObject.addChild(l)
 
         let s = PHASESource(engine: e)
@@ -119,6 +135,7 @@ public final class PHASECueRenderer: SpatialRenderer {
             }
             pipeline.entries[PHASESpatialCategory.directPathTransmission]?.sendLevel = 1
             let mixer = PHASESpatialMixerDefinition(spatialPipeline: pipeline)
+            mixer.distanceModelParameters = Self.distanceModel(attenuation)
             mixer.gainMetaParameterDefinition = PHASENumberMetaParameterDefinition(
                 value: 1, minimum: 0, maximum: 1, identifier: Self.gainParameter + "." + id)
 
@@ -144,8 +161,22 @@ public final class PHASECueRenderer: SpatialRenderer {
         lock.withLock {
             self.yawDeg = yawDeg
             self.pitchDeg = pitchDeg
-            listener?.transform = Self.listenerTransform(yawDeg: yawDeg, pitchDeg: pitchDeg)
+            listener?.transform = Self.listenerTransform(yawDeg: yawDeg, pitchDeg: pitchDeg, position: listenerPosition)
         }
+    }
+
+    public func setListener(position: EarmarkPoint) {
+        lock.withLock {
+            listenerPosition = position
+            listener?.transform = Self.listenerTransform(yawDeg: yawDeg, pitchDeg: pitchDeg, position: position)
+        }
+    }
+
+    /// The distance model lives on the registered mixer definitions, so a change applies the next time the
+    /// renderer is built (EarmarkCore sets it before start(); after a change, switch renderers away and back).
+    /// ponytail: no live re-registration of the sound assets.
+    public func setDistanceAttenuation(_ attenuation: DistanceAttenuation) {
+        lock.withLock { self.attenuation = attenuation }
     }
 
     public func setPingInterval(_ interval: TimeInterval?) { driver.setInterval(interval) }

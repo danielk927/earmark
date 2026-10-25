@@ -15,6 +15,11 @@ public struct GuidanceConfig: Sendable, Equatable {
     /// Behind when |error| > behindEnterDeg; back in front when |error| < behindExitDeg.
     public var behindEnterDeg: Double = 100
     public var behindExitDeg: Double = 95
+    /// Walking guidance (PRD 10.2): the ping interval is multiplied by 1.0 within `nearDistanceM` of the target,
+    /// rising linearly to `farDistanceFactor` at `farDistanceM` and beyond. Far = slower, close = faster.
+    public var nearDistanceM: Double = 1.0
+    public var farDistanceM: Double = 4.0
+    public var farDistanceFactor: Double = 1.6
 
     public init() {}
 }
@@ -36,6 +41,8 @@ public struct GuidanceState: Equatable, Sendable {
     public var targetAzimuthDeg: Double
     /// Shown in the debug panel only; it never affects ping rate, lock, or behind.
     public var targetElevationDeg: Double
+    /// Horizontal distance from the listener to the target, meters.
+    public var distanceM: Double
     public var pingIntervalSec: Double
     public var zone: GuidanceZone
     public var locked: Bool
@@ -43,7 +50,8 @@ public struct GuidanceState: Equatable, Sendable {
     public var turn: TurnDirection
 }
 
-/// Pure guidance math: head yaw vs target azimuth.
+/// Pure guidance math: head yaw vs the target's azimuth seen from the listener (target - listener).
+/// With the listener at the origin (seated demo, UWB off) this is exactly the original origin-relative math.
 ///
 /// Azimuth only (orchestrator decision): spots sit 30-45 cm below ear level and blind users orient
 /// horizontally before reaching down, so a user facing the jar with a level head must reach "locked".
@@ -60,6 +68,7 @@ public struct Guidance: Sendable {
         self.config = config
     }
 
+    /// Origin-relative (listener at the calibrated position).
     public var targetAzimuthDeg: Double { Geometry.azimuthDeg(target) }
     public var targetElevationDeg: Double { Geometry.elevationDeg(target) }
 
@@ -81,9 +90,28 @@ public struct Guidance: Sendable {
         return config.nearIntervalSec + (config.farIntervalSec - config.nearIntervalSec) * s
     }
 
-    /// Advances the state machine. Call at a steady rate (the app ticks at 50 Hz).
+    /// 1.0 within `nearDistanceM`, linear to `farDistanceFactor` at `farDistanceM`, clamped beyond.
+    public static func distanceFactor(distanceM d: Double, config: GuidanceConfig = GuidanceConfig()) -> Double {
+        let span = config.farDistanceM - config.nearDistanceM
+        let x = span > 0 ? min(max((d - config.nearDistanceM) / span, 0), 1) : (d > config.nearDistanceM ? 1 : 0)
+        return 1 + (config.farDistanceFactor - 1) * x
+    }
+
+    /// Angle curve times the distance factor.
+    public static func pingInterval(errorDeg: Double, distanceM: Double, config: GuidanceConfig = GuidanceConfig()) -> Double {
+        pingInterval(errorDeg: errorDeg, config: config) * distanceFactor(distanceM: distanceM, config: config)
+    }
+
+    /// Seated (listener at the origin). Kept so existing callers and tests compile unchanged.
     public mutating func update(headYawDeg: Double, now: Double) -> (state: GuidanceState, events: [GuidanceEvent]) {
-        let az = targetAzimuthDeg
+        update(headYawDeg: headYawDeg, listener: .zero, now: now)
+    }
+
+    /// Advances the state machine. Call at a steady rate (the app ticks at 50 Hz).
+    /// Behind, locked, and the ping rate all come from the vector target - listener.
+    public mutating func update(headYawDeg: Double, listener: EarmarkPoint, now: Double) -> (state: GuidanceState, events: [GuidanceEvent]) {
+        let az = Geometry.azimuthDeg(target, from: listener)
+        let dist = Geometry.horizontalDistance(target, from: listener)
         let e = Self.signedErrorDeg(targetAzimuthDeg: az, headYawDeg: headYawDeg)
         let a = abs(e)
         var events: [GuidanceEvent] = []
@@ -130,8 +158,9 @@ public struct Guidance: Sendable {
         let state = GuidanceState(
             errorDeg: e,
             targetAzimuthDeg: az,
-            targetElevationDeg: targetElevationDeg,
-            pingIntervalSec: Self.pingInterval(errorDeg: e, config: config),
+            targetElevationDeg: Geometry.elevationDeg(target, from: listener),
+            distanceM: dist,
+            pingIntervalSec: Self.pingInterval(errorDeg: e, distanceM: dist, config: config),
             zone: zone ?? .front,
             locked: locked,
             turn: Self.turn(forErrorDeg: e)
