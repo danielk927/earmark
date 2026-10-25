@@ -1,29 +1,39 @@
 # Setup
 
+## Links (open these on the Mac)
+- Room view (3D map, Ask box): http://localhost:5173/room
+- Family dashboard (items, medication, timeline): http://localhost:5173/
+- Mac app: opens by itself. Press **R** in its window.
+
 ## Get ready
 1. Put the Mac on the iPhone hotspot.
 2. Run `make mac` once (builds the Mac app).
-3. Tape 4 marks on the floor. Measure from the middle of the mat. Forward is the way the tape arrow points.
-
-```
-                forward
-                   ↑
-            mark 2 (0, 0.8 m)
-
-          mark 1 = the mat (0, 0)
-
-   mark 4                    mark 3
-   (-0.7, -0.5)              (0.7, -0.5)
-```
+3. Put a mat on the floor where you will stand. Its middle is the centre. Forward is the way you will face.
 
 ## Place the 3 beacon phones
-All at the same height (about 0.75 m, on a table or chair). Speaker (bottom edge) facing the mat. About 1.2 m from the mat.
+Put the 3 phones in a triangle around the mat, so you stand in the middle of it. All at the same height (about 0.75 m, on a table or chair), speaker (bottom edge) facing the mat. Measure everything in meters from the middle of the mat.
 
 ```
-                 [B1]  ahead
-
-   [B3] left      mat      right [B2]
+                    forward
+                       ↑
+                     [B1]
+                       |
+                     1.2 m
+                       |
+                    ┌─────┐
+                    │ mat │
+                    └─────┘
+                   /       \
+              1.2 m         1.2 m
+                 /           \
+             [B3]----2.1 m----[B2]
+             left            right
 ```
+
+- B1: 1.2 m straight ahead of the mat.
+- B2: 1.2 m from the mat, back and to the right.
+- B3: 1.2 m from the mat, back and to the left.
+- Every pair of phones is 2.1 m apart (B1 to B2, B1 to B3, B2 to B3). Check it with the tape.
 
 On each beacon phone:
 1. Open Earmark Phone, choose **Beacon (no Mac)**.
@@ -47,22 +57,14 @@ It starts the hub, the voice, the room page and the Mac app, then waits for the 
 3. Type the address the terminal prints (like `ws://172.20.10.9:8766`). Press Start.
 4. Wait until the terminal shows `B1 heard`, `B2 heard` and `B3 heard`.
 
-## Walk the marks
-Hold the judge phone at chest height, bottom edge facing out. Do this for each mark, 1 then 2 then 3 then 4:
-1. Stand on the mark.
-2. Press **Enter** in the terminal.
-3. Stand still for 10 seconds.
-4. Walk to the next mark when it tells you.
-
-Don't move the beacons. When it says `room setup ok`, it is done. You will see `fix x ... y ...` lines. The beacons show on http://localhost:5173/room.
+## Stand on the mat
+Hold the judge phone at chest height, bottom edge facing out. Press **Enter** in the terminal and stand still on the mat for 30 seconds. Don't move the beacons. You will then see `fix x ... y ...` lines, and you and the beacons show on the room view.
 
 ## AirPods
 1. Connect the AirPods to the Mac. Turn Spatial Audio **Off** (menu-bar AirPods icon). The app makes its own 3D sound.
 2. In the Mac app, accept the motion and microphone prompts.
 3. Stand on the mat facing forward. Press **R** to recenter.
-4. Walk to where an item will go. Say or type "I'm leaving my keys here".
-5. Back on the mat, just say it out loud: "Where are my keys?". The Mac's microphone is always listening and only sends sound when it hears speech. No key to press, nothing to press on the AirPods. Keep the Mac in the room, speak clearly, and keep the room quiet.
-   - Mac not hearing you? A teammate at the Mac can hold **Space** and the judge speaks, or type into the Ask box on the room page.
-   - The AirPods microphone is not used on purpose: it would make the sound muffled.
+5. Back on the mat, hold **Space** in the Mac app window and say it: "Where are my keys?". Let go when done. The Mac only listens while Space is held. Speak clearly and keep the room quiet.
+   - Can't reach the Mac? A teammate can hold Space for you, or type into the Ask box on the room page.
 
 You should hear the ping from the item. It gets faster and louder as you get close. At half a meter it stops and says "You're here".

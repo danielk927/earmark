@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # One command for a whole test session: hub, voice, room page, Mac app, and the room setup in this terminal.
 #
-#   scripts/session.sh [setup|recalibrate|sim] [beacons, e.g. "B1 B2"]
+#   scripts/session.sh [recalibrate|setup|sim] [beacons, e.g. "B1 B2"]
 #
-#   setup         walk the floor marks; the Mac places the beacons (default)
-#   recalibrate   beacons already placed: stand on the mat for 30 s
+#   recalibrate   beacons already placed (`make beacons`, with a tape): stand on the mat for 30 s (default)
+#   setup         walk the floor marks; the Mac places the beacons (optional, less exact than a tape)
 #   sim           virtual phone and virtual beacons (no hardware)
 #
+# Real phones are recorded to logs/session-<time>.wav (and a .json next to it), so a bad run can be replayed.
 # The hub starts with NO items (--fresh): add them by voice ("I am leaving my keys here") as you walk.
 # The hub, voice and room page run in the background (logs in logs/). The room setup runs in the
 # foreground so you can press Enter on each mark. Ctrl-C stops everything this script started.
@@ -15,7 +16,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONPATH="$PWD/contracts/python:$PWD/services/hub:$PWD/services/concierge:$PWD/services/memory_agent:$PWD/services/ranging${PYTHONPATH:+:$PYTHONPATH}"
 
-mode="${1:-setup}"
+mode="${1:-recalibrate}"
 only="${2:-}"
 mkdir -p logs
 pids=()
@@ -56,20 +57,21 @@ fi
 if [[ -z "${NO_MAC:-}" ]]; then
   if [[ -d mac/build/Earmark.app ]]; then
     echo "Mac app: opening (if it is old, run 'make mac' first)"
-    open -n mac/build/Earmark.app --args --listen=always   # the Mac mic listens all the time and only sends audio when it hears speech
+    open -n mac/build/Earmark.app --args --listen=ptt   # hold Space in the Mac app to talk
   else
     echo "Mac app is not built yet: run 'make mac', then 'make mac-open'" >&2
   fi
 fi
 
 echo
-echo "Now the phones. This terminal runs the room setup; press Enter on each mark."
+echo "Now the phones. This terminal runs the room setup (recalibrate: stand on the mat for 30 s)."
 echo
+record=(--record "$PWD/logs/session-$(date +%Y%m%d-%H%M%S).wav")  # absolute: the ranging step runs in services/ranging
 case "$mode" in
-  setup)       args=(listen --setup --band 12000 16000 --min-snr 12) ;;
-  recalibrate) args=(listen --calibrate-at 0 0 1.25 --band 12000 16000 --min-snr 12 --calibration-seconds 30) ;;
+  recalibrate) args=(listen --calibrate-at 0 0 1.25 --band 12000 16000 --min-snr 12 --calibration-seconds 30 "${record[@]}") ;;
+  setup)       args=(listen --setup --band 12000 16000 --min-snr 12 "${record[@]}") ;;
   sim)         args=(listen --setup --sim --band 12000 16000) ;;
-  *) echo "usage: $0 [setup|recalibrate|sim] [\"B1 B2\"]" >&2; exit 2 ;;
+  *) echo "usage: $0 [recalibrate|setup|sim] [\"B1 B2\"]" >&2; exit 2 ;;
 esac
 # shellcheck disable=SC2206
 [[ -n "$only" ]] && args+=(--only $only)

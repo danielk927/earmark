@@ -1,5 +1,5 @@
 {
-  "note": "Where the beacon phones sit, in meters from the floor under the middle of the mat: x right, y forward (the tape arrow), z up. `make room-setup` finds these by itself (stand on each setup mark in turn) and writes them back here; the numbers below are only a starting guess (B1 ahead, B2 right, B3 left, about 1.2 m out). Keep the beacons at about the same height, well below the held phone (tables or chairs, about 0.75 m).",
+  "note": "Where the beacon phones sit, in meters from the floor under the middle of the mat: x right, y forward, z up. This is the fixed triangle in setup.md (B1 1.2 m ahead, B2 and B3 1.2 m back-right and back-left, 2.1 m apart). Edit these numbers or run `make beacons` if you place them differently. Keep the beacons at about the same height, well below the held phone (about 0.75 m).",
   "room": {
     "width_m": 3.5,
     "depth_m": 3.5
@@ -8,37 +8,60 @@
     {
       "id": "B1",
       "label": "ahead",
-      "position": [0.65, 0.04, 0.75]
+      "position": [
+        0.0,
+        1.2,
+        0.75
+      ]
     },
     {
       "id": "B2",
-      "label": "right",
-      "position": [-0.28, 0.12, 0.75]
+      "label": "back right",
+      "position": [
+        1.04,
+        -0.6,
+        0.75
+      ]
     },
     {
       "id": "B3",
-      "label": "left",
-      "position": [-1.2, 0.0, 0.75]
+      "label": "back left",
+      "position": [
+        -1.04,
+        -0.6,
+        0.75
+      ]
     }
   ],
   "setup_marks_note": "Tape these marks on the floor, measured from the middle of the mat. The phone stands on each in turn during room setup. Spread out, so that no beacon lies on a line through them.",
   "setup_marks": [
     {
       "label": "the mat",
-      "position": [0.0, 0.0]
+      "position": [
+        0.0,
+        0.0
+      ]
     },
     {
       "label": "a step forward",
-      "position": [0.0, 0.8]
+      "position": [
+        0.0,
+        0.8
+      ]
     },
     {
       "label": "back right",
-      "position": [0.7, -0.5]
+      "position": [
+        0.7,
+        -0.5
+      ]
     },
     {
       "label": "back left",
-      "position": [-0.7, -0.5]
+      "position": [
+        -0.7,
+        -0.5
+      ]
     }
-  ],
-  "set_up": "2026-10-25T00:35:29"
+  ]
 }
