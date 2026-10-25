@@ -16,7 +16,7 @@ public final class MicCapture: NSObject, AVCaptureAudioDataOutputSampleBufferDel
         case noDevice, notAuthorized, cannotAddInput, cannotAddOutput
         public var description: String {
             switch self {
-            case .noDevice: "No built-in or wired microphone found"
+            case .noDevice: "No built-in microphone found"
             case .notAuthorized: "Microphone access denied (System Settings > Privacy & Security > Microphone)"
             case .cannotAddInput: "Could not open the microphone"
             case .cannotAddOutput: "Could not attach the audio output"
@@ -30,29 +30,21 @@ public final class MicCapture: NSObject, AVCaptureAudioDataOutputSampleBufferDel
     public private(set) var deviceUID = ""
     public private(set) var isRunning = false
 
-    private let preferredUID: String?
     private let queue = DispatchQueue(label: "earmark.mic", qos: .userInitiated)
     private var session: AVCaptureSession?
     private var resampler: PCMResampler?
     private var chunker = SampleChunker<Int16>(size: PCM.micChunkFrames)
 
-    /// - Parameter preferredUID: CoreAudio/AVCapture UID; nil means the built-in mic (`EARMARK_MIC_UID` overrides).
-    public init(preferredUID: String? = nil) {
-        self.preferredUID = preferredUID
-    }
+    public override init() { super.init() }
 
     public static var authorization: AVAuthorizationStatus { AVCaptureDevice.authorizationStatus(for: .audio) }
 
-    /// Picks the pinned device: the preferred UID, else the built-in mic, else the first non-Bluetooth mic.
-    /// Never auto-selects a Bluetooth or Continuity (iPhone) microphone.
-    public static func pickDevice(preferredUID: String?) -> AVCaptureDevice? {
-        if let uid = preferredUID, let d = AVCaptureDevice(uniqueID: uid) { return d }
+    /// Picks the built-in mic by UID, else any built-in input from the device list. Never anything else:
+    /// no Bluetooth, Continuity (iPhone), USB or other mic, so a missing built-in mic is an error, not a guess.
+    public static func pickDevice() -> AVCaptureDevice? {
         if let d = AVCaptureDevice(uniqueID: AudioDevices.builtInMicUID) { return d }
-        let found = AVCaptureDevice.DiscoverySession(deviceTypes: [.microphone], mediaType: .audio, position: .unspecified).devices
-        return found.first { d in
-            let t = AudioTransport(code: UInt32(bitPattern: d.transportType))
-            return !t.isBluetooth && t != .continuity
-        }
+        guard let info = AudioDevices.all().first(where: { $0.isBuiltInMic }) else { return nil }
+        return AVCaptureDevice(uniqueID: info.uid)
     }
 
     /// Requests permission if needed, then starts. Completion runs on the main queue.
@@ -71,7 +63,7 @@ public final class MicCapture: NSObject, AVCaptureAudioDataOutputSampleBufferDel
 
     private func startAuthorized() -> Error? {
         guard !isRunning else { return nil }
-        guard let device = Self.pickDevice(preferredUID: preferredUID) else { return MicError.noDevice }
+        guard let device = Self.pickDevice() else { return MicError.noDevice }
         let s = AVCaptureSession()
         s.beginConfiguration()
         guard let input = try? AVCaptureDeviceInput(device: device), s.canAddInput(input) else {

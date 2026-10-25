@@ -77,6 +77,8 @@ public final class EarmarkCore {
     /// Distance in meters (horizontal) to the guide target while a locator fix is fresh; nil otherwise.
     public private(set) var targetDistanceM: Double?
     public private(set) var lastFeedback: GuideFeedback?
+    /// One plain line saying why guidance makes no sound, or nil.
+    public private(set) var guidanceNotice: String?
     public private(set) var preferredRenderer: RendererKind
     public private(set) var rendererFailures: [String] = []
     public private(set) var sttEngine: SttMode.Engine = .cartesia
@@ -302,8 +304,10 @@ public final class EarmarkCore {
     private func startGuidance(_ g: GuideStart) {
         guard let p = Geometry.point(g.targetPosition) else {
             Log.app("guide_start for \(g.objectId) has an invalid target_position; ignored")
+            guidanceNotice = "No sound: the find request for \(g.objectId) had no valid target position."
             return
         }
+        guidanceNotice = renderer == nil ? "No sound: no audio renderer is running, so Earmark can only guide with speech." : nil
         guide = g
         guideTarget = p
         let rel = relativeTarget(p)
@@ -320,6 +324,7 @@ public final class EarmarkCore {
     private func stopGuidance(reason: String) {
         guard guide != nil else { return }
         Log.app("guidance stopped: \(reason)")
+        guidanceNotice = nil
         guide = nil
         guideTarget = nil
         guidance = nil

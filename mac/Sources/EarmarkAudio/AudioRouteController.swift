@@ -63,7 +63,7 @@ public final class AudioRouteController {
         let status = AudioDevices.setDefaultInput(target.id)
         let msg: String
         if status == noErr {
-            msg = "Switched the system input from \(input?.name ?? "?") (Bluetooth) to \(target.name), so the AirPods stay in high-quality stereo."
+            msg = "Switched the system input from \(input?.name ?? "?") (Bluetooth) to \(target.name). This only keeps the AirPods in high-quality stereo; Earmark always listens through the built-in mic."
         } else {
             msg = "Could not switch the system input from \(input?.name ?? "?") to \(target.name) (error \(status))."
         }

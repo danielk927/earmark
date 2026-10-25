@@ -48,11 +48,12 @@ struct MapScene {
             looseItems.append(LooseItem(name: name, detail: detail, position: st.status == .roaming ? pos : nil, isTarget: id == targetID))
         }
         let targetSpot: Int? = targetID.flatMap { core.states[$0]?.location.spot }
+        // Empty spots are not drawn; a spot shows up once something is placed on it.
         spots = (core.space?.spots ?? []).sorted { $0.spot < $1.spot }.map { s in
             let isTarget = targetSpot == s.spot ||
                 (target.map { t in Geometry.point(s.position).map { simd_distance($0, t) < 0.05 } ?? false } ?? false)
             return SpotItem(spot: s, objects: bySpot[s.spot] ?? [], isTarget: isTarget)
-        }
+        }.filter { !$0.objects.isEmpty || $0.isTarget }
         loose = looseItems
     }
 
@@ -76,7 +77,7 @@ struct MapView: View {
     var body: some View {
         Canvas { ctx, size in draw(ctx, size) }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Room map, seen from above. You are at the center, facing up.")
+            .accessibilityLabel("Room map, seen from above. You are at the center.")
             .accessibilityValue("Head turned \(Int(pose.yaw.rounded())) degrees. " + scene.spokenSummary)
     }
 
@@ -95,35 +96,44 @@ struct MapView: View {
         detail.hasSuffix("close by") ? 0.10 : (detail.hasSuffix("far") ? 0.30 : 0.18)
     }
 
+    /// Meters between range rings: finer when zoomed in, coarser when the map reaches far.
+    static func ringStep(reach: Double) -> Double { reach <= 1.5 ? 0.25 : (reach <= 3 ? 0.5 : 1) }
+
+    /// Ring label: centimeters below 1 m, meters from 1 m up.
+    static func ringLabel(_ r: Double) -> String {
+        r >= 1 ? (r.rounded() == r ? "\(Int(r)) m" : String(format: "%g m", r)) : "\(Int((r * 100).rounded())) cm"
+    }
+
+    /// You (the mat) sit in the middle so everything around you, in every direction, fits.
     private func frame(_ size: CGSize) -> Frame {
         var pts = scene.spots.compactMap { Geometry.point($0.spot.position) }
         if let t = scene.target { pts.append(t) }
         pts.append(scene.listener)
-        var top = pts.map(\.y).max() ?? 0.6
-        for l in scene.loose { if let p = l.position { pts.append(p); top = max(top, p.y + Self.proximityRadius(l.detail) + 0.08) } }
-        let maxX = max(0.45, pts.map { abs($0.x) }.max() ?? 0)
-        let minY = pts.map(\.y).min() ?? 0
-        // Room behind the listener: enough for a target back there, or for the head cone when facing backward.
-        let back = max(minY < -0.1 ? -minY + 0.1 : 0, pose.facingBack ? Self.backConeLength + 0.05 : 0)
-        let bottomPad: CGFloat = back > 0 ? 10 : 38, topPad: CGFloat = 30
-        let spanY = top + 0.12 + back
-        let scale = min((size.width - 40) / CGFloat(2 * maxX + 0.36), (size.height - bottomPad - topPad) / CGFloat(spanY))
-        let originY = size.height - bottomPad - CGFloat(back) * scale
-        return Frame(origin: CGPoint(x: size.width / 2, y: originY), scale: scale)
+        var reach = 1.0
+        for l in scene.loose { if let p = l.position { pts.append(p); reach = max(reach, hypot(p.x, p.y) + Self.proximityRadius(l.detail) + 0.1) } }
+        reach = max(reach, (pts.map { hypot($0.x, $0.y) }.max() ?? 0) + 0.25)
+        let scale = (min(size.width, size.height) / 2 - 30) / CGFloat(reach)
+        return Frame(origin: CGPoint(x: size.width / 2, y: size.height / 2), scale: scale)
     }
 
     private func draw(_ ctx: GraphicsContext, _ size: CGSize) {
         let f = frame(size)
         let you = f.pt(scene.listener)
 
-        // Range rings every 25 cm, labeled on the right at ear level (away from the forward axis).
-        for r in [0.25, 0.5, 0.75, 1.0] {
+        // Range rings out to the reach, labeled on the right at ear level (away from the forward axis).
+        // A label is skipped when it would sit closer than 44 px to the previous one.
+        let reach = Double((min(size.width, size.height) / 2 - 30) / f.scale)
+        let step = Self.ringStep(reach: reach)
+        var lastLabelRad = -CGFloat.infinity
+        for i in 1...max(1, Int((reach / step).rounded(.down))) {
+            let r = Double(i) * step
             let rad = CGFloat(r) * f.scale
             let rect = CGRect(x: f.origin.x - rad, y: f.origin.y - rad, width: 2 * rad, height: 2 * rad)
             ctx.stroke(Path(ellipseIn: rect), with: .color(Theme.grid), style: StrokeStyle(lineWidth: 1, dash: [3, 5]))
-            if f.origin.x + rad + 40 < size.width {
-                ctx.draw(Text("\(Int(r * 100)) cm").font(.system(size: 11)).foregroundColor(Theme.textSecondary),
+            if f.origin.x + rad + 40 < size.width, rad - lastLabelRad >= 44 {
+                ctx.draw(Text(Self.ringLabel(r)).font(.system(size: 11)).foregroundColor(Theme.textSecondary),
                          at: CGPoint(x: f.origin.x + rad + 4, y: f.origin.y - 8), anchor: .leading)
+                lastLabelRad = rad
             }
         }
         var axis = Path()
@@ -244,6 +254,7 @@ struct MapList: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Spot \(s.spot.spot), \(s.spot.label): \(s.objects.isEmpty ? "empty" : s.objects.joined(separator: " and "))\(s.isTarget ? ", target" : "")")
             }
+            if !scene.loose.isEmpty {
             VStack(alignment: .leading, spacing: 3) {
                 Text("OFF THE SPOTS")
                     .font(.system(size: 10, weight: .semibold))
@@ -256,6 +267,7 @@ struct MapList: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
+            }
         }
     }
 }

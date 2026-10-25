@@ -32,7 +32,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EarmarkAudioTests",
-            dependencies: ["EarmarkAudio", .product(name: "EarmarkContracts", package: "swift")]
+            dependencies: ["EarmarkAudio", "EarmarkUI", "EarmarkApp", .product(name: "EarmarkContracts", package: "swift")]
         ),
     ],
     swiftLanguageModes: [.v5]

@@ -157,6 +157,7 @@ private struct BannerStack: View {
                 AppBanner(severity: .warn, text: "Fell back to \(m.core.renderer!.kind.displayName): " + m.core.rendererFailures.joined(separator: " "))
             }
             if let n = m.routingNotice { AppBanner(severity: .warn, text: n) }
+            if let n = m.core.guidanceNotice { AppBanner(severity: .warn, text: n) }
         }
     }
 }
@@ -350,10 +351,31 @@ private struct ActionButtons: View {
             if !m.flags.noMic && m.listenMode == .pushToTalk {
                 TalkButton(m: m)
             }
+            TypeBox(m: m)
             if let mock = m.mockTracker {
                 MockHeadStrip(mock: mock)
             }
         }
+    }
+}
+
+private struct TypeBox: View {
+    @ObservedObject var m: AppModel
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("Or type here and press Return", text: $text)
+            .focused($focused)
+            .textFieldStyle(.roundedBorder)
+            .font(.system(size: 15))
+            .onSubmit { m.sendTyped(text); text = ""; focused = false }
+            .onExitCommand { focused = false }
+            .onAppear {
+                // macOS focuses the first text field on launch; that would block Space for push-to-talk.
+                DispatchQueue.main.async { focused = false; NSApp.keyWindow?.makeFirstResponder(nil) }
+            }
+            .accessibilityLabel("Type a request")
     }
 }
 

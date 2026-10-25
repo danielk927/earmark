@@ -107,7 +107,7 @@ public class HeadTrackerBase {
 /// - Recenter keeps a reference attitude and reports `attitude.multiply(byInverseOf: reference)`.
 /// - Yaw/pitch are smoothed with a wrap-aware exponential filter, time constant 30 ms (brief: no noticeable lag).
 public final class HeadphoneMotionTracker: HeadTrackerBase, HeadTracking {
-    private let manager = CMHeadphoneMotionManager()
+    private var manager = CMHeadphoneMotionManager()
     private let queue: OperationQueue = {
         let q = OperationQueue()
         q.name = "earmark.head-motion"
@@ -117,6 +117,9 @@ public final class HeadphoneMotionTracker: HeadTrackerBase, HeadTracking {
     }()
     private let delegateProxy = MotionDelegateProxy()
     private var watchdog: Timer?
+    private var lastRestartAt = ProcessInfo.processInfo.systemUptime
+    /// Seconds between restarts of motion updates while disconnected or waiting.
+    static let retryPeriod = 2.5
 
     // Touched only on `queue`.
     private var reference: CMAttitude?
@@ -156,15 +159,40 @@ public final class HeadphoneMotionTracker: HeadTrackerBase, HeadTracking {
             self?.yawSmoother.reset()
             self?.pitchSmoother.reset()
         }
+        setState(.waiting, "Waiting for AirPods head motion. Connect AirPods (Pro, Max, or 3rd gen or later) and wear them.")
+        beginUpdates()
+        watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.checkStaleness() }
+    }
+
+    private func beginUpdates() {
         manager.delegate = delegateProxy
         manager.startConnectionStatusUpdates()
-        setState(.waiting, "Waiting for AirPods head motion. Connect AirPods (Pro, Max, or 3rd gen or later) and wear them.")
         manager.startDeviceMotionUpdates(to: queue) { [weak self] motion, error in
             guard let self else { return }
             if let error { self.handle(error); return }
             if let motion { self.handle(motion) }
         }
-        watchdog = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.checkStaleness() }
+        lastRestartAt = ProcessInfo.processInfo.systemUptime
+    }
+
+    /// Tears CoreMotion down and starts it again with a fresh manager. A new manager gets a new reference frame.
+    private func restartUpdates() {
+        Log.head("restarting motion updates")
+        manager.stopDeviceMotionUpdates()
+        manager.stopConnectionStatusUpdates()
+        manager.delegate = nil
+        manager = CMHeadphoneMotionManager()
+        queue.addOperation { [weak self] in
+            self?.reference = nil
+            self?.yawSmoother.reset()
+            self?.pitchSmoother.reset()
+        }
+        beginUpdates()
+    }
+
+    /// True when it is time to restart motion updates: only while disconnected or waiting, at most every `retryPeriod`.
+    static func shouldRetry(state: HeadTrackingState, now: Double, lastRestartAt: Double) -> Bool {
+        (state == .disconnected || state == .waiting) && now - lastRestartAt >= retryPeriod
     }
 
     public func stop() {
@@ -214,10 +242,12 @@ public final class HeadphoneMotionTracker: HeadTrackerBase, HeadTracking {
     }
 
     private func checkStaleness() {
-        let age = ProcessInfo.processInfo.systemUptime - latestPose.t
+        let now = ProcessInfo.processInfo.systemUptime
+        let age = now - latestPose.t
         if state == .connected && age > 1.0 {
             setState(.disconnected, "No head motion for 1 s. Check that the AirPods are in your ears and connected.")
         }
+        if Self.shouldRetry(state: state, now: now, lastRestartAt: lastRestartAt) { restartUpdates() }
     }
 }
 

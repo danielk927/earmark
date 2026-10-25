@@ -186,8 +186,7 @@ final class AppModel: ObservableObject {
             devicesChanged(routes.report())
             return
         }
-        let uid = ProcessInfo.processInfo.environment["EARMARK_MIC_UID"].flatMap { $0.isEmpty ? nil : $0 }
-        let m = MicCapture(preferredUID: uid)
+        let m = MicCapture()
         m.onChunk = { [weak self] chunk in self?.pipeline.process(chunk) }
         mic = m
         m.start { [weak self] error in
@@ -245,6 +244,12 @@ final class AppModel: ObservableObject {
     }
 
     func recenter() { core.recenter() }
+
+    /// A typed line goes to the concierge exactly like something you said.
+    func sendTyped(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { core.appleTranscript(t, final: true) }
+    }
 
     private func tick() {
         core.tick()
