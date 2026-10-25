@@ -1,9 +1,43 @@
 {
-  "note": "Where the beacon phones sit, in meters from the floor under the middle of the mat: x right, y forward (the tape arrow), z up. Placeholders: tape-measure the real spots and replace these. Keep all three at about the same height, well below the held phone (tables or chairs, about 0.75 m): if they are near the phone's height, its height cannot be worked out.",
-  "room": { "width_m": 3.5, "depth_m": 3.5 },
+  "note": "Where the beacon phones sit, in meters from the floor under the middle of the mat: x right, y forward (the tape arrow), z up. `make room-setup` finds these by itself (stand on each setup mark in turn) and writes them back here; the numbers below are only a starting guess (B1 ahead, B2 right, B3 left, about 1.2 m out). Keep the beacons at about the same height, well below the held phone (tables or chairs, about 0.75 m).",
+  "room": {
+    "width_m": 3.5,
+    "depth_m": 3.5
+  },
   "beacons": [
-    { "id": "B1", "label": "ahead", "position": [0.0, 1.2, 0.75] },
-    { "id": "B2", "label": "right", "position": [1.2, 0.0, 0.75] },
-    { "id": "B3", "label": "left", "position": [-1.2, 0.0, 0.75] }
+    {
+      "id": "B1",
+      "label": "ahead",
+      "position": [0.0, 1.2, 0.75]
+    },
+    {
+      "id": "B2",
+      "label": "right",
+      "position": [1.2, 0.0, 0.75]
+    },
+    {
+      "id": "B3",
+      "label": "left",
+      "position": [-1.2, 0.0, 0.75]
+    }
+  ],
+  "setup_marks_note": "Tape these marks on the floor, measured from the middle of the mat. The phone stands on each in turn during room setup. Spread out, so that no beacon lies on a line through them.",
+  "setup_marks": [
+    {
+      "label": "the mat",
+      "position": [0.0, 0.0]
+    },
+    {
+      "label": "a step forward",
+      "position": [0.0, 0.8]
+    },
+    {
+      "label": "back right",
+      "position": [0.7, -0.5]
+    },
+    {
+      "label": "back left",
+      "position": [-0.7, -0.5]
+    }
   ]
 }

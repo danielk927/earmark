@@ -134,9 +134,19 @@ ranging: ## Phone position service (phones connect to it; see locator/docs/PHONE
 	cd services/ranging && uv run --quiet earmark-ranging serve
 
 .PHONY: room-setup
-room-setup: ## Beacon phones chirp on their own; calibrate standing on the mat (see docs/project/ROOM_SETUP.md)
+room-setup: ## Room setup, no tape measure: stand on each floor mark; the Mac places the beacons (docs/project/ROOM_SETUP.md)
+	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
+		listen --setup --band 12000 16000 --min-snr 12
+
+.PHONY: room-recalibrate
+room-recalibrate: ## Beacons already placed (by room-setup or a tape): calibrate once, standing on the mat
 	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
 		listen --calibrate-at 0 0 1.25 --band 12000 16000 --min-snr 12 --calibration-seconds 30
+
+.PHONY: room-setup-sim
+room-setup-sim: ## Room setup with a virtual phone and virtual beacons (no hardware); the room page shows the result
+	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
+		listen --setup --sim --band 12000 16000
 
 .PHONY: convex-test
 convex-test:
