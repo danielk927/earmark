@@ -2,7 +2,7 @@
 
 The caregiver and family dashboard for Earmark (brief section 5.F).
 It shows where household items are right now, lets family label items remotely (by hand or from one photo), tracks medication pickups against a schedule, lists recent events, and reports trial results.
-It is a React + Vite + TypeScript app that talks only to Convex, through the function contract in `contracts/ts/convexFunctions.ts`.
+It is a React + Vite + TypeScript app. The family pages talk only to Convex, through the function contract in `contracts/ts/convexFunctions.ts`. The `/room` page is separate: it talks to the Earmark hub (the local WebSocket bus) on the demo Mac and never uses Convex.
 
 ## Run
 
@@ -37,6 +37,7 @@ The demo household has: sugar on its spot, salt picked up, the medication bottle
 | `/items` | Every item with its other names, notes, description, home spot, tag, and fob. Edit inline, create (including for an unlabeled tag via `/items?label=<tag>`), delete with an in-page confirmation, or start from a photo. |
 | `/medications` | Doses for one household-local day (`?date=YYYY-MM-DD`, date field, previous and next day) as taken, late, missed, or pending with times. Schedule editing (times and window) below. |
 | `/timeline` | The latest 100 events from `events.recent`, grouped by household-local day. |
+| `/room` | The live room view (3D map, guidance, status, simulated walking). It connects to the Earmark bus at `ws://<host>:8765` (set `VITE_BUS_URL` to use another address), so it only works on the demo Mac. On an https page without `VITE_BUS_URL` it uses `wss://`, and on a deployed host (https, not localhost) it shows a message that the room page only works on the demo Mac. |
 | `/trials` | Per-mode raw counts (trials, found, testers, median time to find, wrong picks), a pilot label under 10 completed trials, and every trial in a table. |
 
 ## Test
@@ -50,9 +51,9 @@ npm run e2e         # builds, then checks the real app in Playwright's Chromium
 ```
 
 `npm test` renders the real app with `convex/react` replaced by `test/convexMock.ts`, which resolves contract function names to fixture data and records every mutation and action call.
-It covers each page with contract-shaped data (the missed dose, the unknown tag, the roaming keys, trial stats and the pilot label), the photo flow (upload, suggestion, edit, confirm, and three error paths), axe-core on every page in both themes, keyboard focus behavior, and the contrast of every design token pair in both themes.
+It covers each page with contract-shaped data (the missed dose, the unknown tag, the roaming keys, trial stats and the pilot label), the photo flow (upload, suggestion, edit, confirm, and three error paths), axe-core on every page in both themes (and on `/room`, in the light theme it always uses, with the 3D scene not drawn because jsdom has no WebGL), keyboard focus behavior, and the contrast of every design token pair in both themes.
 
-`npm run e2e` (`e2e/check.mjs`) serves `dist/` and, in both color schemes, runs axe-core (WCAG 2.2 A and AA plus best practices, with real color contrast) on every page at desktop and phone sizes.
+`npm run e2e` (`e2e/check.mjs`) serves `dist/` and, in both color schemes, runs axe-core (WCAG 2.2 A and AA plus best practices, with real color contrast) on every family page (not `/room`) at desktop and phone sizes.
 It also checks for horizontal overflow at 320 CSS px and at 200% zoom, runs the photo flow and the remote labeling journey (label the map's new tag, then see it on the map), checks that the theme choice survives a reload, and writes the screenshots in `docs/screenshots/`.
 It needs Playwright's Chromium once: `npx playwright install chromium`.
 
@@ -81,6 +82,7 @@ Remote labeling from a phone needs a cloud Convex deployment; a local anonymous 
 | Variable | Where | Meaning |
 | - | - | - |
 | `VITE_CONVEX_URL` | shell or `dashboard/.env.local`, at build time | Convex deployment URL, for example `https://<deployment>.convex.cloud` |
+| `VITE_BUS_URL` | shell or `dashboard/.env.local`, at build time | Optional. Full WebSocket URL of the Earmark hub for `/room`, for example `wss://<host>:8765`. Without it the page uses `ws://` (or `wss://` on https) on port 8765 of the page's host |
 | `CONVEX_URL` | repo-root `.env.local` (written by `npx convex dev`) | Fallback for `VITE_CONVEX_URL` in dev and build |
 
 ## Accessibility
@@ -104,7 +106,8 @@ Accessibility is a requirement here (brief rule 7), and each item below is teste
 - Demo mode (`?demo=1`) mocks the whole backend in memory, including the photo suggestion (it returns a canned "honey" suggestion and names itself "demo fixture (no model was called)").
 - The demo applies its own copy of the adherence rule from `contracts/README.md` so doses look right at any time of day; the real rule runs in Convex.
 - Tests mock `convex/react` and the photo shrinker (jsdom has no canvas); the Chromium run exercises the real shrinker.
-- Nothing has been run against the real Convex backend yet, since it was built in parallel; the dashboard calls it only through the contract's `fn` references, by name.
+- `e2e/live.mjs` has been run against the real Convex backend (screenshots are in `docs/screenshots/live/`). The unit tests and `npm run e2e` still use mocks and demo data.
+- `/room` is tested with a fake WebSocket; it has not been checked against the real hub in an automated test, and the 3D scene is not drawn in jsdom.
 
 ## Decisions
 
@@ -128,7 +131,8 @@ Accessibility is a requirement here (brief rule 7), and each item below is teste
 
 - `src/main.tsx` picks the mode (Convex, demo, or not connected) and renders `src/App.tsx`.
 - `src/data/` holds the backend interface, the Convex adapter, the demo backend, and the fixtures.
+- `src/room/` holds the `/room` page: `RoomPage.tsx`, the bus hook `useBus.ts`, the state model `model.ts`, the three.js scene `scene3d.ts`, and `room.css`.
 - `src/pages/` holds one file per page, plus `MapField.tsx` (the SVG map), `ItemForm.tsx`, and `PhotoLabel.tsx`.
 - `src/lib/` holds time formatting, wording, change descriptions, error messages, photo shrinking, and the theme switch.
 - `src/styles/tokens.css` and `src/styles/app.css` hold all styling.
-- `test/` holds the vitest suite; `e2e/check.mjs` holds the Chromium check; `docs/screenshots/` holds its output.
+- `test/` holds the vitest suite; `e2e/check.mjs` holds the Chromium check; `e2e/live.mjs` screenshots every page against a real Convex deployment (`node e2e/live.mjs [baseUrl] [outDir]`); `docs/screenshots/` holds their output.

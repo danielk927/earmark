@@ -191,6 +191,16 @@ function ScheduleForm({ med, isNew = false, onSaved }: { med: MedicationRow; isN
   const upsert = useBackend().useMutation(fn.medications.upsert);
   const [times, setTimes] = useState<string[]>(med.scheduleTimes);
   const [windowMinutes, setWindowMinutes] = useState(String(med.windowMinutes));
+  // The form follows the server's schedule until the user touches it; after that a change from someone else only shows a notice.
+  const serverKey = JSON.stringify([med.scheduleTimes, med.windowMinutes]);
+  const [base, setBase] = useState(serverKey);
+  const [dirty, setDirty] = useState(false);
+  if (serverKey !== base && !dirty) {
+    setBase(serverKey);
+    setTimes(med.scheduleTimes);
+    setWindowMinutes(String(med.windowMinutes));
+  }
+  const changedElsewhere = dirty && serverKey !== base;
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -208,6 +218,8 @@ function ScheduleForm({ med, isNew = false, onSaved }: { med: MedicationRow; isN
     try {
       await upsert({ objectId: med.objectId, scheduleTimes: clean, windowMinutes: w });
       setTimes(clean);
+      setBase(serverKey);
+      setDirty(false);
       setSaved(`Saved the schedule for ${name}.`);
       onSaved?.();
     } catch (err) {
@@ -232,12 +244,18 @@ function ScheduleForm({ med, isNew = false, onSaved }: { med: MedicationRow; isN
                 id={`${id}-t${i}`}
                 type="time"
                 value={t}
-                onChange={(e) => setTimes(times.map((x, j) => (j === i ? e.target.value : x)))}
+                onChange={(e) => {
+                  setDirty(true);
+                  setTimes(times.map((x, j) => (j === i ? e.target.value : x)));
+                }}
               />
               <button
                 type="button"
                 className="button small"
-                onClick={() => setTimes(times.filter((_, j) => j !== i))}
+                onClick={() => {
+                  setDirty(true);
+                  setTimes(times.filter((_, j) => j !== i));
+                }}
                 disabled={times.length === 1}
               >
                 <Icon name="trash" size={18} /> Remove<span className="visually-hidden"> dose time {i + 1}</span>
@@ -245,7 +263,10 @@ function ScheduleForm({ med, isNew = false, onSaved }: { med: MedicationRow; isN
             </li>
           ))}
         </ul>
-        <button type="button" className="button small" onClick={() => setTimes([...times, "12:00"])}>
+        <button type="button" className="button small" onClick={() => {
+            setDirty(true);
+            setTimes([...times, "12:00"]);
+          }}>
           <Icon name="plus" size={18} /> Add a time
         </button>
       </fieldset>
@@ -259,10 +280,18 @@ function ScheduleForm({ med, isNew = false, onSaved }: { med: MedicationRow; isN
           max={240}
           step={5}
           value={windowMinutes}
-          onChange={(e) => setWindowMinutes(e.target.value)}
+          onChange={(e) => {
+            setDirty(true);
+            setWindowMinutes(e.target.value);
+          }}
           className="narrow"
         />
       </div>
+      {changedElsewhere && (
+        <Notice tone="warn" icon="alert" role="status" title="Someone else changed this schedule.">
+          <p>Saving will replace their change with what is in this form. Reload the page to see theirs first.</p>
+        </Notice>
+      )}
       {error && (
         <Notice tone="bad" icon="alert" role="alert" title="Not saved.">
           <p>{error}</p>

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { TrialRow } from "@contracts/convexFunctions";
@@ -66,6 +66,29 @@ describe("Medications", () => {
       windowMinutes: 45,
     });
     expect(await within(form).findByText("Saved the schedule for Blood pressure pills.")).toBeInTheDocument();
+  });
+
+  it("follows the server schedule while the form is untouched", async () => {
+    const data = serve();
+    renderAt("/medications");
+    const form = screen.getByRole("form", { name: "Blood pressure pills" });
+    expect(within(form).getByLabelText("Window, in minutes")).toHaveValue(60);
+    act(() => convexMock.setQuery("medications:list", data.medications.map((m) => ({ ...m, windowMinutes: 30 }))));
+    expect(within(form).getByLabelText("Window, in minutes")).toHaveValue(30);
+    expect(within(form).queryByText(/changed this schedule/)).not.toBeInTheDocument();
+  });
+
+  it("keeps edits and warns when the server schedule changes under a touched form", async () => {
+    const data = serve();
+    renderAt("/medications");
+    const u = userEvent.setup();
+    const form = screen.getByRole("form", { name: "Blood pressure pills" });
+    const w = within(form).getByLabelText("Window, in minutes");
+    await u.clear(w);
+    await u.type(w, "45");
+    act(() => convexMock.setQuery("medications:list", data.medications.map((m) => ({ ...m, windowMinutes: 30 }))));
+    expect(within(form).getByLabelText("Window, in minutes")).toHaveValue(45);
+    expect(within(form).getByText(/changed this schedule/)).toBeInTheDocument();
   });
 
   it("rejects an out-of-range window without saving", async () => {

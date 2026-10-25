@@ -1,5 +1,5 @@
 /**
- * The room drawn in the 3Blue1Brown style: near-black, flat bright colors, a math-textbook serif. No axes or numbers.
+ * The room drawn in a 3Blue1Brown-like style: black on white, flat shapes, a math-textbook serif. No axes or numbers.
  * Earmark's (x right, y forward, z up) maps to three's (x, y up, -z forward).
  */
 import * as THREE from "three";
@@ -23,17 +23,26 @@ export function webglAvailable(): boolean {
 
 // Black on white. Things are told apart by shape and label, not by color.
 const BG = 0xffffff;
-const BLUE = 0x000000; // the room outline and the mat arrow
-const GREEN = 0x000000; // the beacon phones
-const YELLOW = 0x000000; // the item
-const RED = 0x000000; // the arrow to the item
+const INK = 0x000000;
 
 const P = (p: Vec3, lift = 0) => new THREE.Vector3(p[0], p[2] + lift, -p[1]);
 
-function tag(html: string, cls: string): CSS2DObject {
+/** Set a label to italic text with an optional subscript. Built from nodes, so a name can never inject HTML. */
+export function setTag(el: HTMLElement, text: string, sub?: string) {
+  const i = document.createElement("i");
+  i.textContent = text;
+  el.replaceChildren(i);
+  if (sub !== undefined) {
+    const s = document.createElement("sub");
+    s.textContent = sub;
+    el.append(s);
+  }
+}
+
+export function tag(text: string, cls: string, sub?: string): CSS2DObject {
   const el = document.createElement("div");
   el.className = `m3-tag ${cls}`;
-  el.innerHTML = html;
+  setTag(el, text, sub);
   return new CSS2DObject(el);
 }
 
@@ -117,7 +126,7 @@ export class RoomModel {
   private gaze: THREE.Line;
   private personTag: CSS2DObject;
   private trail: THREE.Line;
-  private arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 1, YELLOW, 0.14, 0.08);
+  private arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 1, INK, 0.14, 0.08);
   private waves: THREE.Mesh[] = [];
   private shown = new THREE.Vector3();
   private shownTarget = new THREE.Vector3();
@@ -153,18 +162,18 @@ export class RoomModel {
     this.scene.add(this.itemsGroup);
 
     this.figure.rotation.y = 0;
-    this.personTag = tag("<i>You</i>", "m3-you");
+    this.personTag = tag("You", "m3-you");
     this.personTag.position.set(0, 1.95, 0);
-    this.gaze = line([new THREE.Vector3(0, 0.01, 0), new THREE.Vector3(0, 0.01, -0.9)], YELLOW, 0.9);
+    this.gaze = line([new THREE.Vector3(0, 0.01, 0), new THREE.Vector3(0, 0.01, -0.9)], INK, 0.9);
     this.person.add(this.figure, this.personTag, this.gaze);
     this.scene.add(this.person);
 
-    this.trail = line([], BLUE, 0.7);
+    this.trail = line([], INK, 0.7);
     this.scene.add(this.trail);
     this.arrow.visible = false;
     this.scene.add(this.arrow);
     for (let i = 0; i < 4; i++) {
-      const w = new THREE.Mesh(new THREE.TorusGeometry(1, 0.016, 8, 72), new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, depthWrite: false }));
+      const w = new THREE.Mesh(new THREE.TorusGeometry(1, 0.016, 8, 72), new THREE.MeshBasicMaterial({ color: INK, transparent: true, depthWrite: false }));
       w.visible = false;
       this.waves.push(w);
       this.scene.add(w);
@@ -194,13 +203,13 @@ export class RoomModel {
     const edge = line([
       new THREE.Vector3(-w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, d / 2),
       new THREE.Vector3(-w / 2, 0.004, d / 2), new THREE.Vector3(-w / 2, 0.004, -d / 2),
-    ], BLUE, 0.7);
+    ], INK, 0.7);
     this.scene.add(edge);
     const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08, side: THREE.DoubleSide }));
     mat.rotation.x = -Math.PI / 2;
     mat.position.y = 0.002;
     this.scene.add(mat);
-    const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.006, 0.2), 0.5, BLUE, 0.12, 0.08);
+    const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.006, 0.2), 0.5, INK, 0.12, 0.08);
     this.scene.add(arrow);
   }
 
@@ -216,16 +225,16 @@ export class RoomModel {
       const top = P(b.position);
       const floor = P([b.position[0], b.position[1], 0]);
       // The phone, a small green slab at its real height, on a dotted line to the floor.
-      const phone = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.15, 0.012), new THREE.MeshBasicMaterial({ color: GREEN }));
+      const phone = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.15, 0.012), new THREE.MeshBasicMaterial({ color: INK }));
       phone.position.copy(top);
       phone.rotation.y = Math.atan2(-floor.x, -floor.z);
       this.beaconGroup.add(phone);
-      this.beaconGroup.add(line([floor.clone().setY(0.005), top], GREEN, 0.5, true));
-      const foot = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.065, 24), new THREE.MeshBasicMaterial({ color: GREEN, side: THREE.DoubleSide }));
+      this.beaconGroup.add(line([floor.clone().setY(0.005), top], INK, 0.5, true));
+      const foot = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.065, 24), new THREE.MeshBasicMaterial({ color: INK, side: THREE.DoubleSide }));
       foot.rotation.x = -Math.PI / 2;
       foot.position.copy(floor).setY(0.006);
       this.beaconGroup.add(foot);
-      const t = tag(`<i>B</i><sub>${b.id.replace(/\D/g, "") || i + 1}</sub>`, "m3-beacon");
+      const t = tag("B", "m3-beacon", b.id.replace(/\D/g, "") || String(i + 1));
       t.position.copy(top).add(new THREE.Vector3(0, 0.22, 0));
       this.beaconGroup.add(t);
     });
@@ -244,13 +253,13 @@ export class RoomModel {
       const floor = P([p[0], p[1], 0]);
       g.position.copy(floor);
       const h = Math.max(p[2], 0.06);
-      const stem = line([new THREE.Vector3(0, 0.004, 0), new THREE.Vector3(0, h, 0)], YELLOW, 0.5, true);
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 20, 14), new THREE.MeshBasicMaterial({ color: YELLOW }));
+      const stem = line([new THREE.Vector3(0, 0.004, 0), new THREE.Vector3(0, h, 0)], INK, 0.5, true);
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.055, 20, 14), new THREE.MeshBasicMaterial({ color: INK }));
       dot.position.y = h;
-      const ring = new THREE.Mesh(new THREE.RingGeometry(0.07, 0.085, 28), new THREE.MeshBasicMaterial({ color: YELLOW, side: THREE.DoubleSide }));
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.07, 0.085, 28), new THREE.MeshBasicMaterial({ color: INK, side: THREE.DoubleSide }));
       ring.rotation.x = -Math.PI / 2;
       ring.position.y = 0.006;
-      const t = tag(`<i>${it.name}</i>`, "m3-item");
+      const t = tag(it.name, "m3-item");
       t.position.set(0, h + 0.17, 0);
       g.add(stem, dot, ring, t);
       this.itemsGroup.add(g);
@@ -278,7 +287,7 @@ export class RoomModel {
     this.shownTarget.copy(P([s.user[0], s.user[1], 0]));
     this.yawTarget = -((s.headYaw ?? 0) * Math.PI) / 180;
     this.gaze.visible = s.headYaw !== null;
-    this.personTag.element.innerHTML = `<i>${s.userLive ? "You" : s.userSource === "mat" ? "You (on the mat)" : "You (last seen)"}</i>`;
+    setTag(this.personTag.element, s.userLive ? "You" : s.userSource === "mat" ? "You (on the mat)" : "You (last seen)");
     const pts = s.trail.map((p) => P([p[0], p[1], 0], 0.01));
     this.trail.geometry.dispose();
     this.trail.geometry = new THREE.BufferGeometry().setFromPoints(pts.length > 1 ? pts : []);
@@ -302,7 +311,7 @@ export class RoomModel {
         this.arrow.position.copy(from);
         this.arrow.setDirection(dir.clone().normalize());
         this.arrow.setLength(len, 0.16, 0.09);
-        this.arrow.setColor(RED);
+        this.arrow.setColor(INK);
       }
       const src = P(g.target);
       const dst = chest;

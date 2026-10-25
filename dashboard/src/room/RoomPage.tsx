@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import beaconConfig from "../../../config/beacons.json";
 import { clockHour, horizontalDistance, type LogLine, type RoomState, type Turn, type Vec3 } from "./model";
 import { RoomModel, webglAvailable, type Beacon } from "./scene3d";
-import { useBus } from "./useBus";
+import { busUnreachable, useBus } from "./useBus";
 import "@fontsource/stix-two-text/latin-400.css";
 import "@fontsource/stix-two-text/latin-400-italic.css";
 import "@fontsource/stix-two-text/latin-600.css";
@@ -22,12 +22,30 @@ const SOURCE_TEXT: Record<string, string> = {
 };
 
 export function RoomPage() {
+  return busUnreachable() ? <OnlyOnMac /> : <RoomLive />;
+}
+
+function OnlyOnMac() {
+  return (
+    <main className="room-only-mac">
+      <h1>Earmark room</h1>
+      <p>The room page only works on the demo Mac, because it talks to the Earmark hub running there. Open it from that Mac at http://localhost:5173/room.</p>
+    </main>
+  );
+}
+
+function RoomLive() {
   const { state, send, echo, local } = useBus();
   const host = useRef<HTMLDivElement>(null);
   const scene = useRef<RoomModel | null>(null);
   const lastSaid = state.log.find((l) => l.kind === "said");
   const [gl] = useState(webglAvailable);
   const [simulate, setSimulate] = useState(false);
+  const [view, setView] = useState<"angle" | "top">("angle");
+  const showView = (v: "angle" | "top") => {
+    scene.current?.view(v);
+    setView(v);
+  };
   const simPos = useRef<Vec3>([0, 0, 1.55]);
   const realFix = state.userLive && state.userSource === "beacons";
   const walking = simulate && !realFix; // real phone positions take over from the simulator
@@ -70,6 +88,9 @@ export function RoomPage() {
       }
     };
     const up = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
+    // Keys released while the window is not focused never send keyup, so stop walking when focus is lost.
+    const release = () => keys.clear();
+    const hidden = () => document.hidden && keys.clear();
     const move = setInterval(() => {
       const p = simPos.current;
       let [x, y] = [p[0], p[1]];
@@ -88,12 +109,16 @@ export function RoomPage() {
     }
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", release);
+    document.addEventListener("visibilitychange", hidden);
     pub();
     return () => {
       clearInterval(move);
       clearInterval(beat);
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", hidden);
     };
     // state.user is read once, when walking starts
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,11 +126,11 @@ export function RoomPage() {
 
   return (
     <div className="room is-3d">
-      <section className="room-stage" aria-label="The room, seen from above">
+      <section className="room-stage" aria-label="The room, in 3D">
         {gl ? <div ref={host} className="room-canvas" /> : <p className="room-nogl">This browser cannot draw the room.</p>}
         <div className="room-viewbar" role="group" aria-label="View">
-          <button type="button" onClick={() => scene.current?.view("angle")}>Angle</button>
-          <button type="button" onClick={() => scene.current?.view("top")}>Top</button>
+          <button type="button" aria-pressed={view === "angle"} onClick={() => showView("angle")}>Angle</button>
+          <button type="button" aria-pressed={view === "top"} onClick={() => showView("top")}>Top</button>
         </div>
         <p className="room-caption" aria-live="polite">
           {lastSaid ? lastSaid.text : "Ask a question, or say where you left something."}
@@ -130,11 +155,14 @@ export function RoomPage() {
   );
 }
 
-function Pill({ ok, label, detail }: { ok: boolean | null; label: string; detail: string }) {
+const PILL_ICON = { ok: "✓", bad: "✕", idle: "○" } as const;
+
+/** Each pill says its state in words and shows a shape (check, cross, circle), so it never relies on color. */
+function Pill({ ok, label, text, detail }: { ok: boolean | null; label: string; text: string; detail: string }) {
   return (
     <li className={`room-pill ${ok === null ? "idle" : ok ? "ok" : "bad"}`} title={detail}>
-      <span aria-hidden="true" className="dot" />
-      <span>{label}</span>
+      <span aria-hidden="true" className="dot">{PILL_ICON[ok === null ? "idle" : ok ? "ok" : "bad"]}</span>
+      <span>{label}: {text}</span>
     </li>
   );
 }
@@ -148,12 +176,14 @@ function StatusRow({ state }: { state: RoomState }) {
   const mac = fresh("mac_app");
   const loc = fresh("locator");
   const con = fresh("concierge");
+  // The phones track you while beacon fixes arrive; the model drops back to "mat" after 5 s without one.
+  const tracking = !!loc?.ok && state.userSource === "beacons";
   return (
     <ul className="room-pills" aria-label="Status">
-      <Pill ok={state.connected} label={state.connected ? "Connected" : "Not connected"} detail="The Earmark hub on this Mac" />
-      <Pill ok={con ? con.ok : null} label="Voice" detail={con?.detail ?? "The voice service has not reported yet"} />
-      <Pill ok={mac ? mac.ok : null} label="AirPods app" detail={mac?.detail ?? "The Mac app is not running"} />
-      <Pill ok={loc?.ok ? true : null} label="Phones" detail={loc?.detail ?? "The phone position service is not running"} />
+      <Pill ok={state.connected} label="Hub" text={state.connected ? "connected" : "not connected"} detail="The Earmark hub on this Mac" />
+      <Pill ok={con ? con.ok : null} label="Voice" text={con ? (con.ok ? "working" : "problem") : "not reported"} detail={con?.detail ?? "The voice service has not reported yet"} />
+      <Pill ok={mac ? mac.ok : null} label="AirPods app" text={mac ? (mac.ok ? "working" : "problem") : "not running"} detail={mac?.detail ?? "The Mac app is not running"} />
+      <Pill ok={tracking} label="Phones" text={tracking ? "tracking" : loc ? "no fix" : "not connected"} detail={loc?.detail ?? "The phone position service is not running"} />
     </ul>
   );
 }

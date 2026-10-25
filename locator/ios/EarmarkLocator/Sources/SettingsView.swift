@@ -19,7 +19,7 @@ struct SettingsView: View {
                     Text("Contract · hello token").tag(HubAuth.hello)
                 }
                 SecureField("Shared token (contract modes only)", text: $draft.hub_token).disabled(draft.hub_auth_mode == .native)
-                Text("Native mode sends hello with role sensor and name locator, then pos-only pose plus listener_pose. The current Mac hub does not handle mic_audio or ptt yet.").font(.footnote)
+                Text("Native mode sends hello with role sensor and name locator, then pos-only pose plus listener_pose; the current Mac hub rejects it, so use hello token. The current Mac hub handles mic_audio and ptt.").font(.footnote)
             }
             Section("Carry mode and environment") {
                 Picker("Phone placement", selection: $draft.mode) {

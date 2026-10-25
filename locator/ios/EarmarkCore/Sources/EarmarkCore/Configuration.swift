@@ -113,7 +113,7 @@ public struct LocatorConfig: Codable, Equatable, Sendable {
     public var mic_audio_chunk_ms = 40.0
     public var hub_url = ""
     public var hub_token = ""
-    public var hub_auth_mode = HubAuth.native
+    public var hub_auth_mode = HubAuth.hello
     public init() {}
     public var speedOfSound: Double { 331.3 + 0.606 * air_temperature }
     public var height: HeightPrior { mode == .hand ? height_hand : height_pocket }

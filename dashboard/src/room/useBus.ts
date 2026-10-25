@@ -7,11 +7,19 @@ const SUBSCRIBE = [
   "guide_feedback", "transcript", "speak", "speak_text", "speak_cached", "place_item", "pickup", "status", "reset",
 ];
 
+const isLocalHost = (h: string) => !h || h === "localhost" || h === "127.0.0.1";
+
 export function busUrl(): string {
   const env = import.meta.env.VITE_BUS_URL as string | undefined;
   if (env) return env;
-  const host = !window.location.hostname || window.location.hostname === "localhost" ? "127.0.0.1" : window.location.hostname;
-  return `ws://${host}:8765`;
+  const host = isLocalHost(window.location.hostname) ? "127.0.0.1" : window.location.hostname;
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${host}:8765`;
+}
+
+/** True on a deployed (https, not localhost) page with no VITE_BUS_URL: the hub only runs on the demo Mac, so it cannot be reached. */
+export function busUnreachable(): boolean {
+  return !import.meta.env.VITE_BUS_URL && window.location.protocol === "https:" && !isLocalHost(window.location.hostname);
 }
 
 type Action = { kind: "echo"; text: string } | { kind: "local"; msg: Record<string, unknown> & { type: string } } | { kind: "msg"; msg: Record<string, unknown> & { type: string } } | { kind: "tick" } | { kind: "down" };
