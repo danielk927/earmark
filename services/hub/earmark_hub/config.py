@@ -97,6 +97,10 @@ class UwbCfg(_Cfg):
     phone_z: float = -0.35  # overridden by space.json tracking.phone_z
     head_offset_m: float = Field(default=0.20, ge=0)  # overridden by space.json tracking.head_offset_m
     ear_z_m: float = 0.0  # overridden by space.json tracking.ear_z_m (room frame: floor = 0, standing ~1.55)
+    mark_avg_s: float = Field(default=1.5, gt=0)  # tap-to-mark: average the phone fixes of the last mark_avg_s
+    mark_min_fixes: int = Field(default=3, ge=1)  # ... and need at least this many, else fall back to the beacon pose
+    mark_z_m: float = 0.9  # overridden by space.json tracking.mark_z_m (height stored for a marked object)
+    beacon_fresh_s: float = Field(default=2.0, gt=0)  # beacon-locator listener_pose older than this (hub receive time) is stale
     head_pose_max_age_s: float = Field(default=0.5, gt=0)
     counter_ref: list[float] = Field(default_factory=lambda: [0.0, 0.0], min_length=2, max_length=2)
     freeze_enter_m: float = Field(default=1.0, gt=0)

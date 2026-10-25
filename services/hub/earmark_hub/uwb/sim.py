@@ -9,7 +9,8 @@ periodic body-block bursts (+`jump_m` on one anchor for `block_s`).
   `dwell_s`, and (with `loop`) walk back and forth.
 - Interactive (`earmark-hub --adapters simulator,uwb_sim --interactive`): the keyboard simulator forwards
   the keys it does not use to `key()`: WASD or the arrow keys move the wearer `step_m`, `x` stops (still),
-  `f` says "I'm here" (`listener_command freeze`).
+  `f` says "I'm here" (`listener_command freeze`), `m` taps the phone next to an object (`object_tap`; in the
+  raw-key console press `m` then `m` or Enter, since `m<digit>` moves a held object).
 
 Enable with EARMARK_ADAPTERS=simulator,uwb_sim. Do not combine with `--scenario scenarios/uwb_walk.jsonl`,
 which already contains ranges.
@@ -22,7 +23,7 @@ import math
 import random
 from typing import AsyncIterator, Callable
 
-from earmark_contracts import DetectionEvent, ListenerCommand, MotionState, UwbRange
+from earmark_contracts import DetectionEvent, ListenerCommand, MotionState, ObjectTap, UwbRange
 
 from ..adapters.base import Adapter
 from ..clock import Clock
@@ -39,7 +40,8 @@ HELP = """\
 uwb_sim keys:
   w a s d / arrows   move the wearer (forward = toward the counter)
   x                  stop (motion still)
-  f                  "I'm here" (freeze)"""
+  f                  "I'm here" (freeze)
+  m                  tap the phone next to an object (mark; in the key console: m, then m or Enter)"""
 
 
 class WalkPath:
@@ -158,6 +160,9 @@ class UwbSimAdapter(Adapter):
         elif cmd == "f":
             await self.ctx.publish(ListenerCommand(action="freeze", t=now), self.name)
             self.out("said: I'm here (freeze)\n")
+        elif cmd == "m":
+            await self.ctx.publish(ObjectTap(t=now), self.name)
+            self.out("tapped: mark this spot\n")
         else:
             return False
         return True

@@ -484,3 +484,32 @@ def test_pose_quality_fields(space):
     rows = rig.tr.ingest_anchors(rig.now)
     assert [(r.anchor, r.online) for r in rows] == [("uwb_1", True), ("uwb_2", False), ("uwb_3", False)]
     assert rows[0].position == [-0.9, 0.75, 1.3] and rows[0].last_seen_t == rig.now
+
+
+# ---------------------------------------------------------------- tap-to-mark: mean_fix
+
+
+def test_mean_fix_is_the_plain_phone_mean_over_the_window_without_head_offset(space):
+    rig = Rig(space)
+    for i in range(20):  # walk +x at 0.5 m/s; each tick adds one accepted fix
+        rig.step((0.05 * i, -2.0), motion="moving")
+    start = rig.now - 0.55  # fixes 14..19
+    mean = rig.tr.mean_fix(start, 3)
+    assert mean == pytest.approx((0.05 * 16.5, -2.0 + rig.offset), abs=1e-3)  # the phone, not the head
+    assert rig.tr.mean_fix(start, 6) is not None and rig.tr.mean_fix(start, 7) is None  # min_fixes
+    assert rig.tr.mean_fix(rig.now + 1.0, 1) is None  # nothing that recent
+    # history is kept for mark_avg_s (1.5 s), longer than average_window_s (1.0 s)
+    assert rig.tr.history[0][0] <= rig.now - rig.cfg.average_window_s - 0.2
+
+
+def test_landing_point_still_averages_over_the_still_window_and_falls_back_to_the_filter(space):
+    rig = Rig(space)
+    for i in range(12):
+        rig.step((0.02 * i, -0.5), motion="still" if i >= 4 else "moving")
+    window = [p for t, p in rig.tr.history if t >= max(rig.now - 1.0, rig.tr.still_since) - 1e-9]
+    mean = (sum(p[0] for p in window) / len(window), sum(p[1] for p in window) / len(window))
+    land = rig.tr._landing_point(rig.now)
+    assert land == pytest.approx((mean[0], mean[1] - rig.offset), abs=1e-9)  # head offset applied, unlike mean_fix
+    rig.tr.history.clear()
+    fp = rig.tr.filter.pos
+    assert rig.tr._landing_point(rig.now) == pytest.approx((fp[0], fp[1] - rig.offset), abs=1e-9)

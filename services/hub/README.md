@@ -66,6 +66,7 @@ With `uwb_sim` also enabled, the same keyboard drives the simulated wearer:
 | `w` `a` `s` `d` or the arrow keys | Move the wearer `step_m` (0.25 m); `w` / up is toward the counter. The wearer counts as moving for 0.6 s after each key |
 | `x` | Stand still now |
 | `f` | Say "I'm here" (`listener_command freeze`) |
+| `m`, then `m` or Enter | Tap the phone next to an object (`object_tap`); the first `m` is also the move-held-object prefix, so a digit still means a move |
 
 The simulator keeps polling every spot every 0.5 s (and the fob every 1 s), so the hub sees exactly what real readers would send.
 On a terminal, keys act immediately; with piped stdin, each line is one command (`3`, `m1`, `t where is the sugar`).
@@ -95,7 +96,7 @@ No test touches real Bluetooth, serial ports, Convex, `config/`, or `var/`.
 | `nfc_serial` | `port_globs`, `baud`, `reconnect_s`. |
 | `ble_fobs` | `receiver`, `fobs` (`fob_id` -> `{address, name}`), `ema_tau_s`, `stale_s`, `near_dbm`, `mid_dbm`, `emit_interval_s`, `chirp_timeout_s`, `connect_timeout_s`, `alert_service_uuid`, `alert_char_uuid`, `alert_level`, `link_loss_service_uuid`, `link_loss_value`. |
 | `convex` | `registry_poll_s` (2), `timeout_s` (3), `flush_interval_s`, `batch_max`, `backoff_initial_s`, `backoff_max_s`. |
-| `uwb` | Walking guidance (below). `enabled`, `solve_hz` (10), `freshness_s` (0.5), `lost_after_s` (2), `lost_hold_s` (3), `max_speed_mps` (2.5), `outlier_rms_m` (0.25), `alpha` / `beta` (0.5 / 0.1), `alpha_still` (0.2), `phone_z` (-0.35), `head_offset_m` (0.2), `head_pose_max_age_s` (0.5), `counter_ref` ([0, 0]), `freeze_enter_m` (1.0), `freeze_exit_m` (1.3, must be at least `freeze_enter_m`), `still_for_s` (0.6), `average_window_s` (1.0), `unfreeze_move_m` (0.35), `blend_s` (0.4, used by the Mac app only), `freeze_mode` (`average` or `snap`), `reach_max_m` (0.75), `convex_pose_hz` (2). |
+| `uwb` | Walking guidance (below). `enabled`, `solve_hz` (10), `freshness_s` (0.5), `lost_after_s` (2), `lost_hold_s` (3), `max_speed_mps` (2.5), `outlier_rms_m` (0.25), `alpha` / `beta` (0.5 / 0.1), `alpha_still` (0.2), `phone_z` (-0.35), `head_offset_m` (0.2), `head_pose_max_age_s` (0.5), `counter_ref` ([0, 0]), `freeze_enter_m` (1.0), `freeze_exit_m` (1.3, must be at least `freeze_enter_m`), `still_for_s` (0.6), `average_window_s` (1.0), `unfreeze_move_m` (0.35), `blend_s` (0.4, used by the Mac app only), `freeze_mode` (`average` or `snap`), `reach_max_m` (0.75), `convex_pose_hz` (2), tap-to-mark: `mark_avg_s` (1.5), `mark_min_fixes` (3), `mark_z_m` (0.9), `beacon_fresh_s` (2). |
 | `uwb_sim` | Simulated wearer. `rate_hz` (15 ranges per anchor per second), `noise_sigma_m` (0.07), `dropout_prob` (0.03), `jump_m` (0.4), `block_every_s` (8), `block_s` (1), `path` (start mark to counter, `[[0.4, -3.0], [0.1, -1.5], [0.0, 0.0]]`), `speed_mps` (0.6), `dwell_s` (4), `loop` (true), `step_m` (0.25), `seed` (null = random). |
 | `health` | `interval_s` (5). |
 | `paths` | `space`, `seed`, `cache`, `queue`, `trials`, `logs`, relative to the repo root unless absolute. |
@@ -178,6 +179,14 @@ The phones send distances; the hub does all the math and publishes one `listener
   Enable it with `EARMARK_ADAPTERS=simulator,uwb_sim` or `--adapters simulator,uwb_sim`.
   `scripts/run_stack.sh sim` passes `--adapters simulator` itself, so add it there as `scripts/run_stack.sh sim --interactive --adapters simulator,uwb_sim` (the last `--adapters` wins).
   Simulated poses have `source: sim`; ranges from an `ios_wearer` client are `source: uwb`.
+
+**Tap-to-mark.** The user sets an object down and taps the phone next to it; the phone's position becomes the object's.
+An `object_tap` (no data, from `ios_wearer`, the concierge, or the `uwb_sim` `m` key) makes the hub broadcast one `tap_position {ok, position, source}`:
+- UWB `tracked` or `frozen`: the mean of the raw accepted phone fixes of the last `mark_avg_s` (1.5 s), if there are at least `mark_min_fixes` (3); `position` is `[x, y, mark_z_m]` (`tracking.mark_z_m` in `space.json`, else `uwb.mark_z_m`, 0.9) and `source` is the tracker's (`uwb` or `sim`). The phone position is used, not the head position.
+- Otherwise the latest beacon-locator `listener_pose`, if its quality is not `lost` and the hub received it within `beacon_fresh_s` (2 s; the phone's own `t` is never trusted): its position and source, as is.
+- Otherwise `ok: false`, `source: none`, no position.
+
+The hub logs only `ok` and `source`, never coordinates.
 
 **Network and the bus secret.** The phones reach the hub over Wi-Fi, so the bus must listen on the network: `EARMARK_BUS_HOST=0.0.0.0` (or `bus.host` in `hub.json`) and set `EARMARK_BUS_SECRET`.
 Loopback clients are trusted.

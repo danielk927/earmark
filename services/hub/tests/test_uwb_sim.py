@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 
 import pytest
-from earmark_contracts import ListenerCommand, MotionState, UwbRange
+from earmark_contracts import ListenerCommand, MotionState, ObjectTap, UwbRange
 
 from conftest import T0
 from earmark_hub.clock import VirtualClock
@@ -145,3 +145,12 @@ async def test_interactive_keys(space):
     assert await adapter.key("q") is False
     await adapter.on_reset()
     assert adapter.head == start
+
+
+async def test_interactive_m_key_taps_the_phone(space):
+    clock = VirtualClock(T0)
+    adapter = UwbSimAdapter(clock, UwbSimCfg(), UwbCfg(), interactive=True, out=lambda s: None)
+    ctx = Ctx(space, clock, UwbCfg(), 100.0)
+    adapter.attach(ctx)
+    assert await adapter.key("m")
+    assert [(o, type(m)) for o, m in ctx.msgs] == [("uwb_sim", ObjectTap)]

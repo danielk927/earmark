@@ -74,12 +74,12 @@ async def key_commands(reader: StdinReader, out: Callable[[str], None]) -> Async
             if arrow:
                 yield arrow
         elif key == "m":
-            out("move held object to spot: ")
+            out("move held object to spot (m or Enter = tap the phone): ")
             digit = await reader.get()
             if digit is None:
                 return
-            out(digit + "\n")
-            yield "m" + digit
+            out(digit.strip() + "\n")
+            yield ("m" + digit) if digit.isdigit() else "m"  # a bare "m" is uwb_sim's tap key
         elif key == "t":
             out("say: ")
             text = ""

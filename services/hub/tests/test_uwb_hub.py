@@ -12,7 +12,9 @@ from earmark_contracts import (
     DetectionEvent,
     Hello,
     ListenerCommand,
+    ListenerPose,
     MotionState,
+    ObjectTap,
     Reset,
     Snapshot,
     UwbRange,
@@ -24,7 +26,9 @@ from websockets.asyncio.client import connect
 
 from conftest import SUGAR
 from earmark_hub.bus import Client, auth_error, is_loopback
+from earmark_hub.config import UwbSimCfg
 from earmark_hub.hub import Hub
+from earmark_hub.uwb.sim import UwbSimAdapter
 
 
 @pytest.fixture
@@ -317,3 +321,77 @@ async def test_reset_publishes_a_fixed_pose_after_the_snapshot(hub):
     assert hub.tracker.mode == "fixed" and hub.tracker.ranges == {}
     await wearer.close()
     await other.close()
+
+
+# ---------------------------------------------------------------- tap-to-mark
+
+
+async def tap(listener, tapper):
+    await tapper.send(ObjectTap())
+    return await listener.next_of("tap_position")
+
+
+async def test_tap_while_tracking_marks_the_mean_phone_position_at_mark_z(hub):
+    listener = await Peer.join(hub, "cli", subscribe=["tap_position"])
+    wearer = await Peer.join(hub, "ios_wearer", device_id="wearer", subscribe=[])
+    head = (0.3, -1.6)
+    for k in range(3):  # fixes accumulate on every solver tick while ranges are fresh
+        for r in ranges_from(hub.space, head, seq=k):
+            await wearer.send(r)
+        await asyncio.sleep(0.15)
+    got = await tap(listener, wearer)
+    assert got.ok and got.source == "uwb"
+    assert got.position[2] == 0.9  # space.json tracking.mark_z_m
+    assert math.dist(got.position[:2], (head[0], head[1] + 0.2)) < 0.02  # the phone, 0.2 m in front of the head
+    await listener.close()
+    await wearer.close()
+
+
+async def test_tap_with_no_tracker_and_no_beacon_pose_fails(hub):
+    listener = await Peer.join(hub, "cli", subscribe=["tap_position"])
+    got = await tap(listener, listener)
+    assert (got.ok, got.position, got.source) == (False, None, "none")
+    await listener.close()
+
+
+async def test_tap_with_too_few_fixes_falls_through(hub):
+    listener = await Peer.join(hub, "cli", subscribe=["tap_position"])
+    for r in ranges_from(hub.space, (0.0, -1.0)):
+        await listener.send(r)
+    await asyncio.sleep(0.12)  # one or two solver ticks: fewer fixes than mark_min_fixes
+    hub.cfg.uwb.mark_min_fixes = 50  # ponytail: simpler than racing the tick for a low fix count
+    got = await tap(listener, listener)
+    assert got.ok is False and got.source == "none"
+    await listener.close()
+
+
+@pytest.mark.parametrize("uwb_enabled", [True, False])
+async def test_tap_falls_back_to_a_fresh_beacon_pose(hub_cfg, hub_root, uwb_enabled):
+    hub_cfg.uwb.enabled = uwb_enabled
+    h = Hub(hub_cfg, root=hub_root)
+    await h.start()
+    try:
+        locator = await Peer.join(h, "locator", subscribe=["tap_position"])
+        # The phone's own clock is ancient; only the hub's receive time counts.
+        await locator.send(ListenerPose(position=[1.0, 2.0, 1.1], quality="degraded", source="beacons",
+                                        beacons_heard=3, t=1.0))
+        got = await tap(locator, locator)
+        assert got.ok and got.position == [1.0, 2.0, 1.1] and got.source == "beacons"
+        h.client_pose_rx -= h.cfg.uwb.beacon_fresh_s + 1  # now stale
+        stale = await tap(locator, locator)
+        assert stale.ok is False and stale.position is None and stale.source == "none"
+        await locator.send(ListenerPose(position=[1.0, 2.0, 1.1], quality="lost", source="beacons", t=1.0))
+        assert (await tap(locator, locator)).ok is False  # a lost pose is no position
+        await locator.close()
+    finally:
+        await h.stop()
+
+
+async def test_sim_m_key_produces_a_tap_position(hub):
+    listener = await Peer.join(hub, "cli", subscribe=["tap_position"])
+    adapter = UwbSimAdapter(hub.clock, UwbSimCfg(), hub.cfg.uwb, interactive=True, out=lambda s: None)
+    adapter.attach(hub)
+    assert await adapter.key("m")
+    got = await listener.next_of("tap_position")
+    assert got.ok is False and got.source == "none"  # nothing tracking in this fixture
+    await listener.close()

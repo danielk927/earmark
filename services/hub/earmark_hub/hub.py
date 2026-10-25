@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from earmark_contracts import (
     ListenerPose,
     MotionState,
     ObjectState,
+    ObjectTap,
     Pickup,
     PickupResult,
     PlaceItem,
@@ -30,6 +32,7 @@ from earmark_contracts import (
     Reset,
     Snapshot,
     StatusMsg,
+    TapPosition,
     TrialEnd,
     TrialStart,
     UnknownTag,
@@ -48,7 +51,7 @@ from .registry import RegistryStore
 from .space import SpaceIndex
 from .state import Placed, Removed, StateEngine, Stored
 from .uwb.relay import TokenRelay
-from .uwb.tracker import Tracker
+from .uwb.tracker import Tracker, mark_z
 
 log = logging.getLogger("earmark.hub")
 
@@ -70,6 +73,7 @@ class Hub:
         self.tracker = Tracker(cfg.uwb, self.space, self.clock.now())
         self.pose: ListenerPose = self.tracker.pose  # latest published listener_pose (fixed at the origin first)
         self.client_pose: ListenerPose | None = None  # latest listener_pose from the beacon locator, if any
+        self.client_pose_rx = -math.inf  # hub clock time client_pose arrived (never the phone's own `t`)
         self.registry = RegistryStore(cfg.path("cache", root), cfg.path("seed", root))
         self.engine = StateEngine(self.space, self.registry.objects, placement_reads=cfg.debounce.placement_reads,
                                   removal_s=cfg.debounce.removal_s)
@@ -192,8 +196,10 @@ class Hub:
         if isinstance(msg, ListenerPose):  # from the beacon locator
             if self.cfg.uwb.enabled and self.tracker.mode != "fixed":
                 return  # ponytail: UWB owns the listener while it tracks; no blending of two trackers
-            self.client_pose = msg
+            self.client_pose, self.client_pose_rx = msg, self.clock.now()
         self.bus.broadcast(msg, exclude=client)
+        if isinstance(msg, ObjectTap):
+            self._tap()
         if isinstance(msg, TRACKER_INPUTS):
             self._to_tracker(client, msg)
         if isinstance(msg, Label):
@@ -209,6 +215,23 @@ class Hub:
             await self._chirp(msg)
         if isinstance(msg, FORWARDED):
             self._forward(msg)
+
+    def _tap(self) -> None:
+        """Tap-to-mark: the phone is next to the object, so the phone's position is the object's. Broadcast it."""
+        now, uwb = self.clock.now(), self.cfg.uwb
+        fix = None
+        if uwb.enabled and self.tracker.mode in ("tracked", "frozen"):
+            fix = self.tracker.mean_fix(now - uwb.mark_avg_s, uwb.mark_min_fixes)
+        cp = self.client_pose
+        if fix is not None:
+            out = TapPosition(ok=True, position=[fix[0], fix[1], mark_z(uwb, self.space)], source=self.tracker.source,
+                              t=now)
+        elif cp is not None and cp.quality != "lost" and now - self.client_pose_rx <= uwb.beacon_fresh_s:
+            out = TapPosition(ok=True, position=cp.position, source=cp.source, t=now)
+        else:
+            out = TapPosition(ok=False, source="none", t=now)
+        log.info("tap position", extra={"ok": out.ok, "source": out.source})  # no positions in logs
+        self.bus.broadcast(out)
 
     def _to_tracker(self, client: Client | None, msg) -> None:
         if not self.cfg.uwb.enabled:

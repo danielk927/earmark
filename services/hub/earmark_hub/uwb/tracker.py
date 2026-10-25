@@ -45,6 +45,12 @@ def ear_z(cfg: UwbCfg, space: SpaceIndex) -> float:
     return tr.ear_z_m if tr and tr.ear_z_m is not None else cfg.ear_z_m
 
 
+def mark_z(cfg: UwbCfg, space: SpaceIndex) -> float:
+    """Height of a tap-to-mark position in the room frame (the phone is held at about table height)."""
+    tr = space.space.tracking
+    return tr.mark_z_m if tr and tr.mark_z_m is not None else cfg.mark_z_m
+
+
 class Tracker:
     def __init__(self, cfg: UwbCfg, space: SpaceIndex, now: float) -> None:
         self.cfg = cfg
@@ -200,7 +206,8 @@ class Tracker:
             self.filter.update(sol.position, now, alpha, self.cfg.beta)
         phone = self.filter.pos
         self.history.append((now, sol.position))
-        while self.history and self.history[0][0] < now - self.cfg.average_window_s:
+        keep = max(self.cfg.average_window_s, self.cfg.mark_avg_s)
+        while self.history and self.history[0][0] < now - keep:
             self.history.popleft()
         self.residual, self.used, self.blocked = sol.residual_m, sol.used, sol.blocked
         self.facing = self._facing(now, phone)
@@ -237,9 +244,15 @@ class Tracker:
         if self.cfg.freeze_mode == "snap":
             return self.counter_ref
         start = max(now - self.cfg.average_window_s, self.still_since if self.still_since is not None else now)
-        pts = [p for t, p in self.history if t >= start - 1e-9] or [self.filter.pos]
-        mean = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
-        return head_from_phone(mean, FORWARD, self.head_offset)
+        return head_from_phone(self.mean_fix(start, 1) or self.filter.pos, FORWARD, self.head_offset)
+
+    def mean_fix(self, start: float, min_fixes: int) -> Point | None:
+        """Plain mean (x, y) of the accepted raw phone fixes with timestamp >= `start`, or None when there are
+        fewer than `min_fixes`. The phone position itself: no head offset (tap-to-mark stores where the phone is)."""
+        pts = [p for t, p in self.history if t >= start - 1e-9]
+        if len(pts) < max(min_fixes, 1):
+            return None
+        return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
 
     def _freeze(self, point: Point, now: float, *, override: bool) -> None:
         self.mode, self.position, self.override = "frozen", point, override
