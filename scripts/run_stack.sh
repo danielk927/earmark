@@ -10,6 +10,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# macOS flags the venvs' editable-install .pth files as hidden and Python then skips them; the packages go on the path directly.
+export PYTHONPATH="$PWD/contracts/python:$PWD/services/hub:$PWD/services/concierge:$PWD/services/memory_agent:$PWD/services/ranging${PYTHONPATH:+:$PYTHONPATH}"
+
 mode="${1:-sim}"
 shift || true
 mkdir -p logs

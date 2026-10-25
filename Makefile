@@ -2,6 +2,10 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
+# macOS keeps flagging the editable-install .pth files in the venvs as hidden, and Python then skips them
+# ("No module named earmark_..."). Putting the packages on PYTHONPATH makes every target work regardless.
+export PYTHONPATH := $(CURDIR)/contracts/python:$(CURDIR)/services/hub:$(CURDIR)/services/concierge:$(CURDIR)/services/memory_agent:$(CURDIR)/services/ranging
+
 HUB  := uv run --quiet --project services/hub
 CONC := uv run --quiet --project services/concierge
 MEM  := uv run --quiet --project services/memory_agent
@@ -21,6 +25,10 @@ setup: ## Install every dependency (uv projects, npm packages)
 	npm install --silent
 	cd contracts/ts && npm install --silent
 	if [ -f dashboard/package.json ]; then cd dashboard && npm install --silent; fi
+
+.PHONY: fix-venvs
+fix-venvs: ## Un-hide the editable-install .pth files macOS flags as hidden (fixes "No module named earmark_...")
+	@find . -path ./node_modules -prune -o -name '*.pth' -path '*.venv*' -print0 | xargs -0 -n1 chflags nohidden 2>/dev/null; echo "venv .pth files un-hidden"
 
 .PHONY: convex-init
 convex-init: ## First-time local Convex deployment (no account) + secrets from .env
@@ -48,15 +56,15 @@ convex: ## Convex local backend (foreground)
 	npm run dev
 
 .PHONY: hub
-hub: ## Hub only (adapters from config/hub.json or EARMARK_ADAPTERS)
+hub: fix-venvs ## Hub only (adapters from config/hub.json or EARMARK_ADAPTERS)
 	$(HUB) earmark-hub
 
 .PHONY: concierge
-concierge: ## Concierge only
+concierge: fix-venvs ## Concierge only
 	$(CONC) earmark-concierge
 
 .PHONY: memory-agent
-memory-agent: ## Fetch.ai memory agent
+memory-agent: fix-venvs ## Fetch.ai memory agent
 	$(MEM) earmark-memory run
 
 .PHONY: dashboard
@@ -91,7 +99,7 @@ tail: ## Print bus traffic
 	$(HUB) earmark-tail
 
 .PHONY: trial
-trial: ## Run one Earmark-vs-baseline trial (brief 5.I)
+trial: fix-venvs ## Run one Earmark-vs-baseline trial (brief 5.I)
 	$(HUB) python scripts/trial.py
 
 .PHONY: latency
@@ -118,42 +126,42 @@ contracts-test: ## Contracts: every example, config file, and scenario (Python, 
 	cd contracts/swift && swift test 2>&1 | tail -1
 
 .PHONY: hub-test
-hub-test:
+hub-test: fix-venvs
 	cd services/hub && uv run --quiet pytest -q && uvx --quiet ruff check .
 
 .PHONY: concierge-test
-concierge-test:
+concierge-test: fix-venvs
 	cd services/concierge && uv run --quiet pytest -q && uvx --quiet ruff check .
 
 .PHONY: ranging-test
-ranging-test: ## Phone position service, with virtual phones
+ranging-test: fix-venvs ## Phone position service, with virtual phones
 	cd services/ranging && uv run --quiet pytest -q && uvx --quiet ruff check .
 
 .PHONY: ranging
-ranging: ## Phone position service (phones connect to it; see locator/docs/PHONE_BEACONS.md)
+ranging: fix-venvs ## Phone position service (phones connect to it; see locator/docs/PHONE_BEACONS.md)
 	cd services/ranging && uv run --quiet earmark-ranging serve
 
 .PHONY: room-setup
-room-setup: ## Room setup, no tape measure: stand on each floor mark; the Mac places the beacons (docs/project/ROOM_SETUP.md)
+room-setup: fix-venvs ## Room setup, no tape measure (ONLY="B1 B2" when fewer than all beacons are out): stand on each floor mark; the Mac places the beacons (docs/project/ROOM_SETUP.md)
 	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
-		listen --setup --band 12000 16000 --min-snr 12
+		listen --setup --band 12000 16000 --min-snr 12 $(if $(ONLY),--only $(ONLY))
 
 .PHONY: room-recalibrate
-room-recalibrate: ## Beacons already placed (by room-setup or a tape): calibrate once, standing on the mat
+room-recalibrate: fix-venvs ## Beacons already placed (by room-setup or a tape): calibrate once, standing on the mat
 	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
-		listen --calibrate-at 0 0 1.25 --band 12000 16000 --min-snr 12 --calibration-seconds 30
+		listen --calibrate-at 0 0 1.25 --band 12000 16000 --min-snr 12 --calibration-seconds 30 $(if $(ONLY),--only $(ONLY))
 
 .PHONY: room-setup-sim
-room-setup-sim: ## Room setup with a virtual phone and virtual beacons (no hardware); the room page shows the result
+room-setup-sim: fix-venvs ## Room setup with a virtual phone and virtual beacons (no hardware); the room page shows the result
 	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
-		listen --setup --sim --band 12000 16000
+		listen --setup --sim --band 12000 16000 $(if $(ONLY),--only $(ONLY))
 
 .PHONY: convex-test
 convex-test:
 	npm test --silent && npm run --silent typecheck
 
 .PHONY: memory-test
-memory-test:
+memory-test: fix-venvs
 	@if [ -f services/memory_agent/pyproject.toml ]; then cd services/memory_agent && uv run --quiet pytest -q && uvx --quiet ruff check .; else echo "memory agent not built yet"; fi
 
 .PHONY: dashboard-test
@@ -162,7 +170,8 @@ dashboard-test:
 
 .PHONY: mac-test
 mac-test:
-	@if [ -f mac/Package.swift ]; then cd mac && swift test --scratch-path /tmp/earmark-mac-build 2>&1 | tail -3  # outside Documents: macOS file metadata there breaks code signing; else echo "mac app not built yet"; fi
+	@# scratch path is outside Documents: macOS file metadata there breaks code signing
+	@if [ -f mac/Package.swift ]; then cd mac && swift test --scratch-path /tmp/earmark-mac-build 2>&1 | tail -3; else echo "mac app not built yet"; fi
 
 .PHONY: e2e-test
 e2e-test:

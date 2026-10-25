@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import socket
 import subprocess
 import sys
@@ -132,7 +133,7 @@ def test_two_agent_chat_exchange_end_to_end():
         capture_output=True,
         text=True,
         timeout=60,
-        env={"PATH": "/usr/bin:/bin", "HOME": str(Path.home())},
+        env={"PATH": "/usr/bin:/bin", "HOME": str(Path.home()), **{k: v for k, v in os.environ.items() if k == "PYTHONPATH"}},
     )
     line = next((ln for ln in proc.stdout.splitlines() if ln.startswith("E2E_RESULT ")), None)
     assert line, proc.stdout[-2000:] + proc.stderr[-4000:]
