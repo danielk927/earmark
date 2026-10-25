@@ -536,7 +536,8 @@ public final class EarmarkCore {
 
         // 10 Hz whenever the AirPods track, so it also covers UWB (the hub needs facing for the head offset).
         // Without head tracking yaw is a fixed 0, so nothing is sent and the hub assumes facing the counter.
-        if busConnected && head.state.isTracking && now - lastHeadPoseSent >= Self.headPosePeriod {
+        // Half a 50 Hz tick of slack: five 20 ms ticks can add up to just under 0.1 s, which would send every 0.12 s.
+        if busConnected && head.state.isTracking && now - lastHeadPoseSent >= Self.headPosePeriod - 0.01 {
             lastHeadPoseSent = now
             send(.headPose(HeadPose(yaw: (yaw * 10).rounded() / 10, pitch: (pitch * 10).rounded() / 10)), log: false)
         }
