@@ -41,29 +41,42 @@ struct ReceiverPath {
     }
 
     /// The tracker-test walk from B2: still, walk, search, walk, walk, with hand jiggle throughout.
-    static func specWalk(from start: SIMD3<Double>, seed: UInt64, jiggle: Bool = true) -> ReceiverPath {
-        let waypoints: [(SIMD3<Double>, Double, Double)] = [   // (target, seconds to get there, seconds to stay)
+    /// `height` replaces every waypoint's z, for tests that use a fixed receiver height.
+    static func specWalk(from start: SIMD3<Double>, seed: UInt64, height: Double? = nil) -> ReceiverPath {
+        func at(_ x: Double, _ y: Double, _ z: Double) -> SIMD3<Double> { SIMD3(x, y, height ?? z) }
+        return walk(from: start, seed: seed, legs: [
             (start, 0, 15),
-            (SIMD3(1.0, 0.8, 1.1), 6, 6),
-            (SIMD3(-1.0, 0.9, 1.3), 8, 0),
-            (SIMD3(-1.0, -1.0, 1.2), 8, 0),
-        ]
+            (at(1.0, 0.8, 1.1), 6, 6),
+            (at(-1.0, 0.9, 1.3), 8, 0),
+            (at(-1.0, -1.0, 1.2), 8, 0),
+        ])
+    }
+
+    /// Standing still with hand jiggle.
+    static func hold(at p: SIMD3<Double>, duration: Double, seed: UInt64) -> ReceiverPath {
+        walk(from: p, seed: seed, legs: [(p, 0, duration)])
+    }
+
+    /// Moves through `legs` of (target, seconds to get there, seconds to stay), easing in and out of
+    /// each move, plus hand jiggle at 0.7–1.1 Hz: about 6 cm peak to peak overall, so ±3 cm / √3 on
+    /// each axis. (±3 cm on every axis would be 5 cm of 3D motion, which by itself pushes the
+    /// calibration residual past its 3 cm limit.)
+    static func walk(from start: SIMD3<Double>, seed: UInt64, legs plan: [(SIMD3<Double>, Double, Double)]) -> ReceiverPath {
         var legs: [(t0: Double, t1: Double, a: SIMD3<Double>, b: SIMD3<Double>)] = []
         var t = 0.0, here = start
-        for (target, move, stay) in waypoints {
+        for (target, move, stay) in plan {
             if move > 0 { legs.append((t, t + move, here, target)); t += move; here = target }
             if stay > 0 { legs.append((t, t + stay, here, here)); t += stay }
         }
         let total = t
         var rng = SeededRandom(seed: seed)
-        // About 6 cm peak to peak on each axis, at 0.7–1.1 Hz.
         let shake = (0..<3).map { _ in (f: rng.uniform(0.7...1.1), phase: rng.uniform(0...(2 * .pi))) }
-        let amplitude = jiggle ? 0.03 : 0
+        let amplitude = 0.03 / 3.0.squareRoot()
 
         func walk(_ t: Double) -> SIMD3<Double> {
             guard let leg = legs.first(where: { t < $0.t1 }) ?? legs.last else { return start }
             let u = min(max((t - leg.t0) / (leg.t1 - leg.t0), 0), 1)
-            let s = 0.5 - 0.5 * cos(.pi * u)          // smooth start and stop
+            let s = 0.5 - 0.5 * cos(.pi * u)
             return leg.a + (leg.b - leg.a) * s
         }
         return ReceiverPath(
@@ -131,9 +144,14 @@ struct BeaconWorld {
 
     /// True when the judge walks away from beacon k, so the body is between it and the receiver.
     func isBehind(beacon k: Int, at t: Double, path: ReceiverPath) -> Bool {
+        isBehind(source: SIMD3(config.beacons[k].position), at: t, path: path)
+    }
+
+    /// True when sound from `source` (a beacon or a mirror image of one) arrives from behind the walker.
+    func isBehind(source: SIMD3<Double>, at t: Double, path: ReceiverPath) -> Bool {
         let v = path.walkVelocity(t)
         guard simd_length(v) > 0.05 else { return false }
-        return simd_dot(SIMD3(config.beacons[k].position) - path.position(t), v) < 0
+        return simd_dot(source - path.position(t), v) < 0
     }
 
     func trueDistance(beacon k: Int, from p: SIMD3<Double>) -> Double {

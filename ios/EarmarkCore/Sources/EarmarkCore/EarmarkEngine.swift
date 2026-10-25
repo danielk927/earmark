@@ -20,7 +20,7 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
     private var calibration: Calibration?
     private var scheduleGeneration = 0
     private var tracker: Tracker?
-    private var calibrationStart: Double?       // set by the first audio after startCalibration
+    private var calibrationStart: Double?       // audio time of the first block after startCalibration
     private var calibrationDetections: [Detection] = []
     private var streamTime = 0.0
     private var beaconStats: [BeaconStats]
@@ -63,7 +63,7 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
         lock.lock()
         defer { lock.unlock() }
         let detections = detector.detect(schedule: currentSchedule(), generation: scheduleGeneration)
-        handle(detections, streamTime: detector.streamTime)
+        handle(detections, streamTime: detector.streamTime, dataStart: Double(block.sampleTime) / block.sampleRate)
         let ms = Double(DispatchTime.now().uptimeNanoseconds - started) / 1e6
         processingMs = processingMs == 0 ? ms : processingMs + 0.1 * (ms - processingMs)
     }
@@ -72,7 +72,7 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
     func ingest(_ detections: [Detection], streamTime: Double) {
         lock.lock()
         defer { lock.unlock() }
-        handle(detections, streamTime: streamTime)
+        handle(detections, streamTime: streamTime, dataStart: streamTime)
     }
 
     /// Test hook: knocks the filter's position off by `offset`.
@@ -94,8 +94,9 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
         return .slots(beaconForSlot: beaconForSlot)
     }
 
-    private func handle(_ detections: [Detection], streamTime now: Double) {
-        if status == .calibrating && calibrationStart == nil { calibrationStart = now }
+    /// `dataStart` is the audio time of the first sample this call covers; calibration counts from there.
+    private func handle(_ detections: [Detection], streamTime now: Double, dataStart: Double) {
+        if status == .calibrating && calibrationStart == nil { calibrationStart = dataStart }
         for d in detections {
             var stats = beaconStats[d.beacon]
             stats.snrDB = d.snrDB

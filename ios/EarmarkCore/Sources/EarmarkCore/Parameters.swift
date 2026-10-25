@@ -35,20 +35,28 @@ enum Parameters {
     static let minSlotGap = 0.040               // s
 
     // Tracker
-    static let accelerationSigma = 1.0          // m/s²
+    // σ_a is 0.5, not the spec's 1.0: with 1.0 the predicted range spread of a beacon heard once a second
+    // reaches ~25 cm, the χ² gate then admits most echoes, and simulated walks diverged by meters.
+    static let accelerationSigma = 0.5          // m/s²
     static let rangeFloor = 0.01                // m
     static let initialPositionSigma = 0.03      // m
     static let initialVelocitySigma = 0.05      // m/s
     static let gateChiSquare = 9.0
     static let gateMinInnovation = 0.05         // m
+    // Not in the spec. Echoes are 0.3 ms (10 cm) or more late and never early, so a measured range
+    // more than this beyond the prediction is rejected, also while recovering.
+    static let echoRejectAbove = 0.10           // m
     static let noUpdateTimeout = 1.0            // s
-    static let rejectionsBeforeRecovery = 4
+    static let rejectionsBeforeRecovery = 4     // within the last `rejectionWindow` updates (spec: in a row)
+    static let rejectionWindow = 8
     static let uncertaintyLimit = 0.5           // m
     static let recoveryRangeAge = 0.6           // s
     static let recoveryAcceptRMS = 0.05         // m
     static let recoveryIterations = 10
     static let recoveryPositionSigma = 0.1      // m
     static let recoveryVelocitySigma = 0.3      // m/s
+    // Not in the spec: on entering recovery, P is raised to at least this so ungated updates can move it.
+    static let recoveringPositionSigma = 0.3    // m
     static let lostAfter = 3.0                  // s of failed recovery
     static let heightSigma = 0.05               // m
 

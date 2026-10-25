@@ -17,7 +17,7 @@ struct Tracker {
     private let kappa: Double
     private let receiverHeight: Double?
     private var lastAcceptedTime: Double
-    private var consecutiveRejections = 0
+    private var recentRejections: [Bool] = []   // newest last, true = rejected
     private var recoveringSince: Double?
     private var lastGoodPosition: SIMD3<Double>
     private var latestRanges: [(range: Double, time: Double)?]
@@ -74,20 +74,22 @@ struct Tracker {
 
         let gated = status == .tracking
         let S = quadratic(H) + R
-        let accept = !gated || !(y * y / S > Parameters.gateChiSquare && abs(y) > Parameters.gateMinInnovation)
+        let outsideGate = y * y / S > Parameters.gateChiSquare && abs(y) > Parameters.gateMinInnovation
+        // The echo limit applies while recovering too: a late range is no more trustworthy then.
+        let accept = (!gated || !outsideGate) && y <= Parameters.echoRejectAbove
         if accept {
             scalarUpdate(H: H, innovation: y, R: R)
             if let height = receiverHeight {
                 scalarUpdate(H: [0, 0, 1, 0, 0, 0], innovation: height - x[2], R: Parameters.heightSigma * Parameters.heightSigma)
             }
             accepted += 1
-            consecutiveRejections = 0
             lastAcceptedTime = t
             if status == .tracking { lastGoodPosition = position }
         } else {
             rejected += 1
-            consecutiveRejections += 1
         }
+        recentRejections.append(!accept)
+        if recentRejections.count > Parameters.rejectionWindow { recentRejections.removeFirst() }
         tick(now: t)
         if status != .tracking { attemptRecovery(now: t) }
         return (r, accept)
@@ -97,10 +99,15 @@ struct Tracker {
     mutating func tick(now: Double) {
         if status == .tracking,
            now - lastAcceptedTime > Parameters.noUpdateTimeout
-            || consecutiveRejections >= Parameters.rejectionsBeforeRecovery
+            || recentRejections.filter({ $0 }).count >= Parameters.rejectionsBeforeRecovery
             || uncertainty > Parameters.uncertaintyLimit {
             status = .recovering
             recoveringSince = now
+            let sp = Parameters.recoveringPositionSigma, sv = Parameters.recoveryVelocitySigma
+            for i in 0..<3 {
+                P[i * 7] = max(P[i * 7], sp * sp)
+                P[(i + 3) * 7] = max(P[(i + 3) * 7], sv * sv)
+            }
         }
         if status == .recovering, let since = recoveringSince, now - since > Parameters.lostAfter {
             status = .lost
@@ -172,7 +179,7 @@ struct Tracker {
         status = .tracking
         recoveringSince = nil
         recoveries += 1
-        consecutiveRejections = 0
+        recentRejections = []
         lastAcceptedTime = now
         lastGoodPosition = solution.position
     }

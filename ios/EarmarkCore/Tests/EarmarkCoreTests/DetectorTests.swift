@@ -95,17 +95,19 @@ struct DetectorTests {
         #expect(rms(timingErrors(detections, synth.arrivals)) < 20e-6)
     }
 
+    /// Timed in this thread's CPU time, so other tests running in parallel don't inflate it.
     @Test func processesABlockInUnder3Milliseconds() throws {
         let synth = AudioSynth(config: config, path: .still(at: config.calibrationPosition, duration: 20))
         let engine = try EarmarkEngine(config: config)
         var times: [Double] = []
         for block in synth.blocks() {
-            let start = DispatchTime.now().uptimeNanoseconds
+            let start = clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID)
             engine.process(block)
-            times.append(Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6)
+            times.append(Double(clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) - start) / 1e6)
         }
         let mean = times.reduce(0, +) / Double(times.count)
-        print(String(format: "process: mean %.3f ms, max %.3f ms per 4096-sample block", mean, times.max()!))
+        print(String(format: "process: mean %.3f ms, median %.3f ms, max %.3f ms CPU per 4096-sample block",
+                     mean, percentile(times, 0.5), times.max()!))
         #expect(mean < 3)
     }
 

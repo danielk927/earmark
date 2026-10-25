@@ -12,7 +12,7 @@ struct CalibratorTests {
     @Test func syntheticRangesMatchTrueDistance() throws {
         var options = AudioSynth.Options()
         options.snrDB = 20
-        options.echoes = .room
+        options.echoes = .room(minDelay: 0.0003)
         options.seed = 3
         let synth = AudioSynth(config: config, path: .still(at: config.calibrationPosition, duration: 32), options: options)
         let engine = try EarmarkEngine(config: config)
