@@ -21,6 +21,10 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 3. Check the dashboard (live map and timeline) updates.
 4. The AirPods spatial test has passed. Needs the app built once with `make mac`, then `make mac-open` (ad-hoc signing means macOS asks for permissions again after each rebuild).
 
+## Room setup: the agreed plan
+
+The setup we agreed on (empty map, a teammate stands on the mat, the Mac works out where the beacons are, then place objects by walking and speaking) is written up in `docs/project/ROOM_SETUP.md`. It is planned, not built. We are waiting for the UI changes to be pulled first.
+
 ## Two ways to track where the user walks (pick one)
 
 - **Phones as beacons (no wiring, built):** five spare iPhones sit around the room and chirp; the user's phone listens. Needs 6 iPhones and Xcode. Setup: `locator/docs/PHONE_BEACONS.md`. The Mac side is tested with virtual phones; nothing has run on real iPhones yet.

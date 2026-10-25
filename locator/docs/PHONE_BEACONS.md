@@ -24,7 +24,9 @@ The Mac works out where the user is and tells the rest of Earmark.
 3. The user's phone: choose "The user's phone", same address, Start. Hold it at chest height with the bottom edge uncovered.
 4. The Mac tab shows lines like `fix x 0.32 y 0.51 z 1.55 ok 5 phones`. That is the user's position. Earmark uses it automatically.
 
-## Measure where the beacons are (once, with a tape measure)
+## Measure where the beacons are
+
+> The planned way, with no tape measure ("Set up the room"), is in `docs/project/ROOM_SETUP.md` and is not built yet. Until then, measure as below.
 - Stand-in numbers are in `locator/config/beacons.json` (B1 to B5 are beacon phones 1 to 5).
 - The origin is the floor under the middle of the mat. x is right, y is forward (the way the tape arrow points), z is up. Measure the height of each phone's bottom edge.
 - Put the real numbers in that file.
