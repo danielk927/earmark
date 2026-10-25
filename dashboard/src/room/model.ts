@@ -41,7 +41,7 @@ export interface RoomState {
   items: Record<string, Item>;
   user: Vec3;
   userLive: boolean; // a real fix arrived recently
-  userSource: string; // beacons | manual | mat
+  userSource: string; // beacons | uwb | sim | manual | mat
   lastFixT: number | null;
   trail: Vec3[];
   headYaw: number | null; // degrees, + = turned right

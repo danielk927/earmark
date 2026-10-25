@@ -15,6 +15,7 @@ const STEP_M = 0.06;
 
 const SOURCE_TEXT: Record<string, string> = {
   beacons: "Live from the phones",
+  uwb: "Live from the UWB anchors",
   manual: "Simulated walking",
   mat: "On the mat (no position yet)",
   steps: "From step counting",
@@ -29,7 +30,7 @@ export function RoomPage() {
   const [gl] = useState(webglAvailable);
   const [simulate, setSimulate] = useState(false);
   const simPos = useRef<Vec3>([0, 0, 1.55]);
-  const realFix = state.userLive && state.userSource === "beacons";
+  const realFix = state.userLive && (state.userSource === "beacons" || state.userSource === "uwb");
   const walking = simulate && !realFix; // real phone positions take over from the simulator
 
   useEffect(() => {
