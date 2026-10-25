@@ -138,18 +138,23 @@ def test_speed_gate_ignores_a_jump_until_it_becomes_possible(space):
 
 
 def test_head_offset_uses_airpods_yaw_then_falls_back(space):
-    """Listener = phone shifted back head_offset_m along the facing: yaw 90 (facing +x) puts the head 0.2 m left."""
+    """Listener = phone shifted back head_offset_m along the facing: yaw 90 (facing +x) puts the head 0.2 m left.
+    The head estimate is alpha-beta filtered, so a yaw change converges rather than jumping: the 0.28 m step
+    shrinks by about (1 - alpha_still)^n = 0.8^n, under 1 cm after ~15 ticks; 30 ticks is the check."""
     rig = Rig(space)
     phone = (0.5, -1.5)
     head_forward = (phone[0], phone[1] - 0.2)  # the rig places the phone 0.2 m forward of this head
     rig.step(head_forward, motion="still")
-    rig.tr.on_head_pose(90.0, rig.now + DT)
-    p = rig.step(head_forward, motion="still")[0]
-    assert math.dist(xy(p), (phone[0] - 0.2, phone[1])) < 1e-3
+    for _ in range(30):
+        rig.tr.on_head_pose(90.0, rig.now + DT)
+        rig.step(head_forward, motion="still")
+    assert math.dist(xy(rig.tr.pose), (phone[0] - 0.2, phone[1])) < 0.01
     rig.run(1.0, head_forward, motion="still")  # yaw now older than head_pose_max_age_s: keeps the last facing
-    assert math.dist(xy(rig.tr.pose), (phone[0] - 0.2, phone[1])) < 1e-3
-    rig.tr.on_head_pose(0.0, rig.now + DT)
-    assert math.dist(xy(rig.step(head_forward, motion="still")[0]), head_forward) < 1e-3
+    assert math.dist(xy(rig.tr.pose), (phone[0] - 0.2, phone[1])) < 0.01
+    for _ in range(30):
+        rig.tr.on_head_pose(0.0, rig.now + DT)
+        rig.step(head_forward, motion="still")
+    assert math.dist(xy(rig.tr.pose), head_forward) < 0.01
 
 
 # ---------------------------------------------------------------- freeze
@@ -243,7 +248,8 @@ def test_still_displacement_does_not_unfreeze(space):
     """Leaning or estimate drift while `still` (inside freeze_exit_m) keeps the landing point."""
     rig = frozen_at(Rig(space), (0.0, -0.3))
     landing = xy(rig.tr.pose)
-    poses = rig.walk((0.0, -0.3), (0.0, -0.9), 0.3, motion="still") + rig.run(2.0, (0.0, -0.9), motion="still")
+    # 0.2 m/s is below MIN_TRAVEL_MPS: a slow lean keeps facing the counter instead of flipping to the travel direction
+    poses = rig.walk((0.0, -0.3), (0.0, -0.9), 0.2, facing=FORWARD, motion="still") + rig.run(2.0, (0.0, -0.9), motion="still")
     assert {p.mode for p in poses} == {"frozen"} and all(xy(p) == landing for p in poses)
 
 
@@ -616,9 +622,8 @@ def test_turning_a_full_circle_in_place_keeps_the_head_within_3_cm(space):
     assert turn_in_place(space, "moving") < 0.03
 
 
-def test_turning_in_place_reported_as_still_lags_more_but_stays_bounded(space):
-    # ponytail: alpha_still (0.2) smooths the circling phone more, so the head lags ~6.6 cm; not tuned here.
-    assert turn_in_place(space, "still") < 0.08
+def test_turning_a_full_circle_in_place_keeps_the_head_within_3_cm_when_still(space):
+    assert turn_in_place(space, "still") < 0.03
 
 
 def test_back_to_the_table_holds_the_last_position_and_resumes(space):

@@ -2,7 +2,7 @@
 
 Modes:
 - fixed: listener at the origin (UWB disabled, nothing ranged yet, or lost for too long). Today's behavior.
-- tracked: live estimate while walking.
+- tracked: live estimate while walking (the head position is filtered, the phone filter feeds the solver prior).
 - frozen: the landing spot at the counter. Entered when inside `freeze_enter_m` of `counter_ref`, still for
   `still_for_s`, with >= 2 fresh anchors; also on `listener_command freeze` ("I'm here"). Left when moving
   and displaced more than `unfreeze_move_m`, or outside `freeze_exit_m` (not for a voice freeze).
@@ -85,6 +85,7 @@ class Tracker:
 
     def _clear_track(self) -> None:
         self.filter: AlphaBeta | None = None
+        self.head_filter: AlphaBeta | None = None  # alpha-beta on the head position (raw fix minus the head offset)
         self.last_fix: tuple[Point, float] | None = None  # last solution the speed gate accepted, and when
         self.estimate: Point | None = None  # listener (head) estimate from the smoothed phone position
         self.facing: Point = FORWARD
@@ -213,7 +214,14 @@ class Tracker:
             self.history.popleft()
         self.residual, self.used, self.blocked = sol.residual_m, sol.used, sol.blocked
         self.facing = self._facing(now, phone)
-        self.estimate = head_from_phone(phone, self.facing, self.head_offset)
+        # Filter the head, not the phone: the phone circles the head when the person turns, and a smoothed phone
+        # lags that circle while the AirPods yaw does not. The raw fix minus the offset is steady at the head.
+        head_raw = head_from_phone(sol.position, self.facing, self.head_offset)
+        if self.head_filter is None:
+            self.head_filter = AlphaBeta(head_raw, now)
+        else:
+            self.head_filter.update(head_raw, now, alpha, self.cfg.beta)
+        self.estimate = self.head_filter.pos
         if self.mode == "frozen" and self.freeze_phone is None:
             self.freeze_phone = phone
         return True
