@@ -33,21 +33,44 @@ function line(points: THREE.Vector3[], color: number, opacity = 1, dashed = fals
   return l;
 }
 
-/** A person as a plain black silhouette: head, torso, two arms, two legs. No outlines. */
+/** A rounded rectangle from (x0, y0) to (x1, y1) with its top and bottom corners rounded separately. */
+function roundedBlock(x0: number, y0: number, x1: number, y1: number, top: number, bottom: number): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(x0 + bottom, y0);
+  s.lineTo(x1 - bottom, y0);
+  s.quadraticCurveTo(x1, y0, x1, y0 + bottom);
+  s.lineTo(x1, y1 - top);
+  s.quadraticCurveTo(x1, y1, x1 - top, y1);
+  s.lineTo(x0 + top, y1);
+  s.quadraticCurveTo(x0, y1, x0, y1 - top);
+  s.lineTo(x0, y0 + bottom);
+  s.quadraticCurveTo(x0, y0, x0 + bottom, y0);
+  return s;
+}
+
+/**
+ * A person drawn like the figure on a sign: a round head floating above one solid body, with thin gaps between the
+ * arms and the torso and between the legs. Flat black, with a little depth so it reads when you orbit the view.
+ */
 function buildHuman(): THREE.Group {
   const g = new THREE.Group();
   const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
-  const part = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rz = 0) => {
-    const m = new THREE.Mesh(geo, black);
-    m.position.set(x, y, z);
-    m.rotation.z = rz;
-    g.add(m);
+  const depth = 0.12;
+  const extrude = (shape: THREE.Shape) => {
+    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 12 });
+    geo.translate(0, 0, -depth / 2);
+    g.add(new THREE.Mesh(geo, black));
   };
-  part(new THREE.SphereGeometry(0.12, 24, 16), 0, 1.62, 0); // head
-  part(new THREE.CapsuleGeometry(0.17, 0.5, 6, 16), 0, 1.15, 0); // torso
+  const head = new THREE.Shape();
+  head.absarc(0, 1.68, 0.115, 0, Math.PI * 2, false);
+  extrude(head);
+  extrude(roundedBlock(-0.3, 1.15, 0.3, 1.47, 0.13, 0)); // shoulders and upper chest
+  extrude(roundedBlock(-0.21, 0.84, 0.21, 1.2, 0, 0)); // torso down to the hips
   for (const s of [-1, 1]) {
-    part(new THREE.CapsuleGeometry(0.045, 0.55, 6, 12), s * 0.27, 1.12, 0, s * 0.06); // arm, a little away from the body
-    part(new THREE.CapsuleGeometry(0.065, 0.62, 6, 12), s * 0.09, 0.4, 0); // leg
+    const [x0, x1] = s < 0 ? [-0.3, -0.225] : [0.225, 0.3];
+    extrude(roundedBlock(x0, 0.76, x1, 1.2, 0, 0.037)); // arm, parted from the torso by a thin gap
+    const [l0, l1] = s < 0 ? [-0.205, -0.012] : [0.012, 0.205];
+    extrude(roundedBlock(l0, 0, l1, 0.9, 0, 0.06)); // leg
   }
   return g;
 }
@@ -212,6 +235,16 @@ export class RoomModel {
     this.person.position.copy(this.shown);
     this.yaw += (this.yawTarget - this.yaw) * 0.25;
     this.person.rotation.y = this.yaw;
+    // The flat figure always turns toward the camera so it never shows its thin edge; seen from above it lies flat.
+    const cam = this.camera.position;
+    const dx = cam.x - this.person.position.x;
+    const dz = cam.z - this.person.position.z;
+    const elevation = Math.atan2(cam.y - 1, Math.hypot(dx, dz));
+    const flat = Math.min(Math.max((elevation - 0.8) / 0.55, 0), 1);
+    this.figure.rotation.order = "YXZ";
+    this.figure.rotation.y = Math.atan2(dx, dz) * (1 - flat) - this.person.rotation.y;
+    this.figure.rotation.x = -flat * (Math.PI / 2);
+    this.figure.scale.setScalar(1 - flat * 0.65); // seen from above it is a small marker, not a 1.8 m figure lying on the floor
     this.personTag.element.style.transform = ""; // the tag stays upright (CSS2D), only the figure turns
     const chest = this.shown.clone().setY(1.3);
     const g = s?.guide;
