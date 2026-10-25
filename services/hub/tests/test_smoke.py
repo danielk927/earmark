@@ -21,7 +21,8 @@ BIN = Path(sys.executable).parent
 
 def hub_env(tmp_path: Path, port: int) -> dict:
     cfg = json.loads((ROOT / "config" / "hub.json").read_text())
-    cfg["paths"] = {"space": str(ROOT / "services" / "hub" / "tests" / "fixtures" / "space.json"), "seed": str(ROOT / "config" / "objects.seed.json"),
+    space = ROOT / "services" / "hub" / "tests" / "fixtures" / "space.json"  # pinned: config/space.json is re-measured
+    cfg["paths"] = {"space": str(space), "seed": str(ROOT / "config" / "objects.seed.json"),
                     "cache": str(tmp_path / "cache.json"), "queue": str(tmp_path / "queue.jsonl"),
                     "trials": str(tmp_path / "trials.jsonl"), "logs": str(tmp_path / "logs")}
     (tmp_path / "hub.json").write_text(json.dumps(cfg))
