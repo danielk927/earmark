@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from earmark_contracts import RegistryObject
 
 from .phrasing import (
-    Grammar, cap, clock_time, direction_phrase, join_and, join_or, number_word,
+    LOST_MESSAGE, Grammar, cap, clock_time, direction_phrase, join_and, join_or, number_word,
     relative_spot_phrase, the, time_phrase,
 )
 from .world import Sighting, World
@@ -48,6 +48,7 @@ class Plan:
     chirp: str | None = None
     label: LabelAction | None = None
     stop: bool = False
+    listener_command: str | None = None  # freeze | recenter -> listener_command on the bus
     clarify: list[str] = field(default_factory=list)
     clarify_tool: str | None = None
     object_id: str | None = None  # what this turn was about (for "it" follow-ups)
@@ -91,8 +92,12 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
 
     if st is not None and st.precision == "exact" and st.location.position:
         pos = list(st.location.position)
+        where, mode, yaw = world.listener_view(now)
+        # Lost: no trustworthy direction. Say so (the core marks it said for this guidance) and
+        # still start guidance so the sound ping works once tracking returns.
+        text = LOST_MESSAGE if mode == "lost" else f"{cap(name)} {g.is_} {direction_phrase(pos, where, mode, yaw)}."
         return Plan(
-            text=f"{cap(name)} {g.is_} {direction_phrase(pos)}.",
+            text=text,
             guide=GuideTarget(obj.object_id, obj.name, pos, "exact"),
             object_id=obj.object_id,
         )
@@ -192,6 +197,15 @@ def label(tag: str, name: str, aliases: list[str], spot: int | None) -> Plan:
     )
 
 
+def freeze_listener(guiding: bool) -> Plan:
+    """'I'm here'. While guiding, the frozen transition announces itself, so stay quiet."""
+    return Plan(listener_command="freeze", text=None if guiding else "Okay, you're at the counter.")
+
+
+def recenter_listener() -> Plan:
+    return Plan(listener_command="recenter", text="Okay, recentered.")
+
+
 def stop() -> Plan:
     return Plan(phrase_id=PHRASE_STOPPING, stop=True)
 
@@ -227,7 +241,9 @@ def pickup_wrong(world: World, target: RegistryObject, actual: RegistryObject | 
             if rel:
                 return f"{first} {tname} {g.is_} {rel}."
     if st is not None and st.precision == "exact" and st.location.position:
-        return f"{first} {tname} {g.is_} {direction_phrase(list(st.location.position))}."
+        where, mode, yaw = world.listener_view()
+        return (f"{first} {tname} {g.is_} "
+                f"{direction_phrase(list(st.location.position), where, mode, yaw)}.")
     return f"{first} I'm not sure where {the(target.name)} {g.is_} right now."
 
 

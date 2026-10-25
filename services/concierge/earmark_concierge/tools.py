@@ -1,4 +1,4 @@
-"""The seven concierge tools (BUILD_BRIEF 5.D), their LLM schemas, and validation.
+"""The nine concierge tools (BUILD_BRIEF 5.D), their LLM schemas, and validation.
 
 A ToolCall's args hold either an `object_id` (validated against the registry)
 or a free-text `query` that the resolver turns into an object. The LLM gives
@@ -13,7 +13,7 @@ from .world import World
 
 TOOL_NAMES = (
     "locate_object", "guide_to_object", "chirp_fob", "label_object",
-    "last_seen", "stop_guidance", "list_objects",
+    "last_seen", "stop_guidance", "list_objects", "freeze_listener", "recenter_listener",
 )
 MAX_NAME_LEN = 60
 MAX_QUERY_LEN = 120
@@ -76,6 +76,8 @@ def tool_schemas(world: World) -> list[dict]:
            {"object_id": oid}, ["object_id"]),
         fn("stop_guidance", "Stop guidance and beeping ('stop', 'cancel', 'never mind').", {}, []),
         fn("list_objects", "List the items Earmark knows about ('what do you know').", {}, []),
+        fn("freeze_listener", "The user says they are at the counter ('I'm here').", {}, []),
+        fn("recenter_listener", "Re-zero the AirPods direction ('recenter').", {}, []),
     ]
 
 
@@ -164,6 +166,6 @@ def validate_llm_call(name: str, arguments: str | dict | None, world: World) -> 
             if ca and ca != lname and ca not in clean_aliases and len(ca) <= MAX_NAME_LEN:
                 clean_aliases.append(ca)
         return ToolCall(name, {"tag": tag, "name": lname, "aliases": clean_aliases})
-    # stop_guidance, list_objects take no arguments
+    # stop_guidance, list_objects, freeze_listener, recenter_listener take no arguments
     _only_keys(args, set())
     return ToolCall(name, {})

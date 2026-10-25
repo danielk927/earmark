@@ -132,5 +132,5 @@ async def test_bitdeer_chooser_request_shape():
     assert b["reasoning_effort"] == "none" and b["parallel_tool_calls"] is False
     assert [t["function"]["name"] for t in b["tools"]] == [
         "locate_object", "guide_to_object", "chirp_fob", "label_object", "last_seen",
-        "stop_guidance", "list_objects"]
+        "stop_guidance", "list_objects", "freeze_listener", "recenter_listener"]
 

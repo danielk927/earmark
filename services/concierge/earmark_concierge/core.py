@@ -14,15 +14,16 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from earmark_contracts import (
-    Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, MicAudio, ObjectState, Pickup,
-    PickupResult, Playback, RegistryObject, RegistryUpdate, Reset, Snapshot, StatusMsg, SttMode,
-    Transcript, TrialEnd, TrialStart, UnknownTag,
+    Chirp, GuideFeedback, GuideStart, GuideStop, HeadPose, Label, ListenerCommand, ListenerPose,
+    MicAudio, ObjectState, Pickup, PickupResult, Playback, RegistryObject, RegistryUpdate, Reset,
+    Snapshot, StatusMsg, SttMode, Transcript, TrialEnd, TrialStart, UnknownTag,
 )
 
 from . import grammar, policy
 from .config import Settings
 from .intent import Decision, IntentRouter
 from .latency import LatencyLog
+from .phrasing import AT_COUNTER, LOST_MESSAGE, Grammar, cap, direction_phrase, the
 from .policy import GuideTarget, Plan
 from .resolver import Resolver
 from .speech import Speaker
@@ -43,6 +44,7 @@ class Guiding:
     position: list[float]
     utterance_id: str
     started_t: float
+    lost_said: bool = False  # the "I've lost track" message is spoken once per guidance
 
 
 @dataclass
@@ -159,8 +161,11 @@ class Concierge:
                 reported = (msg.info or {}).get("stt_engine")
                 if reported in ("cartesia", "apple") and reported != self.stt.engine:
                     await self.emit(SttMode(engine=self.stt.engine, reason=f"resync: {self.stt.reason}"))
+        elif isinstance(msg, ListenerPose):
+            await self._on_listener_pose(msg)
         elif isinstance(msg, HeadPose):
             self._saw_mac_app()
+            self.world.apply_head_pose(msg)
         elif isinstance(msg, TrialStart):
             if msg.mode == "baseline":
                 self.silent_trial = msg.trial_id
@@ -286,6 +291,10 @@ class Concierge:
                 tag = fresh.tag
             spot = fresh.spot if fresh is not None and fresh.tag == tag else None
             return policy.label(tag, call.args["name"], call.args.get("aliases", []), spot)
+        if call.name == "freeze_listener":
+            return policy.freeze_listener(self.guiding is not None)
+        if call.name == "recenter_listener":
+            return policy.recenter_listener()
         target = await self._target(call, turn)
         if isinstance(target, Plan):
             return target
@@ -312,6 +321,8 @@ class Concierge:
             self.last_object = plan.object_id
             if self.guiding and plan.guide is None and plan.object_id != self.guiding.object_id:
                 await self._stop_guidance("cancelled")
+        if plan.listener_command:
+            await self.emit(ListenerCommand(action=plan.listener_command))
         if plan.guide:
             await self._start_guidance(plan.guide, uid)
         if plan.chirp:
@@ -329,7 +340,8 @@ class Concierge:
     async def _start_guidance(self, g: GuideTarget, uid: str) -> None:
         if self._guide_timer is not None:
             self._guide_timer.cancel()
-        guiding = Guiding(g.object_id, g.name, list(g.position), uid, time.time())
+        guiding = Guiding(g.object_id, g.name, list(g.position), uid, time.time(),
+                          lost_said=self.world.listener_view()[1] == "lost")  # locate just said it
         self.guiding = guiding
         await self.emit(GuideStart(object_id=g.object_id, name=g.name, target_position=list(g.position),
                                    precision=g.precision, utterance_id=uid))
@@ -367,6 +379,23 @@ class Concierge:
             g.position = pos
             await self.emit(GuideStart(object_id=g.object_id, name=g.name, target_position=pos,
                                        precision="exact", utterance_id=g.utterance_id))
+
+    async def _on_listener_pose(self, msg: ListenerPose) -> None:
+        prev = self.world.listener.mode if self.world.listener else None
+        self.world.listener = msg
+        g = self.guiding
+        if g is None or self.silent_trial is not None or msg.mode == prev:
+            return
+        if msg.mode == "lost" and not g.lost_said:
+            g.lost_said = True
+            text = LOST_MESSAGE
+        elif msg.mode == "frozen":
+            gram = Grammar(g.name)
+            text = (f"{AT_COUNTER} {cap(the(g.name))} {gram.is_} "
+                    f"{direction_phrase(g.position, list(msg.position), 'frozen')}.")
+        else:
+            return
+        self.spawn(self.speaker.say(self._id("u"), text))
 
     async def _on_pickup(self, msg: Pickup) -> None:
         g = self.guiding

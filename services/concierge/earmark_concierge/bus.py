@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 SUBSCRIBE = [
     "snapshot", "registry_update", "state_update", "unknown_tag", "pickup", "mic_audio", "transcript",
-    "trial_start", "trial_end", "guide_feedback", "playback", "status", "head_pose", "reset",
+    "trial_start", "trial_end", "guide_feedback", "playback", "status", "head_pose", "reset", "listener_pose",
 ]
 
 

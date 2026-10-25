@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from earmark_contracts import (
-    ObjectState, Pickup, RegistryObject, Snapshot, Space, Spot, UnknownTag,
+    HeadPose, ListenerPose, ObjectState, Pickup, RegistryObject, Snapshot, Space, Spot, UnknownTag,
 )
 
 log = logging.getLogger(__name__)
 DEFAULT_TZ = "America/Los_Angeles"
+HEAD_YAW_FRESH_S = 2.0  # older head_pose readings are ignored for walking directions
 
 
 @dataclass
@@ -56,6 +58,9 @@ class World:
         self.sightings: dict[str, Sighting] = {}
         self.pickups: dict[str, LastPickup] = {}
         self.unknown_tag: UnknownTag | None = None
+        self.listener: ListenerPose | None = None  # latest UWB/sim pose; None = origin, fixed
+        self.head_yaw: float | None = None  # degrees from calibrated forward, right positive
+        self.head_yaw_t: float | None = None  # local receive time
         self.registry_version: float | None = None
 
     # ------------------------------------------------------------ updates
@@ -92,6 +97,22 @@ class World:
             t=msg.t,
         )
 
+    def apply_head_pose(self, msg: HeadPose, now: float | None = None) -> None:
+        self.head_yaw = msg.yaw
+        self.head_yaw_t = time.time() if now is None else now
+
+    def listener_view(self, now: float | None = None) -> tuple[list[float] | None, str, float | None]:
+        """(position, mode, fresh yaw) for direction phrasing; (None, 'fixed', None) before any pose.
+
+        Yaw is None (room frame) unless a head_pose arrived within HEAD_YAW_FRESH_S.
+        """
+        now = time.time() if now is None else now
+        fresh = (self.head_yaw is not None and self.head_yaw_t is not None
+                 and now - self.head_yaw_t <= HEAD_YAW_FRESH_S)
+        yaw = self.head_yaw if fresh else None
+        p = self.listener
+        return (list(p.position), p.mode, yaw) if p else (None, "fixed", yaw)
+
     def apply_unknown_tag(self, msg: UnknownTag) -> None:
         self.unknown_tag = msg
 
@@ -107,7 +128,12 @@ class World:
         return list(s.position) if s else None
 
     def spots_left_to_right(self) -> list[Spot]:
-        """Spots ordered by azimuth from the listener (leftmost first)."""
+        """Spots ordered by azimuth from the counter origin (leftmost first).
+
+        Deliberately NOT relative to the live listener pose: the order of jars on the counter
+        must not flip when the user stands off to one side, and "N spots to your left/right" is
+        only ever spoken right after a pickup, when the user is at the counter facing it.
+        """
         from .phrasing import azimuth_deg
         if self.space is None:
             return []

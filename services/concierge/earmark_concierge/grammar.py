@@ -16,6 +16,8 @@ _FILLER_TAIL = re.compile(
 _DET = r"(?:(?:my|the|a|an|our|some|his|her|their)\s+)?"
 
 _STOP = re.compile(r"\b(?:stop|cancel|never ?mind|nevermind|be quiet|quiet|that's enough|enough)\b")
+_HERE = re.compile(r"^(?:(?:ok|okay|so|alright|hey earmark)\s+)*(?:i'm|im|i am)\s+here(?:\s+(?:now|please))?$")
+_RECENTER = re.compile(r"\bre ?center\b")
 _LABEL = re.compile(
     r"^(?:(?:ok|okay|so|and|now|hey earmark)\s+)*"
     r"(?:this(?: one| item| thing)? is(?: called| named)?|call this(?: one)?|label this(?: one)?(?: as)?|"
@@ -65,6 +67,10 @@ def parse(text: str, known_terms: set[str] | None = None) -> ToolCall | None:
     s = normalize(text)
     if not s:
         return None
+    if _HERE.match(s):
+        return ToolCall("freeze_listener")
+    if _RECENTER.search(s) and not re.search(r"\b(?:where|find)\b", s):
+        return ToolCall("recenter_listener")
     if _STOP.search(s) and not re.search(r"\b(?:where|find)\b", s):
         return ToolCall("stop_guidance")
     m = _LABEL.search(s)

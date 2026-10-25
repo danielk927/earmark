@@ -60,10 +60,58 @@ def distance_phrase(d: float) -> str:
     return f"about {number_word(max(2, round(d / STEP_M)))} steps away"
 
 
-def direction_phrase(position: list[float]) -> str:
-    """'at your one o'clock, about an arm's length away'"""
-    x, y = position[0], position[1]
-    return f"{clock_phrase(x, y)}, {distance_phrase(horizontal_distance(x, y))}"
+# Tracked guidance (UWB listener_pose, PRD 11.1): beyond this the listener is not "at the
+# counter", so plain-word directions and meters beat the clock face.
+TRACKED_MIN_M = 1.2
+LOST_MESSAGE = "I've lost track of where you are. Walk to the counter and say 'I'm here'."
+AT_COUNTER = "You're at the counter."
+
+
+def relative_direction(dx: float, dy: float, yaw_deg: float = 0.0) -> str:
+    """Plain-word direction of an offset for a listener facing `yaw_deg` (degrees clockwise from +y).
+
+    yaw 0 is the room frame (facing the counter).
+    """
+    a = (azimuth_deg(dx, dy) - yaw_deg + 180.0) % 360.0 - 180.0
+    side = "right" if a > 0 else "left"
+    m = abs(a)
+    if m <= 15:
+        return "ahead of you"
+    if m <= 60:
+        return f"ahead of you, a little to the {side}"
+    if m <= 120:
+        return f"to your {side}"
+    if m <= 150:
+        return f"behind you, a little to the {side}"
+    return "behind you"
+
+
+def meters_phrase(d: float) -> str:
+    """Nearest half meter: 'about 3 meters', 'about 2 and a half meters'."""
+    halves = _round_half_away(d * 2)
+    whole, half = divmod(halves, 2)
+    if half:
+        return f"about {whole} and a half meters" if whole else "about half a meter"
+    return f"about {whole} meter{'' if whole == 1 else 's'}"
+
+
+def direction_phrase(position: list[float], listener: list[float] | None = None,
+                     mode: str = "fixed", yaw: float | None = None) -> str:
+    """Where `position` (counter frame) is from the listener.
+
+    tracked and > 1.2 m away: 'ahead of you, a little to the right, about 3 meters'.
+    Otherwise (frozen, fixed, lost, or close) the clock face: 'at your one o'clock, about an
+    arm's length away'. The lost *message* is not a direction; the core says it once per guidance.
+    With no listener the origin is used, which is the pre-UWB behavior. `yaw` (fresh head yaw,
+    degrees from calibrated forward, right positive) turns the tracked words to where the user
+    is facing; None means the room frame. The clock face always uses calibrated forward.
+    """
+    lx, ly = (listener[0], listener[1]) if listener else (0.0, 0.0)
+    x, y = position[0] - lx, position[1] - ly
+    d = horizontal_distance(x, y)
+    if mode == "tracked" and d > TRACKED_MIN_M:
+        return f"{relative_direction(x, y, yaw or 0.0)}, {meters_phrase(d)}"
+    return f"{clock_phrase(x, y)}, {distance_phrase(d)}"
 
 
 def relative_spot_phrase(from_index: int, to_index: int) -> str | None:
