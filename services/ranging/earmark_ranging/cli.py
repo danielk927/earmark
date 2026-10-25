@@ -208,6 +208,7 @@ async def _listen(args) -> None:
 
     svc.on_heard, svc.on_range, svc.on_fix, svc.on_report = on_heard, on_range, on_fix, on_report
     svc.on_mark_done, svc.on_survey = on_mark_done, on_survey
+    svc.on_notice = lambda msg: print(f"\n!!! {msg}\n")
     stop = asyncio.Event()
     tasks = []
     async with serve(svc.handler, "0.0.0.0", args.port, max_size=2**22):

@@ -86,6 +86,7 @@ class ListenService:
         self.report: CalibrationReport | None = None
         self.calibrated_at: float | None = None  # monotonic time the schedules were last set
         self.state = "idle"  # idle (waiting to calibrate), calibrating, tracking; or surveying, survey_walk (room setup)
+        self.idle_note = ""  # why we are idle, for the status line
         self.surveyor = surveyor
         self.survey_report: SurveyReport | None = None
         self.first_audio_at: float | None = None  # monotonic
@@ -104,6 +105,7 @@ class ListenService:
         self.on_report: Callable[[CalibrationReport], None] | None = None
         self.on_mark_done: Callable[[int], None] | None = None  # room setup: a mark was recorded
         self.on_survey: Callable[[SurveyReport], None] | None = None  # room setup: the beacons were placed (or not)
+        self.on_notice: Callable[[str], None] | None = None  # something the operator must act on
 
     # ------------------------------------------------------------------ phones
 
@@ -126,6 +128,10 @@ class ListenService:
                 kind = msg.get("type")
                 if kind == "join":
                     slot = int(msg.get("slot", 0))
+                    if slot == 0:
+                        lost = self._phone_restarted()
+                        if lost is not None:
+                            await self.publisher.send(lost)  # the hub and room page drop the old position now
                     phone = Phone(slot, str(msg.get("name", f"phone {slot}")), ws)
                     self.phones[slot] = phone
                     await ws.send(json.dumps({
@@ -151,6 +157,34 @@ class ListenService:
             if phone is not None and self.phones.get(phone.slot) is phone:
                 del self.phones[phone.slot]
 
+    def _phone_restarted(self) -> ListenerPose | None:
+        """The user's phone (re)joined. It stops its audio engine whenever the link drops and its sample counter
+        carries on, so the seconds it was offline vanish from its timeline and the schedules (and any room-setup
+        marks) no longer line up with anything. Forget all of it. Returns a "lost" pose if a position had gone out.
+        """
+        if self.state == "idle" and self.feed.cursor is None:
+            return None  # first connection, or nothing heard yet: nothing to forget
+        was = self.state
+        lost = None
+        if self.tracker is not None and self.tracker.last_fix is not None:
+            pos = [round(self.tracker.last_fix.position[i] + self.ear_offset[i], 3) for i in range(3)]
+            lost = ListenerPose(position=pos, quality="lost", beacons_heard=0, source="beacons")
+        self.feed = ChirpFeed(self.detector, FS)
+        self.calibrator.cancel()
+        if self.surveyor is not None:
+            self.surveyor = self._fresh_surveyor()
+        self._start_requested = False
+        self.tracker, self.state, self.first_audio_at, self.calibrated_at = None, "idle", None, None
+        if was != "idle":
+            again = "start the room setup again from the mat" if self.surveyor is not None else \
+                "put it back at the calibration spot and press Enter"
+            self.idle_note = "phone reconnected: " + ("set up again" if self.surveyor is not None else "recalibrate")
+            msg = f"the phone's audio restarted (it reconnected), so the calibration no longer holds. Please {again}."
+            log.warning(msg)
+            if self.on_notice:
+                self.on_notice(msg)
+        return lost
+
     # ------------------------------------------------------------------ calibration control
 
     def start_calibration(self) -> None:
@@ -160,12 +194,13 @@ class ListenService:
     def start_survey_mark(self) -> None:
         """Room setup: record the next mark now. The phone must be still on it. After the last mark, start over."""
         if self.surveyor is not None and self.surveyor.done():
-            self.surveyor = Surveyor(
-                self.surveyor.beacon_ids, [m[:2] for m in self.surveyor.marks], self.c, self.surveyor.stop_s,
-                self.cycle, self.slot, self.wall_time, self.surveyor.marks[0][2], self.surveyor.beacon_z,
-                self.surveyor.hints,
-            )
+            self.surveyor = self._fresh_surveyor()
         self._start_requested = True
+
+    def _fresh_surveyor(self) -> Surveyor:
+        sv = self.surveyor
+        return Surveyor(sv.beacon_ids, [m[:2] for m in sv.marks], self.c, sv.stop_s, self.cycle, self.slot,
+                        self.wall_time, sv.marks[0][2], sv.beacon_z, sv.hints)
 
     def calibration_remaining(self) -> float:
         if self.state == "surveying" and self.surveyor is not None:
@@ -189,11 +224,11 @@ class ListenService:
                 j = self.surveyor.next_mark
                 if j is not None:
                     self.surveyor.start_mark(j, cur)
-                    self.state = "surveying"
+                    self.state, self.idle_note = "surveying", ""
                     self._mark("setup_mark_start", cur, mark=j)
             else:
                 self.calibrator.start(cur)
-                self.state = "calibrating"
+                self.state, self.idle_note = "calibrating", ""
                 self._mark("calibration_start", cur)
         out: list[Range] = []
         if self.state == "surveying" and self.surveyor is not None:
@@ -299,15 +334,15 @@ class ListenService:
             ):
                 auto_calibrate_after_s = None
                 self.start_calibration()
+            # One bad value (a solver error, a console hook, a send) must not end the service mid-demo.
             try:
                 new = self.step()
+                if new and self.tracker is not None and self.feed.cursor_s is not None:
+                    got = self.tracker.fix(self.feed.cursor_s)
+                    if got is not None:
+                        await self._publish(*got)
             except Exception:
                 log.exception("processing failed")
-                continue
-            if new and self.tracker is not None and self.feed.cursor_s is not None:
-                got = self.tracker.fix(self.feed.cursor_s)
-                if got is not None:
-                    await self._publish(*got)
 
     async def _publish(self, fix, pose: ListenerPose) -> None:
         self.fixes += 1
@@ -330,7 +365,7 @@ class ListenService:
 
     def status_line(self) -> str:
         rates = "  ".join(f"B{k} {r:.1f}/s" for k, r in sorted(self.rates().items()))
-        cal = {"idle": "not set up" if self.surveyor is not None else "not calibrated",
+        cal = {"idle": self.idle_note or ("not set up" if self.surveyor is not None else "not calibrated"),
                "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
                "surveying": f"recording a mark, {self.calibration_remaining():.0f} s left",
                "survey_walk": "walk to the next mark", "tracking": self._calibrated_text()}[self.state]

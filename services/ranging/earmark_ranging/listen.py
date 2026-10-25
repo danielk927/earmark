@@ -264,6 +264,9 @@ class Calibrator:
     def start(self, t_rec: float) -> None:
         self.started_at, self.latest, self.detections = t_rec, t_rec, []
 
+    def cancel(self) -> None:
+        self.started_at, self.latest, self.detections = None, None, []
+
     def add(self, det: Detection) -> None:
         if self.started_at is not None and det.t >= self.started_at:
             self.detections.append(det)

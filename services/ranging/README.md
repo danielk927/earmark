@@ -135,6 +135,12 @@ back and forth at 0.5 m/s. `--sim-noise`, `--sim-echo` and `--sim-dropout` make 
   distances will then drift slowly with time. Recalibrate.
 - The schedule is only as good as the phones' clocks stay steady; after a long time, or if a phone's audio engine
   restarts, recalibrate.
+- When the user's phone reconnects (a Wi-Fi blip), its audio engine restarted and the seconds it was offline are
+  missing from its timeline. The Mac then drops the calibration (and any half-walked room setup), sends one `lost`
+  pose, prints a `!!!` line and shows "phone reconnected: recalibrate" in the status. Stand on the mat and press Enter.
+- With exactly three beacons at one height, a single wrong distance (an echo, a body in the way) cannot be
+  detected: the fit absorbs it into the phone's height and still reports a small error, so the position can be off
+  by a metre while marked `ok`. A fourth beacon, or beacons at different heights, makes such a distance show.
 
 ## Recording a run and replaying it
 

@@ -1,6 +1,7 @@
 """Calibrate-then-listen: self-timed beacons, one recording phone. Pure tests first, then the service over a socket."""
 import asyncio
 import contextlib
+import json
 import math
 import time
 
@@ -381,3 +382,85 @@ def test_a_real_move_is_followed_after_a_few_rejected_fixes():
     for cycle in range(45, 60):  # the user is now somewhere else for good
         got = _step(tr, (0.9, 0.5), cycle) or got
     assert got is not None and math.dist(got[0].position[:2], (0.9, 0.5)) < 0.05
+
+
+# ------------------------------------------------------------------------------------------------- reconnects
+
+
+class _Socket:
+    """Just enough of a websocket for ListenService.handler: hands over the messages, keeps what was sent."""
+
+    def __init__(self, *msgs):
+        self.msgs, self.sent = [json.dumps(m) for m in msgs], []
+
+    async def __aiter__(self):
+        for m in self.msgs:
+            yield m
+
+    async def send(self, s):
+        self.sent.append(s)
+
+
+class _Bus:
+    def __init__(self):
+        self.sent = []
+
+    async def send(self, msg):
+        self.sent.append(msg)
+
+
+def _tracking_service():
+    from earmark_ranging.listen import BeaconSchedule
+    from earmark_ranging.solve import Fix
+
+    anchors = load_anchors()
+    bus = _Bus()
+    svc = ListenService(anchors, known_distances(anchors, at=(0.0, 0.0, 1.25)), SPEC, c=C, publisher=bus)
+    svc.tracker = Tracker({k: BeaconSchedule(a=0.0, b=0.5) for k in anchors}, C, anchors)
+    svc.tracker.last_fix = Fix((0.3, 0.5, 1.2), 3, 0.01)
+    svc.state, svc.feed.cursor = "tracking", 480_000
+    notices = []
+    svc.on_notice = notices.append
+    return svc, bus, notices
+
+
+async def test_the_users_phone_reconnecting_drops_the_calibration():
+    svc, bus, notices = _tracking_service()
+    await svc.handler(_Socket({"type": "join", "slot": 0, "name": "judge"}))
+    # Its sample counter skipped the seconds it was offline, so the old schedules would give confident nonsense.
+    assert svc.state == "idle" and svc.tracker is None and svc.feed.cursor is None
+    [lost] = bus.sent
+    assert lost.quality == "lost" and lost.beacons_heard == 0
+    assert notices and "calibration spot" in notices[0]
+    assert "phone reconnected" in svc.status_line()
+
+
+async def test_the_first_join_forgets_nothing():
+    anchors = load_anchors()
+    bus = _Bus()
+    svc = ListenService(anchors, known_distances(anchors, at=(0.0, 0.0, 1.25)), SPEC, c=C, publisher=bus)
+    notices = []
+    svc.on_notice = notices.append
+    await svc.handler(_Socket({"type": "join", "slot": 0, "name": "judge"}))
+    assert svc.state == "idle" and not bus.sent and not notices
+    svc2, bus2, notices2 = _tracking_service()
+    await svc2.handler(_Socket({"type": "join", "slot": 2, "name": "beacon"}))  # another slot: not the user's phone
+    assert svc2.state == "tracking" and not bus2.sent and not notices2
+
+
+async def test_a_solver_error_does_not_end_the_service():
+    svc, _, _ = _tracking_service()
+    calls = []
+
+    def broken_fix(now_t):
+        calls.append(now_t)
+        raise ValueError("Residuals are not finite in the initial point")
+
+    svc.step = lambda: [object()]  # a new distance on every pass
+    svc.tracker.fix = broken_fix
+    task = asyncio.create_task(svc.run())
+    await asyncio.sleep(0.3)
+    assert not task.done(), task.exception() if task.done() else None
+    assert len(calls) >= 2
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
