@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://earmark.local/schemas/bus_message.schema.json",
   "title": "BusMessage",
-  "description": "Every JSON message on the local WebSocket bus ws://127.0.0.1:8765. Discriminated by `type`. All times are unix seconds (float).",
+  "description": "Every JSON message on the local WebSocket bus ws://<hub>:8765 (127.0.0.1 by default; 0.0.0.0 on the private network when iPhones join, see hello.secret). Discriminated by `type`. All times are unix seconds (float).",
   "oneOf": [
     {
       "$ref": "#/$defs/hello"
@@ -77,6 +77,21 @@
       "$ref": "#/$defs/status"
     },
     {
+      "$ref": "#/$defs/uwb_token"
+    },
+    {
+      "$ref": "#/$defs/uwb_range"
+    },
+    {
+      "$ref": "#/$defs/motion_state"
+    },
+    {
+      "$ref": "#/$defs/listener_pose"
+    },
+    {
+      "$ref": "#/$defs/listener_command"
+    },
+    {
       "$ref": "#/$defs/reset"
     }
   ],
@@ -102,11 +117,13 @@
         "trial_cli",
         "dashboard",
         "cli",
-        "memory_agent"
+        "memory_agent",
+        "ios_anchor",
+        "ios_wearer"
       ]
     },
     "hello": {
-      "description": "Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak.",
+      "description": "Client -> hub, first message after connecting. The hub replies with a snapshot. `subscribe` limits which types the hub forwards to this client; omitted = everything except mic_audio and speak. iPhone clients (ios_anchor, ios_wearer) also send `device_id` (uwb_1|uwb_2|uwb_3|wearer) and `role`; any client connecting from a non-loopback address must send `secret` = EARMARK_BUS_SECRET or the hub closes the connection.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -127,6 +144,22 @@
             "type": "string"
           },
           "description": "Message types to receive, or [\"*\"] for all including audio."
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable id for addressed delivery, e.g. \"uwb_1\", \"uwb_2\", \"uwb_3\", \"wearer\". uwb_token messages are delivered to the client whose device_id equals `to`."
+        },
+        "role": {
+          "enum": [
+            "anchor",
+            "wearer"
+          ],
+          "description": "iPhone UWB role."
+        },
+        "secret": {
+          "type": "string",
+          "description": "Shared bus secret (EARMARK_BUS_SECRET). Required from non-loopback clients; never logged."
         },
         "t": {
           "$ref": "#/$defs/t"
@@ -817,7 +850,7 @@
       }
     },
     "head_pose": {
-      "description": "Mac app -> bus, debug only, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up.",
+      "description": "Mac app -> bus, <= 10 Hz. Degrees relative to calibration; yaw positive = head turned right, pitch positive = looking up. The hub's UWB tracker uses yaw as the facing direction for the phone-to-head offset.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -892,6 +925,213 @@
       "properties": {
         "type": {
           "const": "reset"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "uwb_token": {
+      "description": "iPhone -> hub -> iPhone. A Nearby Interaction discovery token (NSKeyedArchiver, secure coding, base64). The hub keeps the latest per (from, to), delivers it to the client whose hello.device_id equals `to`, and replays it when that client (re)connects. Each NISession has its own token, so the wearer sends one per anchor.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "from",
+        "to",
+        "token_b64",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "uwb_token"
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Sender device_id."
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Recipient device_id."
+        },
+        "token_b64": {
+          "type": "string",
+          "minLength": 1,
+          "contentEncoding": "base64"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "uwb_range": {
+      "description": "Wearer iPhone -> hub. One Nearby Interaction distance to an anchor (direction is never used). Up to 20 Hz per anchor. Anchors never send ranges.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "anchor",
+        "distance_m",
+        "seq",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "uwb_range"
+        },
+        "anchor": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Anchor device_id, e.g. \"uwb_1\"."
+        },
+        "distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Per-anchor sequence number from the wearer."
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "motion_state": {
+      "description": "Wearer iPhone -> hub. Moving vs still from CoreMotion user acceleration (0.5 s RMS, hysteresis). Sent on change and as a 1 s heartbeat.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "state",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "motion_state"
+        },
+        "state": {
+          "enum": [
+            "moving",
+            "still"
+          ]
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "listener_pose": {
+      "description": "Hub -> bus. Where the listener's head is, in Earmark coordinates. Source-agnostic: produced from UWB, sound ranging or the simulator; consumers never care which. mode: tracked = live estimate while walking; frozen = averaged landing spot at the counter; lost = holding the last good estimate; fixed = origin (today's seated behavior). Published at the solver rate (10 Hz) and immediately on every mode change.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "position",
+        "mode",
+        "source",
+        "residual_m",
+        "anchors_used",
+        "blocked",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "listener_pose"
+        },
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "mode": {
+          "enum": [
+            "tracked",
+            "frozen",
+            "lost",
+            "fixed"
+          ]
+        },
+        "source": {
+          "enum": [
+            "uwb",
+            "sound",
+            "sim",
+            "none"
+          ]
+        },
+        "residual_m": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "RMS range residual of the solve, meters; null when not solved (fixed)."
+        },
+        "anchors_used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Anchor ids rejected as outliers in this solve."
+        },
+        "anchors": {
+          "type": "array",
+          "description": "Optional per-anchor health for maps and status bars.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "anchor",
+              "online",
+              "distance_m"
+            ],
+            "properties": {
+              "anchor": {
+                "type": "string",
+                "minLength": 1
+              },
+              "online": {
+                "type": "boolean",
+                "description": "A fresh range arrived from this anchor within the freshness window."
+              },
+              "distance_m": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Latest raw distance from the wearer, meters."
+              }
+            }
+          }
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "listener_command": {
+      "description": "Concierge (voice) or Mac app -> bus. freeze: \"I'm here\" - the hub freezes the listener at the current estimate immediately. recenter: the Mac app re-zeroes AirPods yaw (user faces the counter).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "action",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "listener_command"
+        },
+        "action": {
+          "enum": [
+            "freeze",
+            "recenter"
+          ]
         },
         "t": {
           "$ref": "#/$defs/t"

@@ -34,6 +34,27 @@ export interface AreaRow {
   position: Vec3;
 }
 
+/** A UWB anchor iPhone ("UWB Reader/Emitter N"), upserted by the hub through /ingest. */
+export interface AnchorRow {
+  anchorId: string;
+  label: string;
+  position: Vec3;
+  online: boolean;
+  lastDistanceM: number | null;
+  lastSeenT: number | null;
+}
+
+export type ListenerMode = "tracked" | "frozen" | "lost" | "fixed";
+export type PoseSource = "uwb" | "sound" | "sim" | "none";
+
+/** The single live wearer pose (overwritten in place; no history is ever stored). */
+export interface WearerPoseRow {
+  position: Vec3;
+  mode: ListenerMode;
+  source: PoseSource;
+  t: number;
+}
+
 export interface ObjectRow {
   objectId: string;
   name: string;
@@ -129,6 +150,10 @@ export interface LiveMap {
   states: ObjectStateRow[];
   /** Unlabeled tags currently sitting on a spot, newest first. */
   unknownTags: UnknownTagRow[];
+  /** UWB anchors, sorted by anchorId. Empty when walking guidance is not set up. */
+  anchors: AnchorRow[];
+  /** Live wearer pose, or null when nobody is being tracked. */
+  wearer: WearerPoseRow | null;
 }
 
 /** A type alias (not an interface) so it satisfies Convex's args constraint. */

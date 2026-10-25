@@ -1,0 +1,12 @@
+{
+  "type": "hello",
+  "component": "ios_wearer",
+  "device_id": "wearer",
+  "role": "wearer",
+  "secret": "example-bus-secret",
+  "subscribe": [
+    "uwb_token",
+    "reset"
+  ],
+  "t": 1761350400.12
+}

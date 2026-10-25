@@ -1,0 +1,14 @@
+{
+  "type": "listener_pose",
+  "position": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "mode": "fixed",
+  "source": "none",
+  "residual_m": null,
+  "anchors_used": 0,
+  "blocked": [],
+  "t": 1761350409.12
+}

@@ -36,7 +36,8 @@ public enum Precision: String, Codable, Sendable { case exact, area, proximity, 
 public enum DistanceClass: String, Codable, Sendable { case near, mid, far }
 public enum ObjectStatus: String, Codable, Sendable { case onSpot = "on_spot", held, missing, roaming }
 public enum Component: String, Codable, Sendable {
-    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent"
+    case hub, concierge, macApp = "mac_app", simulator, trialCli = "trial_cli", dashboard, cli, memoryAgent = "memory_agent",
+         iosAnchor = "ios_anchor", iosWearer = "ios_wearer"
 }
 
 // MARK: - Shared payloads
@@ -64,11 +65,34 @@ public struct Listener: Codable, Sendable, Equatable {
     public var originNote: String
 }
 
+/// A fixed UWB anchor iPhone ("UWB Reader/Emitter N"), measured from the origin floor mark.
+public struct Anchor: Codable, Sendable, Equatable {
+    public var anchor: String
+    public var label: String
+    public var position: Vec3
+    public init(anchor: String, label: String, position: Vec3) {
+        self.anchor = anchor; self.label = label; self.position = position
+    }
+}
+
+/// Wearer geometry set by calibration (overrides the hub's defaults).
+public struct Tracking: Codable, Sendable, Equatable {
+    public var phoneZ: Double?
+    public var headOffsetM: Double?
+    public init(phoneZ: Double? = nil, headOffsetM: Double? = nil) {
+        self.phoneZ = phoneZ; self.headOffsetM = headOffsetM
+    }
+}
+
 public struct Space: Codable, Sendable, Equatable {
     public var listener: Listener
     public var spots: [Spot]
     public var areas: [Area]
     public var receivers: [Receiver]
+    /// Optional: UWB anchors for walking guidance.
+    public var anchors: [Anchor]?
+    /// Optional: wearer phone height / head offset.
+    public var tracking: Tracking?
 }
 
 public struct RegistryObject: Codable, Sendable, Equatable, Identifiable {
@@ -200,11 +224,19 @@ public struct SttMode: Codable, Sendable, Equatable {
 // MARK: - Messages the Mac app sends
 
 public struct Hello: Codable, Sendable, Equatable {
+    public enum Role: String, Codable, Sendable { case anchor, wearer }
     public var component: Component
     public var subscribe: [String]?
+    /// iPhone clients: "uwb_1" | "uwb_2" | "uwb_3" | "wearer". Used for addressed uwb_token delivery.
+    public var deviceId: String?
+    public var role: Role?
+    /// EARMARK_BUS_SECRET. Required when connecting from a non-loopback address.
+    public var secret: String?
     public var t: Double
-    public init(component: Component, subscribe: [String]? = nil, t: Double = BusCoding.now) {
-        self.component = component; self.subscribe = subscribe; self.t = t
+    public init(component: Component, subscribe: [String]? = nil, deviceId: String? = nil, role: Role? = nil,
+                secret: String? = nil, t: Double = BusCoding.now) {
+        self.component = component; self.subscribe = subscribe; self.deviceId = deviceId; self.role = role
+        self.secret = secret; self.t = t
     }
 }
 
@@ -303,6 +335,96 @@ public struct PickupResult: Codable, Sendable, Equatable {
     public var t: Double
 }
 
+// MARK: - UWB walking guidance
+
+/// iPhone -> hub -> iPhone. A Nearby Interaction discovery token, NSKeyedArchiver (secure coding), base64.
+public struct UwbToken: Codable, Sendable, Equatable {
+    public var from: String
+    public var to: String
+    public var tokenB64: String
+    public var t: Double
+    public init(from: String, to: String, tokenB64: String, t: Double = BusCoding.now) {
+        self.from = from; self.to = to; self.tokenB64 = tokenB64; self.t = t
+    }
+}
+
+/// Wearer -> hub. One distance to an anchor, meters.
+public struct UwbRange: Codable, Sendable, Equatable {
+    public var anchor: String
+    public var distanceM: Double
+    public var seq: Int
+    public var t: Double
+    public init(anchor: String, distanceM: Double, seq: Int, t: Double = BusCoding.now) {
+        self.anchor = anchor; self.distanceM = distanceM; self.seq = seq; self.t = t
+    }
+}
+
+/// Wearer -> hub. Moving vs still (CoreMotion).
+public struct MotionState: Codable, Sendable, Equatable {
+    public enum State: String, Codable, Sendable { case moving, still }
+    public var state: State
+    public var t: Double
+    public init(state: State, t: Double = BusCoding.now) { self.state = state; self.t = t }
+}
+
+public enum ListenerMode: String, Codable, Sendable { case tracked, frozen, lost, fixed }
+public enum PoseSource: String, Codable, Sendable { case uwb, sound, sim, none }
+
+public struct AnchorHealth: Codable, Sendable, Equatable {
+    public var anchor: String
+    public var online: Bool
+    public var distanceM: Double?
+    public init(anchor: String, online: Bool, distanceM: Double?) {
+        self.anchor = anchor; self.online = online; self.distanceM = distanceM
+    }
+    private enum CodingKeys: String, CodingKey { case anchor, online, distanceM }
+    // `distance_m` is required-nullable in the schema, so encode an explicit null.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(anchor, forKey: .anchor)
+        try c.encode(online, forKey: .online)
+        try c.encode(distanceM, forKey: .distanceM)
+    }
+}
+
+/// Hub -> bus. Where the listener's head is. Source-agnostic (UWB, sound, simulator).
+public struct ListenerPose: Codable, Sendable, Equatable {
+    public var position: Vec3
+    public var mode: ListenerMode
+    public var source: PoseSource
+    public var residualM: Double?
+    public var anchorsUsed: Int
+    public var blocked: [String]
+    public var anchors: [AnchorHealth]?
+    public var t: Double
+    public init(position: Vec3, mode: ListenerMode, source: PoseSource, residualM: Double?, anchorsUsed: Int,
+                blocked: [String], anchors: [AnchorHealth]? = nil, t: Double = BusCoding.now) {
+        self.position = position; self.mode = mode; self.source = source; self.residualM = residualM
+        self.anchorsUsed = anchorsUsed; self.blocked = blocked; self.anchors = anchors; self.t = t
+    }
+    private enum CodingKeys: String, CodingKey { case position, mode, source, residualM, anchorsUsed, blocked, anchors, t }
+    // `residual_m` is required-nullable in the schema, so encode an explicit null.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(position, forKey: .position)
+        try c.encode(mode, forKey: .mode)
+        try c.encode(source, forKey: .source)
+        try c.encode(residualM, forKey: .residualM)
+        try c.encode(anchorsUsed, forKey: .anchorsUsed)
+        try c.encode(blocked, forKey: .blocked)
+        try c.encodeIfPresent(anchors, forKey: .anchors)
+        try c.encode(t, forKey: .t)
+    }
+}
+
+/// Concierge or Mac app -> bus. freeze = "I'm here"; recenter = re-zero AirPods yaw.
+public struct ListenerCommand: Codable, Sendable, Equatable {
+    public enum Action: String, Codable, Sendable { case freeze, recenter }
+    public var action: Action
+    public var t: Double
+    public init(action: Action, t: Double = BusCoding.now) { self.action = action; self.t = t }
+}
+
 // MARK: - Union
 
 public enum BusMessage: Sendable {
@@ -325,6 +447,11 @@ public enum BusMessage: Sendable {
     case reset(Reset)
     case pickup(Pickup)
     case pickupResult(PickupResult)
+    case uwbToken(UwbToken)
+    case uwbRange(UwbRange)
+    case motionState(MotionState)
+    case listenerPose(ListenerPose)
+    case listenerCommand(ListenerCommand)
     /// A valid bus type this app does not act on (detection, chirp, trial_*, label, unknown_tag).
     case other(type: String)
 
@@ -349,6 +476,11 @@ public enum BusMessage: Sendable {
         case .reset: "reset"
         case .pickup: "pickup"
         case .pickupResult: "pickup_result"
+        case .uwbToken: "uwb_token"
+        case .uwbRange: "uwb_range"
+        case .motionState: "motion_state"
+        case .listenerPose: "listener_pose"
+        case .listenerCommand: "listener_command"
         case .other(let type): type
         }
     }
@@ -380,6 +512,11 @@ extension BusMessage: Codable {
         case "reset": self = .reset(try one.decode(Reset.self))
         case "pickup": self = .pickup(try one.decode(Pickup.self))
         case "pickup_result": self = .pickupResult(try one.decode(PickupResult.self))
+        case "uwb_token": self = .uwbToken(try one.decode(UwbToken.self))
+        case "uwb_range": self = .uwbRange(try one.decode(UwbRange.self))
+        case "motion_state": self = .motionState(try one.decode(MotionState.self))
+        case "listener_pose": self = .listenerPose(try one.decode(ListenerPose.self))
+        case "listener_command": self = .listenerCommand(try one.decode(ListenerCommand.self))
         default: self = .other(type: type)
         }
     }
@@ -407,6 +544,11 @@ extension BusMessage: Codable {
         case .reset(let m): try m.encode(to: encoder)
         case .pickup(let m): try m.encode(to: encoder)
         case .pickupResult(let m): try m.encode(to: encoder)
+        case .uwbToken(let m): try m.encode(to: encoder)
+        case .uwbRange(let m): try m.encode(to: encoder)
+        case .motionState(let m): try m.encode(to: encoder)
+        case .listenerPose(let m): try m.encode(to: encoder)
+        case .listenerCommand(let m): try m.encode(to: encoder)
         case .other: break
         }
     }

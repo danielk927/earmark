@@ -1,0 +1,68 @@
+{
+  "events": [
+    {
+      "event_id": "e-6f1c2a9b",
+      "kind": "pickup",
+      "object_id": "salt",
+      "t": 1761350400.12,
+      "data": {
+        "type": "pickup",
+        "object_id": "salt",
+        "from_spot": 2,
+        "t": 1761350400.12
+      }
+    }
+  ],
+  "states": [
+    {
+      "type": "state_update",
+      "object_id": "salt",
+      "location": {
+        "spot": null,
+        "position": null
+      },
+      "precision": "none",
+      "status": "held",
+      "home_spot": 2,
+      "last_seen_t": 1761350398.62,
+      "source": "nfc",
+      "t": 1761350400.12
+    }
+  ],
+  "anchors": [
+    {
+      "anchor": "uwb_1",
+      "label": "UWB Reader/Emitter 1",
+      "position": [
+        -0.9,
+        0.75,
+        -0.25
+      ],
+      "online": true,
+      "last_distance_m": 2.41,
+      "last_seen_t": 1761350400.12
+    },
+    {
+      "anchor": "uwb_2",
+      "label": "UWB Reader/Emitter 2",
+      "position": [
+        0.9,
+        0.75,
+        -0.25
+      ],
+      "online": false,
+      "last_distance_m": null,
+      "last_seen_t": null
+    }
+  ],
+  "pose": {
+    "position": [
+      0.12,
+      -1.85,
+      0.0
+    ],
+    "mode": "tracked",
+    "source": "uwb",
+    "t": 1761350400.12
+  }
+}

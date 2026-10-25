@@ -1,0 +1,12 @@
+{
+  "anchor": "uwb_1",
+  "label": "UWB Reader/Emitter 1",
+  "position": [
+    -0.9,
+    0.75,
+    -0.25
+  ],
+  "online": true,
+  "last_distance_m": 2.41,
+  "last_seen_t": 1761350400.12
+}

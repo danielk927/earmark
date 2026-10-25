@@ -20,7 +20,7 @@ Source = Literal["simulator", "nfc", "ble", "camera", "ultrasonic"]
 Precision = Literal["exact", "area", "proximity", "none"]
 DistanceClass = Literal["near", "mid", "far"]
 Status = Literal["on_spot", "held", "missing", "roaming"]
-Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent"]
+Component = Literal["hub", "concierge", "mac_app", "simulator", "trial_cli", "dashboard", "cli", "memory_agent", "ios_anchor", "ios_wearer"]
 
 
 class _Model(BaseModel):
@@ -61,11 +61,24 @@ class Receiver(_Model):
     position: Vec3 | None = None
 
 
+class Anchor(_Model):
+    anchor: str = Field(pattern=r"^uwb_[0-9]+$")
+    label: str = Field(min_length=1)
+    position: Vec3
+
+
+class Tracking(_Model):
+    phone_z: float | None = None
+    head_offset_m: float | None = Field(default=None, ge=0)
+
+
 class Space(_Model):
     listener: Listener
     spots: list[Spot]
     areas: list[Area]
     receivers: list[Receiver]
+    anchors: list[Anchor] | None = None
+    tracking: Tracking | None = None
 
 
 # ---------------------------------------------------------------- registry
@@ -166,6 +179,9 @@ class Hello(_Msg):
     type: Literal["hello"] = "hello"
     component: Component
     subscribe: list[str] | None = None
+    device_id: str | None = Field(default=None, min_length=1)
+    role: Literal["anchor", "wearer"] | None = None
+    secret: str | None = Field(default=None, repr=False)
 
 
 class Snapshot(_Msg):
@@ -331,11 +347,61 @@ class Reset(_Msg):
     type: Literal["reset"] = "reset"
 
 
+# ---------------------------------------------------------------- UWB walking guidance
+
+ListenerMode = Literal["tracked", "frozen", "lost", "fixed"]
+PoseSource = Literal["uwb", "sound", "sim", "none"]
+
+
+class UwbToken(_Msg):
+    type: Literal["uwb_token"] = "uwb_token"
+    from_: str = Field(alias="from", min_length=1)
+    to: str = Field(min_length=1)
+    token_b64: str = Field(min_length=1)
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class UwbRange(_Msg):
+    type: Literal["uwb_range"] = "uwb_range"
+    anchor: str = Field(min_length=1)
+    distance_m: float = Field(ge=0)
+    seq: int = Field(ge=0)
+
+
+class MotionState(_Msg):
+    type: Literal["motion_state"] = "motion_state"
+    state: Literal["moving", "still"]
+
+
+class AnchorHealth(_Model):
+    anchor: str = Field(min_length=1)
+    online: bool
+    distance_m: float | None
+
+
+class ListenerPose(_Msg):
+    type: Literal["listener_pose"] = "listener_pose"
+    position: Vec3
+    mode: ListenerMode
+    source: PoseSource
+    residual_m: float | None
+    anchors_used: int = Field(ge=0)
+    blocked: list[str]
+    anchors: list[AnchorHealth] | None = None
+
+
+class ListenerCommand(_Msg):
+    type: Literal["listener_command"] = "listener_command"
+    action: Literal["freeze", "recenter"]
+
+
 BusMessage = Annotated[
     Union[
         Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
+        UwbToken, UwbRange, MotionState, ListenerPose, ListenerCommand,
     ],
     Field(discriminator="type"),
 ]
@@ -355,7 +421,7 @@ def parse_bus(raw: str | bytes | dict) -> BusMessage:
 
 def to_dict(model: BaseModel) -> dict[str, Any]:
     """Schema-valid dict: required fields always present, unset optionals omitted."""
-    return model.model_dump(mode="json", exclude_unset=True)
+    return model.model_dump(mode="json", exclude_unset=True, by_alias=True)
 
 
 def dump(model: BaseModel) -> str:
@@ -372,9 +438,27 @@ class HubEvent(_Model):
     data: dict[str, Any]
 
 
+class IngestAnchor(_Model):
+    anchor: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    position: Vec3
+    online: bool
+    last_distance_m: float | None
+    last_seen_t: float | None
+
+
+class IngestPose(_Model):
+    position: Vec3
+    mode: ListenerMode
+    source: PoseSource
+    t: float
+
+
 class IngestRequest(_Model):
     events: list[HubEvent]
     states: list[ObjectState]
+    anchors: list[IngestAnchor] | None = None
+    pose: IngestPose | None = None
 
 
 class IngestResponse(_Model):
@@ -495,6 +579,8 @@ class ErrorResponse(_Model):
 
 CONVEX_HTTP_MODELS: dict[str, type[_Model]] = {
     "ingest_request": IngestRequest,
+    "ingest_anchor": IngestAnchor,
+    "ingest_pose": IngestPose,
     "ingest_response": IngestResponse,
     "hub_event": HubEvent,
     "label_request": LabelRequest,

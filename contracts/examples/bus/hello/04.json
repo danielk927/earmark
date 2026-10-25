@@ -1,0 +1,12 @@
+{
+  "type": "hello",
+  "component": "ios_anchor",
+  "device_id": "uwb_1",
+  "role": "anchor",
+  "secret": "example-bus-secret",
+  "subscribe": [
+    "uwb_token",
+    "reset"
+  ],
+  "t": 1761350400.12
+}

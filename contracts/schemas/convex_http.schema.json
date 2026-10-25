@@ -5,7 +5,7 @@
   "description": "Request/response bodies of Earmark's Convex HTTP actions. All JSON is snake_case; Convex tables are camelCase internally and convert only in convex/http.ts. Auth: header `X-Earmark-Secret`. EARMARK_HUB_SECRET is accepted on every route; EARMARK_READ_SECRET only on GET /api/*. Times are unix seconds; *_local fields are ISO 8601 in the household timezone.",
   "$defs": {
     "ingest_request": {
-      "description": "POST /ingest (hub). Idempotent by event_id.",
+      "description": "POST /ingest (hub). Idempotent by event_id. Optional `anchors` (UWB anchor health, sent on change) and `pose` (the single live wearer pose, <= 2 Hz). Pose is overwritten in place, never stored as history.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -24,6 +24,101 @@
           "items": {
             "$ref": "object_state.schema.json"
           }
+        },
+        "anchors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ingest_anchor"
+          }
+        },
+        "pose": {
+          "$ref": "#/$defs/ingest_pose"
+        }
+      }
+    },
+    "ingest_anchor": {
+      "description": "One UWB anchor as the hub sees it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor",
+        "label",
+        "position",
+        "online",
+        "last_distance_m",
+        "last_seen_t"
+      ],
+      "properties": {
+        "anchor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "online": {
+          "type": "boolean"
+        },
+        "last_distance_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "last_seen_t": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "ingest_pose": {
+      "description": "Latest listener pose (bus listener_pose, trimmed). Overwrites the single wearerPose row.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "mode",
+        "source",
+        "t"
+      ],
+      "properties": {
+        "position": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "mode": {
+          "enum": [
+            "tracked",
+            "frozen",
+            "lost",
+            "fixed"
+          ]
+        },
+        "source": {
+          "enum": [
+            "uwb",
+            "sound",
+            "sim",
+            "none"
+          ]
+        },
+        "t": {
+          "type": "number"
         }
       }
     },

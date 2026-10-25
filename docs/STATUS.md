@@ -85,6 +85,16 @@ Not run yet: confirm the AirPods output stays at 48 kHz (no hands-free mode) wit
   Convex client-function contract added in `contracts/ts/convexFunctions.ts`.
 - 2026-10-24: added `registry_response` to `convex_http.schema.json` (GET /api/registry with required `version`), proposed by hub-builder. Documented `roaming` as "tracked by any non-spot method" and the pickup debounce bias.
 
+- 2026-10-24 (uwb-leo): UWB walking guidance (docs/UWB-PRD.md section 9).
+  - Bus: `component` gains `ios_anchor` and `ios_wearer`. `hello` gains optional `device_id`, `role` and `secret`.
+  - Bus: new `uwb_token`, `uwb_range`, `motion_state`, `listener_pose` and `listener_command`.
+  - `listener_pose` carries optional per-anchor health.
+  - `listener_command` (`freeze` | `recenter`) is new beyond the PRD. It lets the concierge's "I'm here" reach the hub, and "recenter" reach the Mac app.
+  - `space.json` gains optional `anchors[]` and `tracking {phone_z, head_offset_m}`.
+  - `/ingest` gains optional `anchors[]` (`ingest_anchor`) and `pose` (`ingest_pose`).
+  - `LiveMap` gains `anchors` and `wearer`.
+  - The Swift package now also targets iOS 17.
+
 ## Deferred contract proposals
 
 - memory-agent-builder: add `window_minutes` to `dose`, and `near_label`/`area_label` to `object_summary.state` (the agent reads `config/space.json` for labels today).
