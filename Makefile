@@ -95,6 +95,18 @@ reset: ## Back to the demo starting state: bus reset (if the hub runs) + Convex 
 tail: ## Print bus traffic
 	$(HUB) earmark-tail
 
+.PHONY: uwb-record
+uwb-record: ## Record a UWB field session to var/fieldlog/NAME.jsonl (type markers + Enter; NAME defaults to a timestamp)
+	$(HUB) earmark-fieldkit record var/fieldlog/$(or $(NAME),$(shell date +%Y%m%d-%H%M%S)).jsonl
+
+.PHONY: uwb-gates
+uwb-gates: ## Show how to check the UWB gates on a recorded log
+	@echo "earmark-fieldkit ranging LOG --anchor uwb_1 --truth 0.5,1,2,3"
+	@echo "earmark-fieldkit track LOG --path 'x1,y1;x2,y2' [--from M --to M --hold-from M --hold-to M]"
+	@echo "earmark-fieldkit taps LOG --spots 'x1,y1;x2,y2'"
+	@echo "earmark-fieldkit latency LOG"
+	@echo "run as: $(HUB) earmark-fieldkit <subcommand> ...  (exit 0 = PASS, 1 = FAIL)"
+
 .PHONY: trial
 trial: ## Run one Earmark-vs-baseline trial (brief 5.I)
 	$(HUB) python scripts/trial.py

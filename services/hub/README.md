@@ -260,3 +260,12 @@ The console shows a short human line per event (warnings only in `--interactive`
 - `--scenario` and `--interactive` are mutually exclusive; `--scenario`/`--interactive` enable the simulator automatically.
 - The simulator waits `start_delay_s` (1 s) before playing so clients started alongside the hub do not miss the first lines.
 - Without a scenario or `--interactive`, the `simulator` adapter idles, so the default config is a bus-only hub that `earmark-sim` can drive.
+
+## Field kit
+
+`earmark-fieldkit` records UWB sessions and checks the physical gates with numbers. The hub never logs positions, so this is a separate local recorder.
+
+- Record: `make uwb-record NAME=walk1` writes `var/fieldlog/walk1.jsonl` (one `{"rx", "msg"}` line per bus message).
+- Mark: type a label and press Enter while recording (`0.5`, `1`, `turn`, `back`); each becomes a `{"rx", "marker"}` line.
+- Analyze: `earmark-fieldkit ranging|track|taps|latency LOG ...` (see `make uwb-gates`) prints a Markdown table and exits 0 on PASS, 1 on FAIL.
+- Logs hold positions: `var/` is gitignored, keep them there and never commit them.

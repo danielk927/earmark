@@ -17,6 +17,7 @@ earmark-hub = "earmark_hub.cli:main_hub"
 earmark-send = "earmark_hub.cli:main_send"
 earmark-sim = "earmark_hub.cli:main_sim"
 earmark-tail = "earmark_hub.cli:main_tail"
+earmark-fieldkit = "earmark_hub.fieldkit:main"
 
 [build-system]
 requires = ["hatchling"]
