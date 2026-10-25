@@ -7,6 +7,14 @@ There are no cameras in the home.
 
 Built for Cal Hacks 13.0. Sponsor tracks and what we do for each: `docs/sponsors/TRACKS.md`. Current state and open items: `docs/project/STATUS.md`.
 
+## How we use Convex
+
+Convex is Earmark's memory layer: the hub posts every pickup and spoken placement to an HTTP action that writes indexed `events` and `objectState` tables.
+The family dashboard reads them with realtime `useQuery`, so the live map, items, timeline, medications and trials update without a refresh.
+Crons keep dose status and daily summaries current, and file storage holds item photos only until Claude suggests a name.
+The Fetch.ai family agent reads the same records over read-only HTTP actions, and Claude reasons over them to answer questions.
+Details, files and the commit log: [hackathon.md](hackathon.md).
+
 ## What's in here
 
 | Folder | What it is |
