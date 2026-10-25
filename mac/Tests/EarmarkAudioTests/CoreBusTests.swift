@@ -323,6 +323,48 @@ import Testing
         #expect(renderer.played.contains(.locked))
     }
 
+    func uwbPose(_ mode: String, _ x: Double, _ y: Double) {
+        let q = (mode == "lost" || mode == "fixed") ? "lost" : "ok"
+        core.handle(bus("""
+        {"type":"listener_pose","position":[\(x),\(y),0],"quality":"\(q)","source":"uwb","mode":"\(mode)","t":1}
+        """))
+    }
+
+    @Test func uwbLostHoldKeepsPositionAndDistanceForTwelveSeconds() throws {
+        guideKeys()
+        uwbPose("tracked", 0, 1)
+        let held = core.listenerPosition
+        #expect(held != .zero)
+        for _ in 0..<120 {                                   // 12 s at 10 Hz, the hub holding the last good position
+            uwbPose("lost", 0, 1)
+            run(0.1)
+            #expect(core.listenerPosition == held)
+            #expect(core.targetDistanceM != nil)
+        }
+        #expect(renderer.target == EarmarkPoint(0, 2, 1))
+        uwbPose("fixed", 0, 0)                               // the hub gives up
+        #expect(core.listenerPosition == .zero)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
+        run(0.1)
+        #expect(core.targetDistanceM == nil)
+    }
+
+    @Test func uwbLostPoseWithoutAPreviousFixCreatesNone() {
+        guideKeys()
+        for _ in 0..<20 { uwbPose("lost", 0, 1); run(0.1) }
+        #expect(core.listenerPosition == .zero)
+        #expect(core.targetDistanceM == nil)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
+    }
+
+    @Test func beaconLostPoseWithNoModeStillTimesOut() {
+        guideKeys()
+        pose(0, 1)
+        for _ in 0..<60 { pose(0, 1, quality: "lost"); run(0.1) }   // 6 s of lost beacon poses refresh nothing
+        #expect(core.listenerPosition == .zero)
+        #expect(renderer.target == EarmarkPoint(0, 3, 1))
+    }
+
     @Test func noFixForFiveSecondsMeansBackOnTheMat() throws {
         pose(0, 1)
         guideKeys()

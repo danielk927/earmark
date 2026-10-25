@@ -344,7 +344,9 @@ public final class EarmarkCore {
     }
 
     /// The listener stays at the origin of the audio scene; a pose moves the TARGET (`retarget`) instead.
-    /// `lost` poses are shown (map, status) but not applied; a `fixed` UWB pose means seated at the origin, not a walking fix.
+    /// A UWB `lost` pose (the hub holding the last good position) keeps the current position and refreshes the fix, so there is
+    /// no snap while the hub holds; other `quality: lost` poses (no mode) are shown but not applied and time out after
+    /// `fixTimeout`. A `fixed` UWB pose means seated at the origin, not a walking fix.
     private func applyListenerPose(_ p: ListenerPose) {
         let now = clock()
         if p.mode != listenerPose?.mode {
@@ -354,7 +356,14 @@ public final class EarmarkCore {
         listenerPose = p
         lastListenerPoseAt = now
         onListenerPose?(p)
-        guard p.quality != .lost else { return }
+        if p.mode == .lost {
+            // A UWB hold: the hub is alive and republishing the last good position. Keep the listener where it is and keep the
+            // fix fresh so guidance holds its distance; the hub alone decides when to give up (it then sends `fixed`).
+            if lastFixAt != nil { lastFixAt = now }
+            return
+        }
+        // `fixed` is handled before the quality check: the hub publishes it with quality `lost`.
+        guard p.quality != .lost || p.mode == .fixed else { return }
         if p.mode == .fixed {
             listenerPosition = EarmarkPoint(0, 0, 0)
             lastFixAt = nil
