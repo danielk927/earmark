@@ -116,9 +116,20 @@ async def _listen(args) -> None:
     c = speed_of_sound(args.temperature)
     spec = ChirpSpec(args.band[0], args.band[1])
     bus = None if args.no_bus else os.environ.get("EARMARK_BUS_URL", "ws://127.0.0.1:8765")
+    recorder = None
+    if args.record:
+        from .record import SessionRecorder
+        from .service import FS
+
+        recorder = SessionRecorder(args.record, FS, meta={
+            "band": list(args.band), "cycle_s": args.cycle, "slot_s": args.slot, "min_snr": args.min_snr,
+            "temperature_c": args.temperature, "beacons": {f"B{k}": list(v) for k, v in sorted(anchors.items())},
+            "calibrate_distance": args.calibrate_distance, "calibrate_at": list(at) if at else None,
+            "calibration_seconds": args.calibration_seconds,
+        })
     svc = ListenService(
         anchors, known, spec, c=c, calibration_s=args.calibration_seconds, cycle_s=args.cycle, slot_s=args.slot,
-        publisher=BusPublisher(bus), log_path=args.log, min_snr=args.min_snr,
+        publisher=BusPublisher(bus), log_path=args.log, min_snr=args.min_snr, recorder=recorder,
     )
 
     marks: list[tuple[str, tuple[float, float]]] = []
@@ -193,6 +204,8 @@ async def _listen(args) -> None:
     async with serve(svc.handler, "0.0.0.0", args.port, max_size=2**22):
         print(f"listen service ready. The user's phone connects to:  ws://{lan_ip()}:{args.port}")
         print(f"chirp band {spec.f_lo:.0f} to {spec.f_hi:.0f} Hz, cycle {args.cycle} s, slot {args.slot} s, c {c:.1f} m/s")
+        if recorder is not None:
+            print(f"recording everything the phone hears to {args.record} (replay it with: earmark-ranging replay {args.record})")
         print(f"beacons: {', '.join(f'B{k} at {v}' for k, v in sorted(anchors.items()))} (self-timed, they do not connect)")
         if args.setup:
             print(f"Room setup: start the beacon phones in beacon mode, then the user's phone. Stand still on each of "
@@ -286,6 +299,24 @@ async def _listen(args) -> None:
             await asyncio.gather(*tasks)
         finally:
             stop.set()
+            if recorder is not None:
+                recorder.close()
+                print(f"recording saved: {args.record} ({recorder.n_bytes / 2 / 48000:.0f} s, {recorder.gaps} lost chunks)")
+
+
+def _replay(args) -> None:
+    from .replay import replay
+
+    anchors = _only(load_anchors(args.beacons), args.only)
+    at = tuple(args.calibrate_at) if args.calibrate_at else None
+    res = replay(
+        args.file, anchors, calibrate_from_s=args.calibrate_from, calibration_s=args.calibration_seconds,
+        calibrate_distance=args.calibrate_distance, calibrate_at=at, band=tuple(args.band) if args.band else None,
+        temperature_c=args.temperature, min_snr=args.min_snr, log_path=args.log, quiet=args.quiet,
+    )
+    print(f"--- {res.seconds:.0f} s of audio, {len(res.ranges)} distances, {len(res.fixes)} fixes")
+    truth = {int(k[1:]): float(v) for k, v in (args.truth or [])}
+    print("\n".join(res.summary(truth or None)))
 
 
 def _labels(path) -> dict[int, str]:
@@ -339,13 +370,33 @@ def main() -> None:
     li.add_argument("--log", metavar="FILE", help="append every distance to this CSV file")
     li.add_argument("--no-bus", action="store_true", help="do not publish to the Earmark bus")
     li.add_argument("--save-audio", metavar="DIR", help="keep the last few seconds the phone heard as a WAV file (for checking)")
+    li.add_argument("--record", metavar="FILE.wav", help="record everything the phone hears, for replay and study")
     li.add_argument("--sim", action="store_true", help="no phones: a virtual phone and virtual beacons run the whole path")
     li.add_argument("--sim-noise", type=float, default=0.1)
     li.add_argument("--sim-echo", action="store_true", help="the virtual room has echoes")
     li.add_argument("--sim-dropout", type=float, default=0.0, help="fraction of audio chunks the virtual phone loses")
     li.add_argument("--seed", type=int, default=1)
+    rp = sub.add_parser("replay", help="run the listen pipeline over a recording made with listen --record")
+    rp.add_argument("file", metavar="FILE.wav")
+    rp.add_argument("--beacons", default=str(DEFAULT_BEACONS))
+    rp.add_argument("--only", nargs="+", metavar="B1")
+    rp.add_argument("--band", type=float, nargs=2, metavar=("LO", "HI"), help="default: what the recording used")
+    rp.add_argument("--calibrate-from", type=float, metavar="S",
+                    help="second of the file to start calibrating at (default: when the live run did)")
+    rp.add_argument("--calibration-seconds", type=float, default=10.0)
+    rp.add_argument("--calibrate-distance", type=float, metavar="D")
+    rp.add_argument("--calibrate-at", type=float, nargs=3, metavar=("X", "Y", "Z"))
+    rp.add_argument("--temperature", type=float, default=20.0)
+    rp.add_argument("--min-snr", type=float, help="default: what the recording used")
+    rp.add_argument("--log", metavar="FILE")
+    rp.add_argument("--truth", nargs=2, action="append", metavar=("B1", "METERS"),
+                    help="true distance to a beacon, for the error summary (repeatable)")
+    rp.add_argument("--quiet", action="store_true", help="only the summary")
     args = p.parse_args()
     logging.basicConfig(level=logging.WARNING)
+    if args.cmd == "replay":
+        _replay(args)
+        return
     runner = {"serve": _serve, "sim": _sim, "listen": _listen}[args.cmd]
     try:
         asyncio.run(runner(args))
