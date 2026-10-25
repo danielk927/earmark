@@ -69,6 +69,7 @@ class ListenService:
         ear_offset: Pos = EAR_OFFSET_M,
         log_path: str | None = None,
         min_snr: float = 4.5,
+        recorder=None,
     ) -> None:
         self.beacons, self.known, self.spec = dict(beacons), dict(known_distance), spec or ChirpSpec(12000.0, 16000.0)
         self.c, self.calibration_s, self.cycle, self.slot = c, calibration_s, cycle_s, slot_s
@@ -85,6 +86,7 @@ class ListenService:
         self.ranges = 0
         self.fixes = 0
         self.log = RangeLog(log_path) if log_path else None
+        self.recorder = recorder  # a record.SessionRecorder, or None
         self._start_requested = False
         # console hooks
         self.on_heard: Callable[[Detection, int | None, float | None], None] | None = None  # during idle/calibration
@@ -123,9 +125,12 @@ class ListenService:
                     if slot != 0:
                         log.warning("slot %d joined in listen mode; only the user's phone (slot 0) is used", slot)
                 elif kind == "audio" and phone is not None:
-                    samples = np.frombuffer(base64.b64decode(msg["pcm"]), dtype="<i2").astype(np.float32) / 32768.0
+                    pcm = base64.b64decode(msg["pcm"])
+                    samples = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
                     start = int(msg["start"])
                     phone.buf.write(start, samples)
+                    if self.recorder is not None and phone.slot == 0:
+                        self.recorder.write(start, pcm)
                     phone.lags.append(time.monotonic() - (start + len(samples)) / FS)
                     if phone.slot == 0 and self.first_audio_at is None:
                         self.first_audio_at = time.monotonic()
@@ -159,6 +164,7 @@ class ListenService:
             self._start_requested = False
             self.calibrator.start(cur)
             self.state = "calibrating"
+            self._mark("calibration_start", cur)
         out: list[Range] = []
         if self.state == "calibrating":
             for d in dets:
@@ -167,6 +173,7 @@ class ListenService:
             self.calibrator.seen_up_to(cur)
             if self.calibrator.done():
                 self.report = self.calibrator.fit()
+                self._mark("calibration_done", cur, ok=self.report.ok, report=self.report.lines())
                 if self.report.ok:
                     self.tracker = Tracker(self.report.schedules, self.c, self.beacons, ear_offset=self.ear_offset)
                     self.state = "tracking"
@@ -188,6 +195,10 @@ class ListenService:
             for d in dets:
                 self._note_heard(d, self.calibrator.assign(d))
         return out
+
+    def _mark(self, what: str, cur: float, **extra) -> None:
+        if self.recorder is not None and self.recorder.first is not None:
+            self.recorder.mark(what, cur - self.recorder.first / FS, **extra)
 
     def _note_heard(self, d: Detection, beacon: int | None) -> None:
         if beacon is not None:
@@ -238,7 +249,9 @@ class ListenService:
         rates = "  ".join(f"B{k} {r:.1f}/s" for k, r in sorted(self.rates().items()))
         cal = {"idle": "not calibrated", "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
                "tracking": "calibrated"}[self.state]
-        return f"phones {sorted(self.phones)}   chirps heard: {rates}   {cal}   {self.ranges} distances, {self.fixes} fixes"
+        ph = self.target
+        lost = f"   lost audio {ph.buf.gaps} chunks" if ph is not None and ph.buf.gaps else ""
+        return f"phones {sorted(self.phones)}   chirps heard: {rates}   {cal}   {self.ranges} distances, {self.fixes} fixes{lost}"
 
     def status(self) -> StatusMsg:
         return StatusMsg(component="locator", ok=self.state == "tracking", detail=self.status_line())

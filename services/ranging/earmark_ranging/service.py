@@ -39,11 +39,15 @@ class AudioBuffer:
         self.end = 0  # first sample not yet received
         self.first = 0  # the phone's counter when it joined (it does not start at zero)
         self.started = False
+        self.gaps = 0  # chunks that never arrived (the hole is filled with silence)
+        self.lost_samples = 0
 
     def write(self, start: int, samples: np.ndarray) -> None:
         if not self.started:
             self.end, self.first, self.started = start, start, True
         if start > self.end:  # a chunk went missing: keep the timeline honest with silence
+            self.gaps += 1
+            self.lost_samples += start - self.end
             gap = min(start - self.end, self.n)
             self._put(start - gap, np.zeros(gap, dtype=np.float32))
         self._put(start, samples)
