@@ -28,7 +28,7 @@ from .resolver import Resolver
 from .speech import Speaker
 from .stt import CartesiaStt
 from .tools import ToolCall
-from .world import World
+from .world import SAVE_SPOT_FIX_S, World
 
 log = logging.getLogger(__name__)
 PRONOUNS = {"it", "them", "that", "this", "that one", "this one", "those", "they"}
@@ -279,7 +279,7 @@ class Concierge:
         if (plan.phrase_id != policy.PHRASE_UNKNOWN_OBJECT or call.name != "put_in_place"
                 or call.args.get("place") or call.args.get("area") or not call.args.get("query")):
             return plan
-        here = self.world.listener_position()
+        here = self.world.listener_position(SAVE_SPOT_FIX_S)
         if here is None:
             return policy.no_position_yet()
         return policy.new_item_here(call.args["query"], here, set(self.world.objects))
@@ -313,7 +313,7 @@ class Concierge:
                 return policy.put_in_place(self.world, target, area)
             if place:
                 return policy.unknown_place(self.world)
-            here = self.world.listener_position()
+            here = self.world.listener_position(SAVE_SPOT_FIX_S)
             return policy.put_here(target, here) if here else policy.ask_place(self.world, target)
         if call.name == "place_history":
             return policy.place_history(self.world, target, now)

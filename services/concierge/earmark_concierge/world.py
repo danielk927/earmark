@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 DEFAULT_TZ = "America/Los_Angeles"
 MAX_HISTORY = 10
 LISTENER_FRESH_S = 3.0  # a locator fix older than this is ignored
+SAVE_SPOT_FIX_S = 10.0  # saving "I left it here" accepts an older fix: you stand still while you say it
 HEAD_FRESH_S = 2.0
 
 
@@ -119,9 +120,9 @@ class World:
     def apply_head(self, yaw: float) -> None:
         self.head_yaw = (yaw, time.time())
 
-    def listener_position(self) -> list[float] | None:
+    def listener_position(self, max_age_s: float = LISTENER_FRESH_S) -> list[float] | None:
         """Where the locator last put the user, or None when it is old or missing."""
-        if self.listener is None or time.time() - self.listener[1] > LISTENER_FRESH_S:
+        if self.listener is None or time.time() - self.listener[1] > max_age_s:
             return None
         return self.listener[0]
 

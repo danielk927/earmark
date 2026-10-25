@@ -34,6 +34,7 @@ MAX_FIX_MPS = 1.5  # a position may move this fast at most; a faster fix is thro
 FIX_SLACK_M = 0.10  # plus this much measurement wobble
 MAX_REJECTS = 3  # after this many thrown-away fixes in a row, believe the next one so we can recover
 FIX_FORGET_S = 1.5  # after this long without a fix, start fresh (no speed check, no smoothing)
+TWO_BEACON_HOLD_S = 8.0  # after a good fix, two beacons are enough for this long if a third drops out
 SMOOTH_FIXES = 3  # the published x and y are the middle value of this many recent fixes
 MAX_WALK_MPS = 1.2  # a distance may change this fast at most (a blindfolded user walks slowly)
 JUMP_SLACK_M = 0.3  # plus this much measurement wobble
@@ -368,6 +369,7 @@ class Tracker:
         self.pending: dict[tuple[int, int], list[Detection]] = {}
         self.last_fix: Fix | None = None
         self.last_fix_t: float | None = None
+        self.last_full_t: float | None = None  # last time all of three or more beacons were heard
         self._rejects = 0
         self._recent: deque[tuple[float, float]] = deque(maxlen=SMOOTH_FIXES)
         self._suspect: dict[int, Range] = {}  # a distance that jumped; believed only if the next one agrees
@@ -423,15 +425,19 @@ class Tracker:
     def fix(self, now_t: float) -> tuple[Fix, ListenerPose] | None:
         """A steady position from the fresh distances, or None.
 
-        With three or more beacons configured it needs three fresh distances (two would flip between answers);
-        with exactly two configured it uses both. A fix that implies moving faster than a person walks is dropped,
-        and what is published is lightly smoothed.
+        With three or more beacons configured it needs three fresh distances (two would flip between answers),
+        except for a short while after a good fix: if one beacon drops out (a body in the way), the other two
+        keep the position going, on the same side as the last fix, marked "degraded". With exactly two configured
+        it uses both. A fix that implies moving faster than a person walks is dropped, and what is published is
+        lightly smoothed.
         """
         fresh = self.fresh(now_t)
         anchors = {f"B{k}": p for k, p in self.beacons.items()}
         dists = {f"B{k}": r.distance_m for k, r in fresh.items()}
         if len(fresh) < min(len(self.beacons), 3):
-            return None
+            holding = self.last_full_t is not None and now_t - self.last_full_t < TWO_BEACON_HOLD_S
+            if not (len(fresh) == 2 and holding):
+                return None
         if len(fresh) == 2:
             prefer = self.last_fix.position[:2] if self.last_fix else self.side_ref
             fix = locate_two(anchors, dists, prefer, z=self.z_prior[0] if self.z_prior else 1.25)
@@ -450,6 +456,8 @@ class Tracker:
             self._recent.clear()
         self._rejects = 0
         self.last_fix, self.last_fix_t = fix, now_t
+        if len(fresh) >= min(len(self.beacons), 3):
+            self.last_full_t = now_t
         self._recent.append(fix.position[:2])
         x = float(np.median([p[0] for p in self._recent]))
         y = float(np.median([p[1] for p in self._recent]))

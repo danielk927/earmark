@@ -323,11 +323,28 @@ def _step(tracker, true_xy, cycle, beacons=(1, 2, 3)):
 
 
 def test_with_three_beacons_configured_two_fresh_distances_publish_nothing():
-    # Used to fall back to the two-beacon solver; that flipped between answers, so now three are required.
+    # With no good fix to lean on, two beacons would flip between answers, so three are required.
     tr = _three_tracker()
     assert _step(tr, (0.1, 0.2), 40, beacons=(1, 2)) is None
     assert _step(tr, (0.1, 0.2), 60, beacons=(1, 3)) is None  # B2's old distance is long stale
     assert _step(tr, (0.1, 0.2), 61) is not None
+
+
+def test_one_beacon_dropping_out_keeps_a_degraded_fix_for_a_few_seconds_only():
+    from earmark_ranging.listen import TWO_BEACON_HOLD_S
+
+    tr = _three_tracker()
+    true = (0.1, 0.2)
+    for cycle in range(40, 44):
+        assert _step(tr, true, cycle) is not None
+    # B2 falls silent (a body in the way): the other two carry on, on the same side as before
+    for cycle in range(44, 47):  # by the last of these, B2's old distance has gone stale
+        got = _step(tr, true, cycle, beacons=(1, 3))
+    assert got is not None and got[1].quality == "degraded" and got[1].beacons_heard == 2
+    assert math.dist(got[0].position[:2], true) < 0.1
+    # ... but not forever
+    late = 44 + int(TWO_BEACON_HOLD_S / 0.5) + 4
+    assert _step(tr, true, late, beacons=(1, 3)) is None
 
 
 def test_steady_input_converges_to_the_truth():

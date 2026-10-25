@@ -369,3 +369,11 @@ async def test_new_guidance_stops_the_old_ping_first(h):
     types = [m["type"] for m in h.out if m["type"] in ("guide_stop", "guide_start")]
     assert types == ["guide_stop", "guide_start"]
     assert h.of("guide_stop")[0]["object_id"] == "sugar" and h.of("guide_start")[0]["object_id"] == "salt"
+
+
+async def test_leaving_it_here_still_works_with_a_fix_a_few_seconds_old(h):
+    from earmark_contracts import ListenerPose
+    await h.feed(ListenerPose(position=[0.8, -0.4, 1.5], quality="degraded", beacons_heard=2, source="beacons"))
+    h.core.world.listener = (h.core.world.listener[0], time.time() - 7)  # a beacon dropped out a moment ago
+    out = await h.say("I'm leaving my glasses here.")
+    assert h.of("place_item", out) and not h.spoken(out)[0].startswith("I can't tell where you are")
