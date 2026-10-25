@@ -26,14 +26,14 @@ Put the 3 phones in a triangle around the mat, so you stand in the middle of it.
                    /       \
               1.2 m         1.2 m
                  /           \
-             [B3]----2.1 m----[B2]
+             [B3]----1.5 m----[B2]
              left            right
 ```
 
 - B1: 1.2 m straight ahead of the mat.
 - B2: 1.2 m from the mat, back and to the right.
 - B3: 1.2 m from the mat, back and to the left.
-- Every pair of phones is 2.1 m apart (B1 to B2, B1 to B3, B2 to B3). Check it with the tape.
+- B2 and B3 are 1.5 m apart (4 ft 11 in). Check it with the tape.
 
 On each beacon phone:
 1. Open Earmark Phone, choose **Beacon (no Mac)**.

@@ -2,7 +2,7 @@
 
 **Status:** built. Proven end to end in the simulator (virtual phones, with the timing wobble real phones show): beacons placed within about 5 to 15 cm, and the room page draws them where they were found. With real phones, only one beacon and one listening phone have been tried so far. The recordings of that test (`services/ranging/runs/`) show the distance is steady to about ±2 cm once the beacon is identified correctly; the earlier failures were a beacon phone set to the wrong number (see below). The full walk with real beacons has not been tried.
 
-The main path: put the three beacons in the fixed triangle from `setup.md` (1.2 m from the mat, 2.1 m apart; the numbers are already in `config/beacons.json`), then stand on the mat for 30 s so the Mac learns each beacon's timing. A floor-mark walk that finds the beacons by itself is still there as an option (`make session MODE=setup`, see the end), but it needs well-spread marks and was not accurate enough on real runs.
+The main path: put the three beacons in the fixed triangle from `setup.md` (1.2 m from the mat, B2 and B3 1.5 m apart; the numbers are already in `config/beacons.json`), then stand on the mat for 30 s so the Mac learns each beacon's timing. A floor-mark walk that finds the beacons by itself is still there as an option (`make session MODE=setup`, see the end), but it needs well-spread marks and was not accurate enough on real runs.
 
 ## The flow, start to finish
 
