@@ -524,8 +524,7 @@ Before, an object was placed by putting it on an NFC spot. Now the user can plac
 3. The user knocks the wearer iPhone on the table next to the object. The big **Mark here** button, or saying "here", does the same.
 4. The phone sends `object_tap` (no data).
 5. The hub answers with `tap_position`:
-   - With UWB: the mean of the raw phone fixes over the last 1.5 s (at least 3 fixes), at z = `mark_z_m` (0.9 m).
-   - Otherwise: the last beacon pose, if it was received within 2 s.
+   - With UWB: the mean of the raw phone fixes over the last 1.5 s (at least 3 fixes), at z = `mark_z_m` (0.9 m). Always UWB, even while sound positioning drives the audio (2026-10-25).
    - Otherwise: `ok` false, and Earmark says "hold it still and tap again".
 6. The concierge sends main's `place_item` with that position. It is a `stored` event, so it has history. The object is registered with the synthetic tag `voice:<name>`.
 7. "Find my prescription" guides the user there.
@@ -543,8 +542,7 @@ Before, an object was placed by putting it on an NFC spot. Now the user can plac
 | Setting | File | Default | Meaning |
 |---|---|---|---|
 | `uwb.mark_avg_s` | `config/hub.json` | 1.5 | Seconds of phone fixes averaged |
-| `uwb.mark_min_fixes` | `config/hub.json` | 3 | Fewer fixes in the window falls back to the beacon pose |
-| `uwb.beacon_fresh_s` | `config/hub.json` | 2.0 | Oldest beacon pose used as the fallback |
+| `uwb.mark_min_fixes` | `config/hub.json` | 3 | Fewer fixes in the window means no position |
 | `tracking.mark_z_m` | `config/space.json` | 0.9 | Height given to a tapped object |
 | `spikeG` | iPhone app | 1.5 g | Knock threshold |
 

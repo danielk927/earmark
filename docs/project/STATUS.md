@@ -1,10 +1,17 @@
 # Earmark status
 
-Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed; UWB branch merged with main, tap-to-mark added).
+Last updated: 2026-10-25 (UWB and sound positioning run together on the same 4 phones, with a switch; taps are UWB only).
 Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
 
+- **2026-10-25: UWB and sound positioning together (dual-positioning).**
+  - One iPhone app (`ios/EarmarkUWB`) on all 4 phones runs both systems at once. Each fixed phone is UWB anchor `uwb_N` and sound beacon N. The wearer runs UWB, streams its microphone to the sound ranging service (`earmark-ranging listen`), and still has knock / Mark here and Talk; Talk shares the listener's microphone.
+  - The hub keeps both systems' latest poses. `positioning.active` (`uwb` by default; `--positioning`, or `positioning_select` from the dashboard `/room` switch or the Mac app's picker / P key) picks the one sent as `listener_pose`, so the audio, the concierge and the Convex live map follow it. `positioning` (about 5 Hz) reports both side by side; `/room` and the Mac map draw the other one as a ghost, with the distance between them.
+  - Taps are UWB only, whichever system drives the audio. The beacon-pose fallback and `uwb.beacon_fresh_s` are gone.
+  - The fixed phones' positions live in one place, `config/space.json` `anchors` (relabelled "Fixed phone 1..3"). The ranging service reads them by default (`config/beacons.json` still works with `--beacons`), and `/room` takes them from the hub snapshot.
+  - A sound pose that stops arriving turns `lost` after `positioning.sound_fresh_s` (2 s). Convex gets sound poses as source `sound` with mode `tracked` / `lost`.
+  - Run: `make demo-dual-sim` (no hardware), or `make demo-dual` plus `make sound-listen` on the real phones.
 - **2026-10-24: UWB branch merged with main; tap-to-mark added (uwb-leo).**
   - `listener_pose` is one shared message. The beacon locator sends `source: "beacons"` (about 3 Hz); the UWB tracker sends `source: "uwb"` or `"sim"` (10 Hz). While UWB tracks, the hub drops the beacon poses, so only one tracker drives the audio. The Mac app still moves the target relative to the listener; UWB only feeds positions.
   - Coordinates follow main's room frame (floor = 0, +z up, origin under the mat center). UWB anchors moved up 1.55 m (now z = 1.3). New `tracking.ear_z_m` (1.55) and `tracking.mark_z_m` (0.9).
@@ -160,6 +167,8 @@ Gate 3 readings (the Mac app's Verify marks):
 Bake-off with the sound track (PRD 13.10, gates 3, 4 and 6): decision: -
 
 ## Contract changes
+
+- 2026-10-25 (dual-positioning): new bus messages `positioning_select` (dashboard or Mac app to hub: `active` = `uwb` | `sound`) and `positioning` (hub to bus: `active`, plus `uwb` and `sound`, each a fix `{position, quality, source, mode?, age_s}` or null). `tap_position` is now UWB only (`ok` false with `source: none` when UWB is not tracking).
 
 - 2026-10-24 (uwb-leo, tap-to-mark): new bus messages `object_tap` (wearer to hub, no data) and `tap_position` (hub to concierge: `ok`, plus `position` when ok). `listener_pose` is one shared message with required `position`, `quality`, `source` (`beacons` | `uwb` | `sim`) and `t`. `space.schema.json` `tracking` gains `ear_z_m` and `mark_z_m`.
 

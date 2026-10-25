@@ -4,6 +4,10 @@
 #   scripts/run_stack.sh sim [hub args...]   simulator (default: --interactive keyboard demo)
 #   scripts/run_stack.sh live [hub args...]  real adapters (nfc_serial, ble_fobs)
 #
+# SOUND=sim also starts the sound ranging service with a virtual phone and virtual beacons (no hardware), so
+# both positioning systems feed the hub (pair it with the uwb_sim adapter). For the real phones run
+# `make sound-listen` in a second terminal instead: it needs the keyboard to calibrate.
+#
 # The hub runs in the foreground (so the interactive simulator gets the keyboard);
 # Convex and the concierge run in the background with logs in logs/.
 # Ctrl-C (or quitting the hub) stops everything this script started.
@@ -39,6 +43,13 @@ elif [[ -f .env.local ]] && grep -q '^CONVEX_DEPLOYMENT=' .env.local; then
   port_open 3211 || echo "convex: backend did not come up; the hub will queue events offline" >&2
 else
   echo "convex: not configured (run 'make convex-init'); the hub runs offline" >&2
+fi
+
+if [[ "${SOUND:-}" == sim ]]; then
+  echo "sound: starting the ranging service with a virtual phone (logs/ranging.log)"
+  (cd services/ranging && exec uv run --quiet earmark-ranging listen --sim --calibrate-at 0 0 1.2) \
+    > logs/ranging.log 2>&1 < /dev/null &
+  pids+=($!)
 fi
 
 echo "concierge: starting (logs/concierge.log)"

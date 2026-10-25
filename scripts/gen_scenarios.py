@@ -199,7 +199,8 @@ def scenarios():
     ]
 
     # The locator says where the user stands; "leaving it here" saves that spot, and the ping leads back to it.
-    s["put_here"] = [
+    # Sound positioning drives the audio here (UWB is the hub's default), so the scenario selects it first.
+    s["put_here"] = [{"type": "positioning_select", "active": "sound", "t": 0.5}] + [
         {"type": "listener_pose", "position": [0.8, -0.4, 1.5], "quality": "ok", "beacons_heard": 5,
          "source": "beacons", "t": float(k) / 3} for k in range(3, 27)  # the locator reports about 3 times a second
     ] + [say(8.0, "I'm leaving my keys here.")] + [

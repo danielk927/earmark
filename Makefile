@@ -44,6 +44,18 @@ demo-uwb-sim: ## Full stack with a simulated UWB wearer (scripted walk to the co
 	@if [ -n "$(KEYS)" ]; then scripts/run_stack.sh sim --interactive --adapters simulator,uwb_sim; \
 	 else scripts/run_stack.sh sim --adapters simulator,uwb_sim; fi
 
+.PHONY: demo-dual-sim
+demo-dual-sim: ## UWB and sound positioning together, no hardware (simulated UWB wearer + virtual sound phone); switch on /room or P in the Mac app. POSITIONING=sound starts on sound
+	@SOUND=sim scripts/run_stack.sh sim --adapters simulator,uwb_sim $(if $(KEYS),--interactive) $(if $(POSITIONING),--positioning $(POSITIONING))
+
+.PHONY: demo-dual
+demo-dual: ## UWB and sound positioning together on the 4 real phones; run `make sound-listen` in a second terminal. POSITIONING=sound starts on sound
+	@EARMARK_BUS_HOST=$(or $(BUS_HOST),0.0.0.0) scripts/run_stack.sh sim --interactive $(if $(POSITIONING),--positioning $(POSITIONING))
+
+.PHONY: sound-listen
+sound-listen: ## Sound positioning for the wearer phone (calibrate-then-listen on the fixed phones in space.json); calibrates at the mat center, CAL_AT="x y z" to change
+	cd services/ranging && uv run --quiet earmark-ranging listen --calibrate-at $(or $(CAL_AT),0 0 1.2)
+
 .PHONY: demo-live
 demo-live: ## Full stack with real adapters (NFC spot readers + BLE fobs)
 	scripts/run_stack.sh live
