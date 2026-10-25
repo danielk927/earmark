@@ -23,7 +23,7 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 
 ## Room setup: the agreed plan
 
-The setup we agreed on (empty map, a teammate stands on the mat, the Mac works out where the beacons are, then place objects by walking and speaking) is written up in `docs/project/ROOM_SETUP.md`. It is planned, not built. We are waiting for the UI changes to be pulled first.
+The setup we agreed on (empty map, a teammate stands on the mat, the Mac works out where the beacons are, then place objects by walking and speaking) is in `docs/project/ROOM_SETUP.md`. Built (2026-10-24 night): beacons placed by tape measure, `make room-setup` calibrates the judge's phone on the mat, the map shows no beacons until then, and "I'm leaving my glasses here" adds a new item. Not built: setup without a tape measure. Three real beacons at once not yet tried.
 
 ## How the user's position is found (decided 2026-10-24 evening)
 

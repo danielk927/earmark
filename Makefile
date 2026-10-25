@@ -133,6 +133,11 @@ ranging-test: ## Phone position service, with virtual phones
 ranging: ## Phone position service (phones connect to it; see locator/docs/PHONE_BEACONS.md)
 	cd services/ranging && uv run --quiet earmark-ranging serve
 
+.PHONY: room-setup
+room-setup: ## Beacon phones chirp on their own; calibrate standing on the mat (see docs/project/ROOM_SETUP.md)
+	cd services/ranging && uv sync --quiet && PYTHONPATH=.:../../contracts/python .venv/bin/python -m earmark_ranging.cli \
+		listen --calibrate-at 0 0 1.25 --band 12000 16000 --min-snr 12 --calibration-seconds 30
+
 .PHONY: convex-test
 convex-test:
 	npm test --silent && npm run --silent typecheck
