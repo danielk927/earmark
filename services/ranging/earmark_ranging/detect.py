@@ -55,6 +55,7 @@ class Detector:
                 frac = 0.5 * (y0 - y2) / denom if denom != 0 else 0.0
                 events.append(Event((i + frac) / self.fs, d, float(y1), float(y1 / floor)))
         events.sort(key=lambda ev: ev.t)
+        events = self._drop_cross_ghosts(events)
         # keep only the strongest event inside any short stretch (echoes and sidelobes)
         kept: list[Event] = []
         for ev in events:
@@ -64,3 +65,17 @@ class Detector:
                 continue
             kept.append(ev)
         return kept
+
+    # A chirp also matches the opposite-sweep template weakly, a little after its own start (about 8% as strong in a
+    # real recording, 32 ms late: just outside the gap below). Calibrating on those ghosts looks like an echo problem.
+    GHOST_RATIO = 4.0
+
+    def _drop_cross_ghosts(self, events: list[Event]) -> list[Event]:
+        reach = self.spec.length_ms / 1000.0 + 0.010
+        return [
+            ev for ev in events
+            if not any(
+                o.shape != ev.shape and abs(o.t - ev.t) <= reach and o.score >= self.GHOST_RATIO * ev.score
+                for o in events
+            )
+        ]

@@ -32,6 +32,7 @@ from .listen import (
     ChirpFeed,
     Detection,
     Pos,
+    identify_beacon,
     Range,
     Tracker,
 )
@@ -72,6 +73,7 @@ class ListenService:
         min_snr: float = 4.5,
         surveyor: Surveyor | None = None,
         recorder=None,
+        side_ref: tuple[float, float] = (0.0, 0.0),
     ) -> None:
         self.beacons, self.known, self.spec = dict(beacons), dict(known_distance), spec or ChirpSpec(12000.0, 16000.0)
         self.c, self.calibration_s, self.cycle, self.slot = c, calibration_s, cycle_s, slot_s
@@ -82,15 +84,18 @@ class ListenService:
         self.calibrator = Calibrator(self.known, c, calibration_s, cycle_s, slot_s, wall_time=self.wall_time)
         self.tracker: Tracker | None = None
         self.report: CalibrationReport | None = None
+        self.calibrated_at: float | None = None  # monotonic time the schedules were last set
         self.state = "idle"  # idle (waiting to calibrate), calibrating, tracking; or surveying, survey_walk (room setup)
         self.surveyor = surveyor
         self.survey_report: SurveyReport | None = None
         self.first_audio_at: float | None = None  # monotonic
         self.heard: dict[int, deque] = {k: deque(maxlen=50) for k in self.beacons}  # monotonic times, for rates
+        self.unexplained: deque = deque(maxlen=40)  # (monotonic, beacon numbers) of clear chirps no configured beacon makes
         self.ranges = 0
         self.fixes = 0
         self.log = RangeLog(log_path) if log_path else None
         self.recorder = recorder  # a record.SessionRecorder, or None
+        self.side_ref = side_ref  # with two beacons: the side of their line the user stands on (the calibration spot)
         self._start_requested = False
         # console hooks
         self.on_heard: Callable[[Detection, int | None, float | None], None] | None = None  # during idle/calibration
@@ -212,10 +217,15 @@ class ListenService:
             self.calibrator.seen_up_to(cur)
             if self.calibrator.done():
                 self.report = self.calibrator.fit()
+                hint = self.wrong_beacon_hint()
+                if hint and not self.report.ok:
+                    self.report.problems.append(hint)
                 self._mark("calibration_done", cur, ok=self.report.ok, report=self.report.lines())
                 if self.report.ok:
-                    self.tracker = Tracker(self.report.schedules, self.c, self.beacons, ear_offset=self.ear_offset)
+                    self.tracker = Tracker(self.report.schedules, self.c, self.beacons, ear_offset=self.ear_offset,
+                                       side_ref=self.side_ref)
                     self.state = "tracking"
+                    self.calibrated_at = time.monotonic()
                 else:
                     self.state = "tracking" if self.tracker is not None else "idle"
                 if self.on_report:
@@ -235,12 +245,21 @@ class ListenService:
                 self._note_heard(d, self.calibrator.assign(d))
         return out
 
+    def missing_beacons(self, within_s: float = 10.0) -> list[int]:
+        """Configured beacons not heard lately; calibrating or setting up then cannot succeed."""
+        now = time.monotonic()
+        return [k for k, q in sorted(self.heard.items()) if not any(now - t <= within_s for t in q)]
+
     def _finish_survey(self, rep: SurveyReport) -> None:
+        hint = self.wrong_beacon_hint()
+        if hint and not rep.ok:
+            rep.problems.append(hint)
         self.survey_report = rep
         if rep.ok:
             self.beacons = dict(rep.positions)
-            self.tracker = Tracker(rep.schedules, self.c, self.beacons, ear_offset=self.ear_offset)
+            self.tracker = Tracker(rep.schedules, self.c, self.beacons, ear_offset=self.ear_offset, side_ref=self.side_ref)
             self.state = "tracking"
+            self.calibrated_at = time.monotonic()
         else:
             self.state = "tracking" if self.tracker is not None else "idle"
         if self.on_survey:
@@ -250,9 +269,23 @@ class ListenService:
         if self.recorder is not None and self.recorder.first is not None:
             self.recorder.mark(what, cur - self.recorder.first / FS, **extra)
 
+    def wrong_beacon_hint(self, within_s: float = 20.0) -> str | None:
+        """Plain words for the commonest setup mistake: a beacon phone plays, but under a number we were not told."""
+        now = time.monotonic()
+        recent = [n for t, n in self.unexplained if now - t <= within_s]
+        if len(recent) < 4:
+            return None
+        guess = max(set(map(tuple, recent)), key=lambda g: sum(1 for n in recent if tuple(n) == g))
+        heard = " or ".join(f"Beacon {k}" for k in guess)
+        mine = ", ".join(f"B{k}" for k in sorted(self.beacons))
+        return (f"clear chirps from {heard} are arriving, but only {mine} is configured. Set the beacon phone's number "
+                f"to match (it remembers the old one), or start with --only B{guess[0]}")
+
     def _note_heard(self, d: Detection, beacon: int | None) -> None:
         if beacon is not None:
             self.heard[beacon].append(time.monotonic())
+        elif d.snr >= 40.0:
+            self.unexplained.append((time.monotonic(), identify_beacon(d.shape, self.wall_time(d.t), self.cycle, self.slot)))
         if self.on_heard:
             self.on_heard(d, beacon, self.wall_time(d.t))
 
@@ -300,10 +333,18 @@ class ListenService:
         cal = {"idle": "not set up" if self.surveyor is not None else "not calibrated",
                "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
                "surveying": f"recording a mark, {self.calibration_remaining():.0f} s left",
-               "survey_walk": "walk to the next mark", "tracking": "calibrated"}[self.state]
+               "survey_walk": "walk to the next mark", "tracking": self._calibrated_text()}[self.state]
         ph = self.target
         lost = f"   lost audio {ph.buf.gaps} chunks" if ph is not None and ph.buf.gaps else ""
         return f"phones {sorted(self.phones)}   chirps heard: {rates}   {cal}   {self.ranges} distances, {self.fixes} fixes{lost}"
+
+    RECALIBRATE_AFTER_S = 300.0  # two phone clocks drift about 1 ppm: some 20 cm of creep after 10 minutes
+
+    def _calibrated_text(self) -> str:
+        age = None if self.calibrated_at is None else time.monotonic() - self.calibrated_at
+        if age is not None and age > self.RECALIBRATE_AFTER_S:
+            return f"calibrated {age / 60:.0f} min ago; stand on the mat and press Enter to recalibrate if distances drift"
+        return "calibrated"
 
     def status(self) -> StatusMsg:
         info = None

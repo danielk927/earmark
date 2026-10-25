@@ -19,7 +19,10 @@ no clock has to agree with any other. It needs every phone connected to the Mac.
 schedule, with no network at all. Only the user's phone records and streams audio to the Mac. The Mac learns each
 beacon's schedule once, while the user's phone sits still at a known spot ("calibration"). After that every chirp
 heard gives a distance on its own: how late it arrived against the schedule, times the speed of sound. Three
-beacons give a position; one or two give distances only.
+beacons give a position. Two beacons also give one, by assuming the phone is held at chest height; the two
+circles meet in two mirror-image points either side of the line between the beacons, and the Mac keeps the one on
+the calibration spot's side (then the one nearest the last position), so the user must stay on one side of that
+line. One beacon gives a distance only.
 
 ## Room setup with no tape measure (`listen --setup`)
 

@@ -130,6 +130,7 @@ async def _listen(args) -> None:
     svc = ListenService(
         anchors, known, spec, c=c, calibration_s=args.calibration_seconds, cycle_s=args.cycle, slot_s=args.slot,
         publisher=BusPublisher(bus), log_path=args.log, min_snr=args.min_snr, recorder=recorder,
+        side_ref=(at[0], at[1]) if at else (0.0, 0.0),
     )
 
     marks: list[tuple[str, tuple[float, float]]] = []
@@ -152,9 +153,17 @@ async def _listen(args) -> None:
 
         return datetime.fromtimestamp(wall).strftime("%H:%M:%S.%f")[:-3] if wall is not None else "--:--:--.---"
 
+    last_hint = [0.0]
+
     def on_heard(det, beacon, wall) -> None:
-        if beacon is None:
-            return  # a chirp shape no configured beacon makes, or noise
+        if beacon is None:  # a chirp shape no configured beacon makes, or noise
+            import time
+
+            hint = svc.wrong_beacon_hint()
+            if hint and time.monotonic() - last_hint[0] > 5.0:
+                last_hint[0] = time.monotonic()
+                print(f"WARNING: {hint}")
+            return
         what = {"calibrating": "calibrating", "surveying": "recording the mark",
                 "survey_walk": "walk to the next mark, then press Enter"}.get(
             svc.state, "not calibrated, press Enter when the phone is at the spot")
@@ -258,6 +267,12 @@ async def _listen(args) -> None:
             sys.stdin.readline()
             if svc.target is None:
                 print("no phone connected yet")
+                return
+            missing = svc.missing_beacons()
+            if missing:
+                print("not starting: still not hearing " + ", ".join(f"B{k}" for k in missing)
+                      + ". Is that beacon phone running, loud, and set to the right number? "
+                      + (svc.wrong_beacon_hint() or "Or leave it out with --only."))
                 return
             if args.setup:
                 if svc.state == "surveying":
@@ -383,10 +398,10 @@ def main() -> None:
     rp.add_argument("--band", type=float, nargs=2, metavar=("LO", "HI"), help="default: what the recording used")
     rp.add_argument("--calibrate-from", type=float, metavar="S",
                     help="second of the file to start calibrating at (default: when the live run did)")
-    rp.add_argument("--calibration-seconds", type=float, default=10.0)
+    rp.add_argument("--calibration-seconds", type=float, help="default: what the recording used")
     rp.add_argument("--calibrate-distance", type=float, metavar="D")
     rp.add_argument("--calibrate-at", type=float, nargs=3, metavar=("X", "Y", "Z"))
-    rp.add_argument("--temperature", type=float, default=20.0)
+    rp.add_argument("--temperature", type=float, help="default: what the recording used")
     rp.add_argument("--min-snr", type=float, help="default: what the recording used")
     rp.add_argument("--log", metavar="FILE")
     rp.add_argument("--truth", nargs=2, action="append", metavar=("B1", "METERS"),

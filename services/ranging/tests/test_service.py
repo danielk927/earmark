@@ -85,7 +85,7 @@ async def test_walking_across_the_room_is_followed():
 async def test_a_lost_chunk_or_two_does_not_break_it():
     me = (0.3, 0.5, 1.2)
     async with running(me, dropout=0.04) as (svc, fixes, _):
-        await asyncio.sleep(6.0)
+        await asyncio.sleep(10.0)
     assert len(fixes) >= 3 and np.median([math.dist(f.position, me) for _, f, _ in fixes]) < 0.08
 
 

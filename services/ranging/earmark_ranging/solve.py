@@ -85,3 +85,46 @@ def locate(
     if rms > max_rms_m or not plausible(p):
         return None
     return Fix(tuple(float(v) for v in p), len(names) - len(dropped), rms, dropped)
+
+
+def locate_two(
+    anchors: dict[str, tuple[float, float, float]],
+    distances: dict[str, float],
+    prefer: tuple[float, float],
+    z: float = 1.25,
+    slack_m: float = 0.25,
+) -> Fix | None:
+    """Position from just two fixed phones, assuming the phone is held at height `z`.
+
+    Two distances give two mirror-image points on either side of the line through the phones. The one nearer
+    `prefer` (where the user was last, or the calibration spot at the start) is returned, so the user must stay on
+    one side of that line. If the circles just miss each other (by up to `slack_m`) the point on the line between
+    them is used, with the miss reported as the fit error.
+    """
+    names = [n for n in distances if n in anchors]
+    if len(names) != 2:
+        return None
+    (x1, y1, z1), (x2, y2, z2) = (anchors[n] for n in names)
+    r = []
+    for n, za in zip(names, (z1, z2), strict=True):
+        dz = z - za
+        r.append(float(np.sqrt(max(distances[n] ** 2 - dz**2, 0.0))))
+    base = float(np.hypot(x2 - x1, y2 - y1))
+    if base < 0.3:
+        return None
+    ux, uy = (x2 - x1) / base, (y2 - y1) / base
+    along = (r[0] ** 2 - r[1] ** 2 + base**2) / (2 * base)
+    h2 = r[0] ** 2 - along**2
+    if r[0] + r[1] < base:
+        miss = base - (r[0] + r[1])
+    elif abs(r[0] - r[1]) > base:
+        miss = abs(r[0] - r[1]) - base
+    else:
+        miss = 0.0
+    if miss > slack_m:
+        return None
+    h = float(np.sqrt(max(h2, 0.0)))
+    px, py = x1 + ux * along, y1 + uy * along
+    cands = [(px - uy * h, py + ux * h), (px + uy * h, py - ux * h)]
+    best = min(cands, key=lambda c: np.hypot(c[0] - prefer[0], c[1] - prefer[1]))
+    return Fix((float(best[0]), float(best[1]), float(z)), 2, float(miss / 2))

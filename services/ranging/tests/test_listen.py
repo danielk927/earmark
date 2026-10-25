@@ -245,3 +245,56 @@ def test_a_long_silence_resets_the_filter():
     tr = _jump_tracker()
     tr.latest[1] = _range(10.0, 1.00, 20)
     assert not tr._jumped(1, _range(14.0, 4.00, 28))
+
+
+def _hears_both(tracker, true_xy, z, beacons, cycle=40):
+    """Feed the tracker exactly the chirps a phone at `true_xy` would hear from each beacon (schedules a=0, b=0.5)."""
+    dets = []
+    for k, p in beacons.items():
+        d = math.dist((*true_xy, z), p)
+        dets.append(Detection(cycle * 0.5 + d / C, "up" if k % 2 else "down", 1.0, 100.0))
+    tracker.add(dets, cycle * 0.5 + 1.0)
+    return tracker.fix(cycle * 0.5 + 0.2)
+
+
+TWO = {1: (0.0, 1.2, 0.75), 2: (1.2, 0.0, 0.75)}  # ahead and to the right; the user stands behind-left of their line
+
+
+def test_two_beacons_give_a_position_on_the_users_side():
+    from earmark_ranging.listen import BeaconSchedule
+
+    sched = {1: BeaconSchedule(0.0, 0.5), 2: BeaconSchedule(0.0, 0.5)}
+    for true in [(0.0, 0.0), (-0.4, 0.3), (0.3, -0.6)]:
+        tr = Tracker(sched, C, TWO, side_ref=(0.0, 0.0))
+        got = _hears_both(tr, true, 1.25, TWO)
+        assert got is not None
+        fix, pose = got
+        assert fix.used == 2 and pose.quality == "degraded"
+        assert math.dist(fix.position[:2], true) < 0.02, (fix.position, true)
+        assert abs(pose.position[2] - (1.25 + 0.35)) < 1e-6
+
+
+def test_two_beacons_with_the_other_side_as_reference_pick_the_mirror_image():
+    from earmark_ranging.listen import BeaconSchedule
+
+    sched = {1: BeaconSchedule(0.0, 0.5), 2: BeaconSchedule(0.0, 0.5)}
+    tr = Tracker(sched, C, TWO, side_ref=(1.5, 1.5))  # the far side of the line x + y = 1.2
+    got = _hears_both(tr, (0.0, 0.0), 1.25, TWO)
+    assert got is not None and got[0].position[0] > 0.6  # the mirror image of the origin across the line is (1.2, 1.2)
+
+
+def test_one_beacon_alone_gives_no_position():
+    from earmark_ranging.listen import BeaconSchedule
+
+    tr = Tracker({1: BeaconSchedule(0.0, 0.5)}, C, {1: TWO[1]})
+    assert _hears_both(tr, (0.0, 0.0), 1.25, {1: TWO[1]}) is None
+
+
+def test_a_beacon_phone_set_to_the_wrong_number_is_named():
+    svc = ListenService({1: TWO[1]}, {1: 1.0}, SPEC, c=C)
+    clear_down_chirp = Detection(10.0, "down", 2.5, 400.0)
+    for _ in range(5):
+        svc._note_heard(clear_down_chirp, svc.calibrator.assign(clear_down_chirp))
+    hint = svc.wrong_beacon_hint()
+    assert hint is not None and "Beacon 2" in hint and "B1" in hint and "--only B2" in hint
+    assert svc.missing_beacons() == [1]

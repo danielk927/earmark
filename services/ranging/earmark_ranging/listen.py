@@ -21,7 +21,7 @@ from earmark_contracts import ListenerPose
 
 from .config import EAR_OFFSET_M, HEIGHT_PRIOR
 from .detect import Detector
-from .solve import Fix, locate
+from .solve import Fix, locate, locate_two
 
 CYCLE_S = 0.5  # every beacon chirps this often
 SLOT_S = 0.125  # beacon N chirps (N-1) slots into each cycle
@@ -50,6 +50,14 @@ def beacon_shape(beacon: int) -> str:
 def beacon_phase(beacon: int, slot_s: float = SLOT_S) -> float:
     """Where in each cycle (seconds after the cycle starts, wall clock) this beacon starts its chirp."""
     return (beacon - 1) * slot_s
+
+
+def identify_beacon(shape: str, wall: float | None, cycle_s: float = CYCLE_S, slot_s: float = SLOT_S) -> list[int]:
+    """Which beacon numbers (1 to 4) make a chirp of this shape; one number when a wall-clock time pins it down."""
+    same = [k for k in range(1, MAX_BEACONS + 1) if beacon_shape(k) == shape]
+    if wall is None:
+        return same
+    return [min(same, key=lambda k: _phase_distance(wall % cycle_s, beacon_phase(k, slot_s), cycle_s))]
 
 
 def _phase_distance(x: float, y: float, cycle_s: float) -> float:
@@ -344,8 +352,10 @@ class Tracker:
         d_max: float = 15.0,
         ear_offset: Pos = EAR_OFFSET_M,
         z_prior: tuple[float, float] | None = HEIGHT_PRIOR,
+        side_ref: tuple[float, float] = (0.0, 0.0),
     ) -> None:
         self.schedules, self.c, self.beacons = dict(schedules), c, dict(beacons)
+        self.side_ref = side_ref  # with two beacons: which side of the line between them the user stands on
         self.window, self.max_age, self.d_min, self.d_max = window_s, max_age_s, d_min, d_max
         self.ear_offset, self.z_prior = ear_offset, z_prior
         self.latest: dict[int, Range] = {}
@@ -407,13 +417,15 @@ class Tracker:
     def fix(self, now_t: float) -> tuple[Fix, ListenerPose] | None:
         """A position from the fresh distances, or None with fewer than three or when they disagree."""
         fresh = self.fresh(now_t)
-        if len(fresh) < 3:
-            return None
         anchors = {f"B{k}": p for k, p in self.beacons.items()}
-        fix = locate(
-            anchors, {f"B{k}": r.distance_m for k, r in fresh.items()},
-            start=self.last_fix.position if self.last_fix else None, z_prior=self.z_prior,
-        )
+        dists = {f"B{k}": r.distance_m for k, r in fresh.items()}
+        if len(fresh) == 2:
+            prefer = self.last_fix.position[:2] if self.last_fix else self.side_ref
+            fix = locate_two(anchors, dists, prefer, z=self.z_prior[0] if self.z_prior else 1.25)
+        elif len(fresh) < 3:
+            return None
+        else:
+            fix = locate(anchors, dists, start=self.last_fix.position if self.last_fix else None, z_prior=self.z_prior)
         if fix is None:
             return None
         if self.last_fix is not None and self.last_fix_t is not None and now_t - self.last_fix_t < 1.5:
@@ -423,7 +435,7 @@ class Tracker:
         self._outliers = 0
         self.last_fix, self.last_fix_t = fix, now_t
         pos = [round(fix.position[i] + self.ear_offset[i], 3) for i in range(3)]
-        quality = "ok" if fix.used >= 3 and fix.rms_m <= 0.10 else "degraded"
+        quality = "ok" if fix.used >= 3 and fix.rms_m <= 0.10 else "degraded"  # two beacons cannot check themselves
         return fix, ListenerPose(position=pos, quality=quality, beacons_heard=fix.used, source="beacons")
 
 

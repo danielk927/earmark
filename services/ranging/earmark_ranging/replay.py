@@ -66,13 +66,13 @@ def replay(
     beacons: dict[int, Pos],
     *,
     calibrate_from_s: float | None = None,
-    calibration_s: float = 10.0,
+    calibration_s: float | None = None,
     calibrate_distance: float | None = None,
     calibrate_at: Pos | None = None,
     band: tuple[float, float] | None = None,
     cycle_s: float | None = None,
     slot_s: float | None = None,
-    temperature_c: float = 20.0,
+    temperature_c: float | None = None,
     min_snr: float | None = None,
     log_path: str | None = None,
     quiet: bool = False,
@@ -86,6 +86,8 @@ def replay(
     cycle_s = cycle_s or meta.get("cycle_s", CYCLE_S)
     slot_s = slot_s or meta.get("slot_s", SLOT_S)
     min_snr = meta.get("min_snr", 4.5) if min_snr is None else min_snr
+    calibration_s = meta.get("calibration_seconds", 10.0) if calibration_s is None else calibration_s
+    temperature_c = meta.get("temperature_c", 20.0) if temperature_c is None else temperature_c
     first_index = int(meta.get("first_sample_index", 0))
     if calibrate_distance is None and calibrate_at is None:
         if "calibrate_distance" in meta and meta["calibrate_distance"] is not None:

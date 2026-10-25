@@ -115,3 +115,15 @@ def test_locate_gives_up_when_distances_make_no_sense():
     d = {"B1": 0.5, "B2": 6.0, "B3": 0.4, "B4": 5.0, "B5": 0.3}
     assert locate(ANCHORS, d) is None
     assert locate(ANCHORS, {"B1": 1.0, "B2": 1.0}) is None
+
+
+def test_a_weak_opposite_sweep_ghost_next_to_a_strong_chirp_is_dropped():
+    # Real phone recordings show the opposite-sweep template matching a strong chirp weakly about 32 ms later.
+    from earmark_ranging.detect import Event
+
+    det = Detector(ChirpSpec(12000.0, 16000.0), 48000.0)
+    real = Event(1.0, "down", 2.5, 400.0)
+    ghost = Event(1.0323, "up", 0.2, 30.0)
+    far_up = Event(1.125, "up", 0.2, 30.0)  # the next beacon's slot, 125 ms later: a real chirp, however weak
+    kept = det._drop_cross_ghosts([real, ghost, far_up])
+    assert kept == [real, far_up]

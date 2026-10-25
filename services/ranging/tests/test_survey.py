@@ -122,3 +122,11 @@ def test_the_found_positions_are_saved_back_to_the_beacons_file(tmp_path):
     data = json.loads(f.read_text())
     assert data["beacons"][0] == {"id": "B1", "label": "ahead", "position": [0.03, 1.32, 0.75]}
     assert data["note"] == "x" and data["set_up"] == "2026-10-24T23:00:00"
+
+
+def test_two_beacons_are_enough_for_room_setup():
+    two = {1: THREE[1], 2: THREE[2]}
+    report, _ = run_survey(two, hints={1: HINTS[1], 2: HINTS[2]})
+    assert report.ok, report.lines()
+    for k, true in two.items():
+        assert math.dist(report.positions[k][:2], true[:2]) < 0.08, report.lines()

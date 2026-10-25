@@ -235,8 +235,9 @@ class Surveyor:
             rep.problems = [f"B{k}: {p}" for p in rep.problems]
             placed[k] = rep
         good = {k: r for k, r in placed.items() if r.ok}
-        if len(good) < 3:
-            problems.append(f"{len(good)} beacons placed, need 3 for a position")
+        need = min(2, len(self.beacon_ids)) if len(self.beacon_ids) < 3 else 3  # two beacons are enough for a position
+        if len(good) < need:
+            problems.append(f"{len(good)} beacons placed, need {need} for a position")
         ok = not problems and all(r.ok for r in placed.values())
         return SurveyReport(
             ok, {k: r.position for k, r in good.items()}, {k: r.schedule for k, r in good.items()}, placed, problems,
