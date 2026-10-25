@@ -154,7 +154,7 @@ class BleFobsAdapter(Adapter):
         fob_id = self.match(address, adv.local_name)
         if address not in self._seen_addrs and len(self._seen_addrs) < 1000:
             self._seen_addrs.add(address)
-            log.info("ble advertiser", extra={"address": address, "name": adv.local_name, "rssi": adv.rssi,
+            log.info("ble advertiser", extra={"address": address, "local_name": adv.local_name, "rssi": adv.rssi,
                                               "fob_id": fob_id})
         if fob_id is None:
             return

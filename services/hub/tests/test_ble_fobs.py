@@ -104,6 +104,16 @@ def test_match_by_address_and_cached_name():
     assert a.match("CCCC-3333", "iTAG") is None  # name already bound to another address
 
 
+def test_first_advertisement_from_a_fob_is_logged_and_tracked(caplog):
+    """Logging a new advertiser must not raise (LogRecord reserves `name`), and the fob is tracked on its first packet."""
+    cfg = BleCfg(fobs={"fob_keys": FobCfg(address="aaaa-1111")})
+    a = make(cfg)
+    caplog.set_level("INFO")
+    a._on_advertisement(SimpleNamespace(address="AAAA-1111"), SimpleNamespace(local_name="iTAG", rssi=-60))
+    assert "fob_keys" in a._devices
+    assert any(r.getMessage() == "ble advertiser" for r in caplog.records)
+
+
 # ---------------------------------------------------------------- chirp against a fake bleak client
 
 
