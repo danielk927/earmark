@@ -303,13 +303,13 @@ export function MapField({ map }: { map: LiveMap }) {
             <stop offset="1" className="glow-out" />
           </radialGradient>
         </defs>
-        <circle cx={0} cy={0} r={0.95 * s} fill={`url(#${glowId})`} />
+        <circle cx={0} cy={0} r={0.78 * s} fill={`url(#${glowId})`} />
 
         <g className="ripples">
           {ripples.map((r) => (
             <g key={r}>
               <path d={arc(r)} />
-              {!compact && (
+              {!compact && r * s * Math.sin((62 * Math.PI) / 180) + 52 < half && (
                 <text x={r * s * Math.sin((62 * Math.PI) / 180) + 6} y={-r * s * Math.cos((62 * Math.PI) / 180) + 4}>
                   {Math.round(r * 100)} cm
                 </text>

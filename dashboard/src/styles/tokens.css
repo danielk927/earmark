@@ -1,4 +1,9 @@
 /*
+ * Direction: a quiet listening room. Plaster-green paper, deep navy ink, one indigo accent, and a lamp-amber
+ * glow reserved for the listener and the live signal. Headlines are set in a bookish serif (STIX Two Text)
+ * so the page reads like a household notebook; everything you act on stays in Atkinson Hyperlegible.
+ * Panels are flat and ruled rather than boxed; the rings of the live map carry the identity.
+ *
  * Earmark design tokens. Every color is light-dark(light, dark); the theme is chosen by
  * color-scheme on <html> (system by default, or data-theme="light" / "dark").
  * test/tokens.test.ts parses this file and checks the contrast pairs listed there.
@@ -7,23 +12,23 @@
   color-scheme: light dark;
 
   /* Surfaces */
-  --paper: light-dark(#f2f5f4, #0f1a1d);
-  --surface: light-dark(#ffffff, #162427);
-  --field: light-dark(#e4ebe9, #1a2b2f);
-  --ripple: light-dark(#c3d0cd, #2c4146);
+  --paper: light-dark(#f2f2ea, #12141d);
+  --surface: light-dark(#fbfbf6, #1a1d29);
+  --field: light-dark(#e6e8dc, #1e2232);
+  --ripple: light-dark(#aab3c9, #3a4262);
 
   /* Text */
-  --ink: light-dark(#132428, #e8f0ee);
-  --ink-soft: light-dark(#3c4e52, #b4c3c1);
+  --ink: light-dark(#131a2f, #eeece6);
+  --ink-soft: light-dark(#424a5e, #bcbfcd);
 
   /* Lines: --line is for control borders and map strokes (3:1 or more); --rule is decorative. */
-  --line: light-dark(#6a7d80, #6f8488);
-  --rule: light-dark(#d3dcda, #2a3b40);
+  --line: light-dark(#6b7288, #7b819a);
+  --rule: light-dark(#cfd2c4, #2d3144);
 
-  /* Accent: damson plum. Links, primary actions, focus, current page. */
-  --accent: light-dark(#6a2a70, #e7bdeb);
-  --accent-ink: light-dark(#ffffff, #2a0e2e);
-  --accent-wash: light-dark(#f1e6f2, #2e1d33);
+  /* Accent: ultramarine ink. Links, primary actions, focus, current page. */
+  --accent: light-dark(#2a3a9c, #b9c5ff);
+  --accent-ink: light-dark(#ffffff, #0f1431);
+  --accent-wash: light-dark(#e3e6f5, #232a52);
 
   /* Status. Always paired with an icon shape and a text label. */
   --ok: light-dark(#17592f, #8bdba5);
@@ -32,12 +37,17 @@
   --warn-wash: light-dark(#f7ebd6, #3a2e14);
   --bad: light-dark(#8e1f20, #ffa39c);
   --bad-wash: light-dark(#f8e3e1, #3d1c1c);
-  --idle: light-dark(#3f4d52, #b9c6c8);
+  --idle: light-dark(#434a5c, #bcc2d2);
+
+  /* Lamp: decorative glow only (the listener, the live dot). Never the sole carrier of meaning. */
+  --lamp: light-dark(#d98a14, #f2b84b);
+  --lamp-wash: light-dark(#f5e2b8, #3b3020);
 
   --focus: var(--accent);
 
   /* Type */
   --font: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-display: "STIX Two Text", "Iowan Old Style", Georgia, serif;
   --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
   --step--1: 1rem;
   --step-0: 1.125rem;
@@ -54,9 +64,9 @@
   --s-6: 2rem;
   --s-7: 3rem;
 
-  --radius-control: 0.5rem;
-  --radius-panel: 0.875rem;
-  --radius-field: 1.25rem;
+  --radius-control: 0.375rem;
+  --radius-panel: 0.25rem;
+  --radius-field: 0.25rem;
 }
 
 :root[data-theme="light"] {
