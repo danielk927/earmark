@@ -13,7 +13,7 @@ import json
 import time
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 Vec3 = Annotated[list[float], Field(min_length=3, max_length=3)]
 Source = Literal["simulator", "nfc", "ble", "camera", "ultrasonic"]
@@ -51,8 +51,15 @@ class Spot(_Model):
 
 class Area(_Model):
     area: str = Field(min_length=1)
-    label: str | None = None
+    label: str | None = None  # optional in the schema, but a string when present (never null)
     position: Vec3
+
+    @field_validator("label")
+    @classmethod
+    def _label_not_null(cls, v: str | None) -> str | None:
+        if v is None:
+            raise ValueError("label must be a string when present")
+        return v
 
 
 class Receiver(_Model):
@@ -97,7 +104,7 @@ class Registry(_Model):
     household: Household
     objects: list[RegistryObject]
     medications: list[Medication]
-    version: float | None = None
+    version: int | None = Field(default=None, ge=0)
 
 
 class Phrase(_Model):
@@ -512,7 +519,7 @@ class DailySummaryResponse(_Model):
 
 
 class RegistryResponse(Registry):
-    version: float  # required and non-null on GET /api/registry
+    version: int = Field(ge=0)  # required and non-null on GET /api/registry
 
 
 class ErrorResponse(_Model):

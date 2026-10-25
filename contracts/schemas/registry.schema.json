@@ -16,7 +16,7 @@
     },
     "objects": { "type": "array", "items": { "$ref": "#/$defs/registry_object" } },
     "medications": { "type": "array", "items": { "$ref": "#/$defs/medication" } },
-    "version": { "type": ["number", "null"], "description": "Monotonic registry version (Convex: max updated time in ms). Absent in seed files." }
+    "version": { "type": "integer", "minimum": 0, "description": "Monotonic registry version: a counter in ms that rises on every registry write (Convex), 0 on a fresh deployment, never null. Absent in seed files." }
   },
   "$defs": {
     "registry_object": {

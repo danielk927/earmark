@@ -12,6 +12,31 @@ import {
 /** Abandoned uploads (no suggestFromPhoto call) are deleted after this long. */
 const PHOTO_MAX_AGE_MS = 10 * 60 * 1000;
 
+/** suggestFromPhoto is public and spends the Anthropic key, so it is limited to this many calls per hour. */
+const SUGGESTIONS_PER_HOUR = 20;
+
+/** Count this call against the hourly limit; throws when the limit is used up. */
+export const claimSuggestion = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const now = Date.now();
+    const cutoff = now - 3_600_000;
+    for (const old of await ctx.db.query("suggestionCalls").withIndex("by_t", (q) => q.lt("t", cutoff)).take(100)) {
+      await ctx.db.delete("suggestionCalls", old._id);
+    }
+    const recent = await ctx.db
+      .query("suggestionCalls")
+      .withIndex("by_t", (q) => q.gte("t", cutoff))
+      .take(SUGGESTIONS_PER_HOUR);
+    if (recent.length >= SUGGESTIONS_PER_HOUR) {
+      throw new ConvexError(`Too many photo suggestions this hour (limit ${SUGGESTIONS_PER_HOUR}). Type the name instead.`);
+    }
+    await ctx.db.insert("suggestionCalls", { t: now });
+    return null;
+  },
+});
+
 /** Step 1: a short-lived URL the dashboard POSTs the photo to; the response JSON has the storageId. */
 export const generateUploadUrl = mutation({
   args: {},
@@ -55,6 +80,7 @@ export const suggestFromPhoto = action({
     if (info === null) throw new ConvexError("That photo was not found (it may have expired). Upload it again.");
     let photoDeleted = false;
     try {
+      await ctx.runMutation(internal.labeling.claimSuggestion, {});
       const apiKey = env.ANTHROPIC_API_KEY;
       if (!apiKey) {
         throw new ConvexError(

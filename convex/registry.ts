@@ -2,10 +2,10 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { listMedications } from "./doses";
 import { insertObject, patchObject } from "./objects";
-import { clearUnknownTag, getHousehold, householdInfo, listObjects, normalizeAliases } from "./lib/registry";
+import { getHousehold, householdInfo, listObjects, normalizeAliases } from "./lib/registry";
 import { objectFields } from "./lib/validators";
 
-/** GET /api/registry (camelCase; http.ts converts). version is null until the first registry write. */
+/** GET /api/registry (camelCase; http.ts converts). version is 0 until the first registry write. */
 export const get = internalQuery({
   args: {},
   returns: v.object({
@@ -14,7 +14,7 @@ export const get = internalQuery({
     medications: v.array(
       v.object({ objectId: v.string(), scheduleTimes: v.array(v.string()), windowMinutes: v.number() }),
     ),
-    version: v.union(v.number(), v.null()),
+    version: v.number(),
   }),
   handler: async (ctx) => {
     const household = await householdInfo(ctx);
@@ -38,7 +38,7 @@ export const get = internalQuery({
         scheduleTimes: m.scheduleTimes,
         windowMinutes: m.windowMinutes,
       })),
-      version: (await getHousehold(ctx))?.registryVersion ?? null,
+      version: (await getHousehold(ctx))?.registryVersion ?? 0,
     };
   },
 });
@@ -58,7 +58,6 @@ export const label = internalMutation({
     if (owner) {
       const merged = normalizeAliases([...owner.aliases, ...aliases], name.trim());
       await patchObject(ctx, owner.objectId, { name, aliases: merged });
-      await clearUnknownTag(ctx, tag);
       return { objectId: owner.objectId, created: false };
     }
     const objectId = await insertObject(ctx, {

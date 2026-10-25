@@ -67,7 +67,12 @@ export default defineSchema({
     windowMinutes: v.number(),
     /** Doses scheduled before this instant (unix s) are not generated: monitoring had not started. */
     activeSinceT: v.number(),
+    /** Schedule times added after the medication was created, each with the instant (unix s) it was added; it overrides activeSinceT for that time. */
+    timeActiveSince: v.optional(v.record(v.string(), v.number())),
   }).index("by_objectId", ["objectId"]),
+
+  /** One row per photo suggestion request, for the hourly limit in labeling.ts. */
+  suggestionCalls: defineTable({ t: v.number() }).index("by_t", ["t"]),
 
   /** Materialized adherence results (lib/adherence.ts), recomputed by mutations and a cron. */
   doses: defineTable({

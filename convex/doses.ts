@@ -28,7 +28,7 @@ export async function recomputeDoses(
   for (const day of days) {
     for (const time of med.scheduleTimes) {
       const at = zonedToUnix(day, time, timezone);
-      if (at >= med.activeSinceT) scheduled.push({ key: `${day} ${time}`, scheduledFor: at });
+      if (at >= (med.timeActiveSince?.[time] ?? med.activeSinceT)) scheduled.push({ key: `${day} ${time}`, scheduledFor: at });
     }
   }
   const w = med.windowMinutes * 60;

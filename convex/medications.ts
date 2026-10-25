@@ -49,8 +49,15 @@ export const upsert = mutation({
       .query("medications")
       .withIndex("by_objectId", (q) => q.eq("objectId", objectId))
       .first();
-    if (existing) await ctx.db.patch("medications", existing._id, { scheduleTimes: times, windowMinutes });
-    else await ctx.db.insert("medications", { objectId, scheduleTimes: times, windowMinutes, activeSinceT: now });
+    if (existing) {
+      // A time that was not on the schedule before counts only from now; unchanged times keep their history.
+      const timeActiveSince: Record<string, number> = {};
+      for (const time of times) {
+        if (!existing.scheduleTimes.includes(time)) timeActiveSince[time] = now;
+        else if (existing.timeActiveSince?.[time] !== undefined) timeActiveSince[time] = existing.timeActiveSince[time];
+      }
+      await ctx.db.patch("medications", existing._id, { scheduleTimes: times, windowMinutes, timeActiveSince });
+    } else await ctx.db.insert("medications", { objectId, scheduleTimes: times, windowMinutes, activeSinceT: now });
     const { timezone } = await householdInfo(ctx);
     const today = localDate(now, timezone);
     for (const date of [addDays(today, -1), today]) await recomputeDate(ctx, date, now);

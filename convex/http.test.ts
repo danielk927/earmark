@@ -292,10 +292,12 @@ describe("POST /api/label", () => {
 describe("GET /api/registry", () => {
   test("matches registry.schema.json and changes version on every registry edit", async () => {
     const t = setup();
-    expect((await get(t, "/api/registry")).body).toMatchObject({ objects: [], medications: [], version: null });
+    const fresh = (await get(t, "/api/registry")).body;
+    expect(fresh).toMatchObject({ objects: [], medications: [], version: 0 });
+    expectSchema("registry_response", fresh);
     await seed(t);
     const r0 = await get(t, "/api/registry");
-    expectSchema("registry.schema.json", r0.body);
+    expectSchema("registry_response", r0.body);
     expect(r0.body.household).toEqual({ name: "Demo household", timezone: "America/Los_Angeles" });
     expect(r0.body.objects.map((o: { object_id: string }) => o.object_id)).toEqual(["bp_meds", "keys", "pepper", "salt", "sugar"]);
     expect(r0.body.medications).toEqual([{ object_id: "bp_meds", schedule_times: ["08:00", "20:00"], window_minutes: 60 }]);
@@ -309,7 +311,7 @@ describe("GET /api/registry", () => {
     for (const edit of edits) {
       await edit(); // same fake millisecond: the version must still move forward
       const r = await get(t, "/api/registry");
-      expectSchema("registry.schema.json", r.body);
+      expectSchema("registry_response", r.body);
       expect(r.body.version).toBeGreaterThan(last);
       last = r.body.version;
     }

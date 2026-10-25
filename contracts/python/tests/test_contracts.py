@@ -131,3 +131,25 @@ def test_dump_includes_defaulted_type_and_t():
     out = json.loads(ec.dump(msg))
     assert out["type"] == "reset" and isinstance(out["t"], float)
     assert not list(validator("bus_message.schema.json").iter_errors(out))
+
+
+def test_registry_response_version_is_a_required_non_negative_integer():
+    base = {"household": {"name": "H", "timezone": "UTC"}, "objects": [], "medications": []}
+    v = validator("convex_http.schema.json", "/$defs/registry_response")
+    for bad in (None, -1, 1.5):
+        assert list(v.iter_errors({**base, "version": bad}))
+        with pytest.raises(ValueError):
+            ec.RegistryResponse.model_validate({**base, "version": bad})
+    assert list(v.iter_errors(base))  # missing
+    with pytest.raises(ValueError):
+        ec.RegistryResponse.model_validate(base)
+    assert not list(v.iter_errors({**base, "version": 0}))
+    assert ec.RegistryResponse.model_validate({**base, "version": 0}).version == 0
+
+
+def test_area_label_is_a_string_when_present_never_null():
+    area = {"area": "drawer", "position": [0.0, 1.0, 0.0]}
+    assert ec.Area.model_validate(area).label is None
+    assert ec.Area.model_validate({**area, "label": "the drawer"}).label == "the drawer"
+    with pytest.raises(ValueError):
+        ec.Area.model_validate({**area, "label": None})

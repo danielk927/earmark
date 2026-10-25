@@ -23,7 +23,7 @@ for (const [name, file] of Object.entries(top)) defs[name] = { $ref: file };
 const pascal = (s) => s.replace(/(^|_)([a-z])/g, (_, __, c) => c.toUpperCase());
 for (const file of ["bus_message.schema.json", "convex_http.schema.json", "registry.schema.json"]) {
   for (const [name, def] of Object.entries(load(file).$defs ?? {})) {
-    if (def.properties || def.oneOf) defs[pascal(name)] = { $ref: `${file}#/$defs/${name}` };
+    if (def.properties || def.oneOf || def.allOf) defs[pascal(name)] = { $ref: `${file}#/$defs/${name}` };
   }
 }
 const wrapper = { title: "EarmarkContracts", type: "object", $defs: defs, additionalProperties: false };

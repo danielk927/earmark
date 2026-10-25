@@ -65,7 +65,7 @@ const toVec3 = (p: number[], what: string): Vec3 => {
 };
 
 /** Event kinds that reset deletes and whose absence means "no history yet". Trial events are kept. */
-const DEMO_EVENT_KINDS = ["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "chirp"] as const;
+const DEMO_EVENT_KINDS = ["placed", "removed", "pickup", "pickup_result", "unknown_tag", "label", "stored", "chirp"] as const;
 
 async function hasDemoEvents(ctx: MutationCtx): Promise<boolean> {
   for (const kind of DEMO_EVENT_KINDS) {

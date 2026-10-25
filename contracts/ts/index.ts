@@ -77,6 +77,15 @@ export type PlaceItem1 = {
  * @maxItems 3
  */
 export type Vec32 = [number, number, number];
+/**
+ * GET /api/registry (hub, every ~2 s). The registry with a required version (non-negative integer; a counter in ms that rises on every registry write, 0 on a fresh deployment, never null) so the hub can detect changes cheaply.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "RegistryResponse".
+ */
+export type RegistryResponse = Registry & {
+  version: number;
+};
 
 export interface EarmarkContracts {}
 /**
@@ -231,9 +240,9 @@ export interface Registry {
   objects: RegistryObject[];
   medications: Medication[];
   /**
-   * Monotonic registry version (Convex: max updated time in ms). Absent in seed files.
+   * Monotonic registry version: a counter in ms that rises on every registry write (Convex), 0 on a fresh deployment, never null. Absent in seed files.
    */
-  version?: number | null;
+  version?: number;
 }
 export interface Household {
   name: string;
@@ -745,7 +754,7 @@ export interface IngestRequest {
   states: ObjectState[];
 }
 /**
- * Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}.
+ * Append-only event. `data` holds the originating bus message for pickup, pickup_result, unknown_tag, label, chirp, trial_start, trial_end; for placed/removed it holds {spot, tag, source}; for stored (the user said where an item is) it holds {area, label, source} for a named area or {position, source} for a spot in the room frame, with source "voice".
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "HubEvent".

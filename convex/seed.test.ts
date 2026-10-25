@@ -90,6 +90,22 @@ describe("seed", () => {
 });
 
 describe("reset", () => {
+  test("deletes voice 'stored' events but keeps trial events", async () => {
+    at("2025-10-24", "17:00");
+    const t = setup();
+    await seed(t);
+    const now = zonedToUnix("2025-10-24", "17:00", LA);
+    await post(t, "/ingest", {
+      events: [
+        { event_id: "e-stored-1", kind: "stored", object_id: "keys", t: now, data: { area: "drawer", label: "the drawer", source: "voice" } },
+      ],
+      states: [],
+    });
+    await t.action(internal.seed.reset, seedArgs());
+    const events = await t.run(async (ctx) => await ctx.db.query("events").collect());
+    expect(events.filter((e) => e.kind === "stored")).toEqual([]);
+  });
+
   test("restores the demo state, never touching trials", async () => {
     at("2025-10-24", "17:00");
     const t = setup();

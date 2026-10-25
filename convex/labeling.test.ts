@@ -168,3 +168,26 @@ describe("sweepStalePhotos", () => {
     expect(await exists(t, fresh)).toBe(true);
   });
 });
+
+describe("labeling:suggestFromPhoto rate limit", () => {
+  test("the 21st call in an hour is refused, without calling Claude, and the photo is deleted", async () => {
+    const fetchMock = vi.fn(async () => claudeReply({ name: "salt", aliases: [], description: "Jar." }));
+    vi.stubGlobal("fetch", fetchMock);
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 20; i++) await ctx.db.insert("suggestionCalls", { t: Date.now() - i * 1000 });
+    });
+    const id = await upload(t);
+    await expect(t.action(fn.labeling.suggestFromPhoto, { storageId: id })).rejects.toThrow(/Too many photo suggestions/);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await exists(t, id)).toBe(false);
+  });
+
+  test("calls older than an hour do not count", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => claudeReply({ name: "salt", aliases: [], description: "Jar." })));
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 20; i++) await ctx.db.insert("suggestionCalls", { t: Date.now() - 3_700_000 });
+    });
+    const r = await t.action(fn.labeling.suggestFromPhoto, { storageId: await upload(t) });
+    expect(r.name).toBe("salt");
+  });
+});

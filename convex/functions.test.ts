@@ -194,6 +194,22 @@ describe("medications and doses", () => {
     expect(doses[0].status).toBe("pending");
   });
 
+  test("a time added to a schedule counts only from when it was added", async () => {
+    // "Now" is 17:00. Adding 09:00 must not turn today's or yesterday's 09:00 into missed doses.
+    await t.mutation(fn.medications.upsert, { objectId: "bp_meds", scheduleTimes: ["08:00", "09:00", "20:00"], windowMinutes: 60 });
+    for (const date of ["2025-10-23", "2025-10-24"]) {
+      const times = (await t.query(fn.doses.forDate, { date })).doses.map((d) => d.scheduledLocalTime);
+      expect(times).not.toContain("09:00");
+      expect(times).toContain("08:00"); // the existing times keep their history
+    }
+    // Tomorrow's 09:00 will count: it is after the edit.
+    await t.run(async (ctx) => {
+      const { recomputeDate } = await import("./doses");
+      await recomputeDate(ctx, "2025-10-25", Date.now() / 1000);
+    });
+    expect((await t.query(fn.doses.forDate, { date: "2025-10-25" })).doses.map((d) => d.scheduledLocalTime)).toContain("09:00");
+  });
+
   test("forDate rejects a malformed date", async () => {
     await expect(t.query(fn.doses.forDate, { date: "2025-13-01" })).rejects.toThrow(/YYYY-MM-DD/);
   });
