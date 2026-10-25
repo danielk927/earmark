@@ -157,7 +157,7 @@ def test_known_distances_needs_the_right_inputs():
 
 
 @contextlib.asynccontextmanager
-async def running(beacons, target, known, cal_s=7.0, noise=0.03, auto_after=1.0, **phone_kw):
+async def running(beacons, target, known, cal_s=7.0, noise=0.03, auto_after=1.0, rig=None, **phone_kw):
     svc = ListenService(beacons, known, SPEC, c=C, calibration_s=cal_s, publisher=BusPublisher(None))
     ranges, fixes, reports = [], [], []
     svc.on_range = lambda r, wall: ranges.append((time.monotonic(), r, wall))
@@ -170,6 +170,8 @@ async def running(beacons, target, known, cal_s=7.0, noise=0.03, auto_after=1.0,
     async with serve(svc.handler, "127.0.0.1", 0, max_size=2**22) as server:
         port = server.sockets[0].getsockname()[1]
         tasks = [asyncio.create_task(svc.run(auto_after)), asyncio.create_task(phone.run(f"ws://127.0.0.1:{port}", stop))]
+        if rig is not None:  # for tests that play with the phone or the room mid-run
+            rig.update(url=f"ws://127.0.0.1:{port}", phone=phone, stop=stop)
         try:
             yield svc, ranges, fixes, reports, world
         finally:
@@ -245,3 +247,74 @@ def test_a_long_silence_resets_the_filter():
     tr = _jump_tracker()
     tr.latest[1] = _range(10.0, 1.00, 20)
     assert not tr._jumped(1, _range(14.0, 4.00, 28))
+
+
+# ------------------------------------------------------------------------------- timeline breaks
+
+
+class _Bus:
+    """Records what would go to the hub."""
+
+    def __init__(self):
+        self.poses = []
+
+    async def send(self, msg):
+        self.poses.append(msg)
+
+
+async def _until(cond, seconds):
+    for _ in range(int(seconds * 10)):
+        await asyncio.sleep(0.1)
+        if cond():
+            return True
+    return False
+
+
+async def test_a_phone_that_reconnects_must_be_recalibrated():
+    anchors = load_anchors()
+    me = (0.3, 0.5, 1.2)
+    rig, notices, bus = {}, [], _Bus()
+    async with running(anchors, me, known_distances(anchors, at=me), rig=rig) as (svc, ranges, fixes, reports, world):
+        svc.publisher, svc.on_notice = bus, notices.append
+        assert await _until(lambda: len(fixes) >= 3, 25), "never got fixes"
+        n_fixes, old = len(fixes), rig["phone"]
+        rig["stop"].set()  # the link drops; the app stops its audio engine
+        await asyncio.sleep(2.3)  # 2.3 s later (not a whole number of cycles) it rejoins, its counter carrying on
+        again = VirtualTargetPhone(world, time.time() + 0.3, seed=3, drift_ppm=old.drift * 1e6)
+        again.start_count = old.start_count + old.sent * CHUNK
+        stop2 = asyncio.Event()
+        task = asyncio.create_task(again.run(rig["url"], stop2))
+        try:
+            assert await _until(lambda: svc.state == "idle" and svc.phones, 5)
+            await asyncio.sleep(3.0)
+            assert svc.state == "idle" and len(fixes) == n_fixes, "published from a stale calibration"
+            assert bus.poses[-1].quality == "lost" and bus.poses[-1].source == "beacons"
+            assert notices and "press Enter" in notices[0]
+            assert "phone reconnected: recalibrate" in svc.status_line()
+            svc.start_calibration()  # the phone is back at the spot
+            assert await _until(lambda: svc.state == "tracking", 20)
+            assert await _until(lambda: len(fixes) > n_fixes + 3, 10)
+        finally:
+            stop2.set()
+            await asyncio.gather(task, return_exceptions=True)
+    assert all(math.dist(f.position, me) < 0.2 for _, f, _ in fixes[n_fixes:])
+
+
+@pytest.mark.parametrize("shift_s", [0.040, -0.040])
+async def test_a_beacon_that_restarts_off_its_schedule_is_named_and_not_trusted(shift_s):
+    at = (0.2, 0.1, 1.2)
+    rig, notices = {}, []
+    async with running(FOUR, at, known_distances(FOUR, at=at), rig=rig) as (svc, ranges, fixes, reports, world):
+        svc.on_notice = notices.append
+        assert await _until(lambda: len(fixes) >= 3, 25), "never got fixes"
+        assert not svc.off_schedule
+        world.first[2] += shift_s  # B2's phone restarted its beacon and lined up 40 ms away from where it was
+        t_shift, n_before = time.monotonic(), len(fixes)
+        assert await _until(lambda: 2 in svc.off_schedule, 10)
+        await asyncio.sleep(3.0)
+        assert svc.off_schedule == {2} and any("B2" in m and "recalibrate" in m for m in notices)
+        assert "B2" in svc.status_line().split("OFF SCHEDULE")[1]
+    # the other three beacons still give a good position; nothing wrong is ever called ok
+    assert len(fixes) > n_before
+    assert all(math.dist(f.position, at) < 0.5 for t, f, p in fixes if p.quality == "ok")
+    assert all(p.quality == "ok" and f.used == 3 for t, f, p in fixes if t > t_shift + 5.0)

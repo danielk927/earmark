@@ -10,6 +10,7 @@ import base64
 import csv
 import json
 import logging
+import math
 import time
 from collections import deque
 from collections.abc import Callable
@@ -38,6 +39,10 @@ from .listen import (
 from .service import FS, BusPublisher, Phone, save_audio
 
 log = logging.getLogger("earmark.ranging.listen")
+
+OFF_WINDOW_S = 4.0  # a beacon heard at least once a second over this long, with no distance accepted, is off its schedule
+OFF_MIN_HEARD = 4
+ROOM_MARGIN_M = 4.0  # the listener is never farther from a beacon than the beacons' own span plus this
 
 
 class RangeLog:
@@ -81,6 +86,13 @@ class ListenService:
         self.tracker: Tracker | None = None
         self.report: CalibrationReport | None = None
         self.state = "idle"  # idle (waiting to calibrate), calibrating, tracking
+        self.idle_note = ""  # why we are idle, for the status line
+        # A 30 ms shift of a restarted beacon reads as +10 m: farther than any room, so it is refused, not believed.
+        # ponytail: one beacon has no span to go by, so it keeps the tracker's 15 m default.
+        span = max(math.dist(p, q) for p in self.beacons.values() for q in self.beacons.values())
+        self.d_max = span + ROOM_MARGIN_M if len(self.beacons) > 1 else 15.0
+        self.off_schedule: set[int] = set()  # beacons heard but never accepted since calibration: probably restarted
+        self._heard_t: dict[int, deque] = {k: deque(maxlen=50) for k in self.beacons}  # recording times, while tracking
         self.first_audio_at: float | None = None  # monotonic
         self.heard: dict[int, deque] = {k: deque(maxlen=50) for k in self.beacons}  # monotonic times, for rates
         self.ranges = 0
@@ -93,6 +105,7 @@ class ListenService:
         self.on_range: Callable[[Range, float | None], None] | None = None
         self.on_fix: Callable[[object, ListenerPose], None] | None = None
         self.on_report: Callable[[CalibrationReport], None] | None = None
+        self.on_notice: Callable[[str], None] | None = None  # something the operator must act on
 
     # ------------------------------------------------------------------ phones
 
@@ -115,6 +128,10 @@ class ListenService:
                 kind = msg.get("type")
                 if kind == "join":
                     slot = int(msg.get("slot", 0))
+                    if slot == 0:
+                        lost = self._phone_restarted()
+                        if lost is not None:
+                            await self.publisher.send(lost)  # the hub stops using the old position right now
                     phone = Phone(slot, str(msg.get("name", f"phone {slot}")), ws)
                     self.phones[slot] = phone
                     await ws.send(json.dumps({
@@ -140,6 +157,34 @@ class ListenService:
             if phone is not None and self.phones.get(phone.slot) is phone:
                 del self.phones[phone.slot]
 
+    def _phone_restarted(self) -> ListenerPose | None:
+        """The user's phone (re)joined. It stops its audio engine whenever the link drops, and its sample counter
+        carries on while the seconds offline vanish from the recording, so the schedules no longer line up with
+        anything. Forget all of it. Returns a "lost" pose if a position had gone out, else None.
+        """
+        if self.state == "idle" and self.feed.cursor is None:
+            return None  # first connection (or nothing was heard yet): nothing to forget
+        was = self.state
+        lost = None
+        if self.tracker is not None and self.tracker.last_fix is not None:
+            pos = [round(self.tracker.last_fix.position[i] + self.ear_offset[i], 3) for i in range(3)]
+            lost = ListenerPose(position=pos, quality="lost", beacons_heard=0, source="beacons")
+        self.feed = ChirpFeed(self.detector, FS)
+        self.calibrator.cancel()
+        self._start_requested = False
+        self.tracker, self.state, self.first_audio_at = None, "idle", None
+        self.off_schedule.clear()
+        for q in self._heard_t.values():
+            q.clear()
+        if was != "idle":
+            self.idle_note = "phone reconnected: recalibrate"
+            msg = ("the phone's audio restarted (it reconnected), so the calibration no longer holds. "
+                   "Put it back at the calibration spot and press Enter.")
+            log.warning(msg)
+            if self.on_notice:
+                self.on_notice(msg)
+        return lost
+
     # ------------------------------------------------------------------ calibration control
 
     def start_calibration(self) -> None:
@@ -163,7 +208,7 @@ class ListenService:
         if self._start_requested:
             self._start_requested = False
             self.calibrator.start(cur)
-            self.state = "calibrating"
+            self.state, self.idle_note = "calibrating", ""
             self._mark("calibration_start", cur)
         out: list[Range] = []
         if self.state == "calibrating":
@@ -175,8 +220,10 @@ class ListenService:
                 self.report = self.calibrator.fit()
                 self._mark("calibration_done", cur, ok=self.report.ok, report=self.report.lines())
                 if self.report.ok:
-                    self.tracker = Tracker(self.report.schedules, self.c, self.beacons, ear_offset=self.ear_offset)
+                    self.tracker = Tracker(
+                        self.report.schedules, self.c, self.beacons, d_max=self.d_max, ear_offset=self.ear_offset)
                     self.state = "tracking"
+                    self.off_schedule.clear()
                 else:
                     self.state = "tracking" if self.tracker is not None else "idle"
                 if self.on_report:
@@ -191,10 +238,33 @@ class ListenService:
                     self.log.write(wall, r)
                 if self.on_range:
                     self.on_range(r, wall)
+            self._check_schedules(dets, cur)
         else:
             for d in dets:
                 self._note_heard(d, self.calibrator.assign(d))
         return out
+
+    def _check_schedules(self, dets: list[Detection], cur: float) -> None:
+        """Flag a beacon whose chirps keep arriving but never become distances: its phone's beacon restarted and
+        re-lined up with the wall clock, so its schedule moved against the calibration (30 ms is about 10 m)."""
+        for d in dets:
+            k = self.calibrator.assign(d)
+            if k in self._heard_t:
+                self._heard_t[k].append(d.t)
+        for k, q in self._heard_t.items():
+            while q and q[0] < cur - OFF_WINDOW_S:
+                q.popleft()
+            last = self.tracker.latest.get(k)
+            if len(q) >= OFF_MIN_HEARD and (last is None or last.t < cur - OFF_WINDOW_S):
+                if k not in self.off_schedule:
+                    self.off_schedule.add(k)
+                    msg = (f"B{k} is heard but off its calibrated schedule: its phone's beacon probably restarted. "
+                           "Its distances are ignored; recalibrate.")
+                    log.warning(msg)
+                    if self.on_notice:
+                        self.on_notice(msg)
+            else:
+                self.off_schedule.discard(k)  # distances are flowing again
 
     def _mark(self, what: str, cur: float, **extra) -> None:
         if self.recorder is not None and self.recorder.first is not None:
@@ -247,14 +317,18 @@ class ListenService:
 
     def status_line(self) -> str:
         rates = "  ".join(f"B{k} {r:.1f}/s" for k, r in sorted(self.rates().items()))
-        cal = {"idle": "not calibrated", "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
+        idle = f"not calibrated ({self.idle_note})" if self.idle_note else "not calibrated"
+        cal = {"idle": idle, "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
                "tracking": "calibrated"}[self.state]
         ph = self.target
         lost = f"   lost audio {ph.buf.gaps} chunks" if ph is not None and ph.buf.gaps else ""
-        return f"phones {sorted(self.phones)}   chirps heard: {rates}   {cal}   {self.ranges} distances, {self.fixes} fixes{lost}"
+        names = ", ".join(f"B{k}" for k in sorted(self.off_schedule))
+        off = f"   OFF SCHEDULE (recalibrate): {names}" if names else ""
+        return (f"phones {sorted(self.phones)}   chirps heard: {rates}   {cal}   "
+                f"{self.ranges} distances, {self.fixes} fixes{lost}{off}")
 
     def status(self) -> StatusMsg:
-        return StatusMsg(component="locator", ok=self.state == "tracking", detail=self.status_line())
+        return StatusMsg(component="locator", ok=self.state == "tracking" and not self.off_schedule, detail=self.status_line())
 
     def save_audio(self, folder: str) -> None:
         save_audio(self.phones, folder)

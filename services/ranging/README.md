@@ -127,8 +127,18 @@ back and forth at 0.5 m/s. `--sim-noise`, `--sim-echo` and `--sim-dropout` make 
 
 - A phone that creeps very slowly during calibration (under about 0.05 m/s) cannot be told from a clock error;
   distances will then drift slowly with time. Recalibrate.
-- The schedule is only as good as the phones' clocks stay steady; after a long time, or if a phone's audio engine
-  restarts, recalibrate.
+- The schedule is only as good as the phones' clocks stay steady; after a long time, recalibrate.
+- The user's phone reconnecting (Wi-Fi drop, app restart) restarts its audio engine while its sample counter carries
+  on, so the offline seconds vanish from the timeline. The service now forgets the calibration whenever slot 0
+  rejoins: it publishes one `lost` pose, prints a `!!!` notice (status line: `not calibrated (phone reconnected:
+  recalibrate)`), and publishes nothing until you put the phone back at the spot and press Enter.
+- A fixed phone's beacon restarting (audio interruption, toggle) re-lines its chirps up with the wall clock to about
+  ±30 ms, which moves its schedule against the calibration (30 ms is about 10 m). Distances beyond the beacons' span
+  plus 4 m are refused (one beacon: beyond 15 m), so such a beacon gives no distances, and one heard at least once a
+  second for 4 s without a single accepted distance is named (`B2 is heard but off its calibrated schedule`,
+  `OFF SCHEDULE` in the status line). With four beacons the other three keep giving fixes; with three, the fixes
+  stop. Recalibrate. A shift under about 10 ms is indistinguishable from a real distance with three beacons (four
+  show it as a poor fit).
 
 ## Recording a run and replaying it
 
