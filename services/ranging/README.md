@@ -21,6 +21,17 @@ beacon's schedule once, while the user's phone sits still at a known spot ("cali
 heard gives a distance on its own: how late it arrived against the schedule, times the speed of sound. Three
 beacons give a position; one or two give distances only.
 
+## Room setup with no tape measure (`listen --setup`)
+
+Instead of measuring the beacons, the user's phone stands still on each of four taped floor marks (`setup_marks` in
+`config/beacons.json`) for 10 s, Enter at each. Per beacon, every chirp heard at mark j obeys
+`t = a + b*n + |p_j - q|/c`; with the marks p_j known, a robust least-squares fit over the whole walk gives the
+beacon's floor position q (height fixed at 0.75 m) and its schedule (a, b) at once (`earmark_ranging/survey.py`).
+The result is written back to `config/beacons.json` and tracking starts. `make room-setup` runs it;
+`make room-setup-sim` runs it against virtual phones; `make room-recalibrate` redoes only the one-spot calibration
+on the mat when the beacons have not moved. Simulator accuracy with real-phone timing wobble (0.15 ms per chirp):
+beacons within about 5 to 15 cm.
+
 ## Calibrate-then-listen mode
 
 ### What the beacons do (shared with the iPhone app; do not change one side without the other)

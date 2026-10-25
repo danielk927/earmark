@@ -36,6 +36,7 @@ from .listen import (
     Tracker,
 )
 from .service import FS, BusPublisher, Phone, save_audio
+from .survey import Surveyor, SurveyReport
 
 log = logging.getLogger("earmark.ranging.listen")
 
@@ -69,6 +70,7 @@ class ListenService:
         ear_offset: Pos = EAR_OFFSET_M,
         log_path: str | None = None,
         min_snr: float = 4.5,
+        surveyor: Surveyor | None = None,
     ) -> None:
         self.beacons, self.known, self.spec = dict(beacons), dict(known_distance), spec or ChirpSpec(12000.0, 16000.0)
         self.c, self.calibration_s, self.cycle, self.slot = c, calibration_s, cycle_s, slot_s
@@ -79,7 +81,9 @@ class ListenService:
         self.calibrator = Calibrator(self.known, c, calibration_s, cycle_s, slot_s, wall_time=self.wall_time)
         self.tracker: Tracker | None = None
         self.report: CalibrationReport | None = None
-        self.state = "idle"  # idle (waiting to calibrate), calibrating, tracking
+        self.state = "idle"  # idle (waiting to calibrate), calibrating, tracking; or surveying, survey_walk (room setup)
+        self.surveyor = surveyor
+        self.survey_report: SurveyReport | None = None
         self.first_audio_at: float | None = None  # monotonic
         self.heard: dict[int, deque] = {k: deque(maxlen=50) for k in self.beacons}  # monotonic times, for rates
         self.ranges = 0
@@ -91,6 +95,8 @@ class ListenService:
         self.on_range: Callable[[Range, float | None], None] | None = None
         self.on_fix: Callable[[object, ListenerPose], None] | None = None
         self.on_report: Callable[[CalibrationReport], None] | None = None
+        self.on_mark_done: Callable[[int], None] | None = None  # room setup: a mark was recorded
+        self.on_survey: Callable[[SurveyReport], None] | None = None  # room setup: the beacons were placed (or not)
 
     # ------------------------------------------------------------------ phones
 
@@ -141,7 +147,19 @@ class ListenService:
         """Begin (or redo) calibration at the next stretch of audio. The phone must be still at the known spot."""
         self._start_requested = True
 
+    def start_survey_mark(self) -> None:
+        """Room setup: record the next mark now. The phone must be still on it. After the last mark, start over."""
+        if self.surveyor is not None and self.surveyor.done():
+            self.surveyor = Surveyor(
+                self.surveyor.beacon_ids, [m[:2] for m in self.surveyor.marks], self.c, self.surveyor.stop_s,
+                self.cycle, self.slot, self.wall_time, self.surveyor.marks[0][2], self.surveyor.beacon_z,
+                self.surveyor.hints,
+            )
+        self._start_requested = True
+
     def calibration_remaining(self) -> float:
+        if self.state == "surveying" and self.surveyor is not None:
+            return self.surveyor.remaining()
         return self.calibrator.remaining()
 
     # ------------------------------------------------------------------ the work
@@ -157,10 +175,30 @@ class ListenService:
             return []
         if self._start_requested:
             self._start_requested = False
-            self.calibrator.start(cur)
-            self.state = "calibrating"
+            if self.surveyor is not None:
+                j = self.surveyor.next_mark
+                if j is not None:
+                    self.surveyor.start_mark(j, cur)
+                    self.state = "surveying"
+            else:
+                self.calibrator.start(cur)
+                self.state = "calibrating"
         out: list[Range] = []
-        if self.state == "calibrating":
+        if self.state == "surveying" and self.surveyor is not None:
+            sv = self.surveyor
+            j = sv.current
+            for d in dets:
+                sv.add(d)
+                self._note_heard(d, sv.assign(d))
+            sv.seen_up_to(cur)
+            if sv.current is None and j is not None:
+                if self.on_mark_done:
+                    self.on_mark_done(j)
+                if sv.done():
+                    self._finish_survey(sv.solve())
+                else:
+                    self.state = "survey_walk"
+        elif self.state == "calibrating":
             for d in dets:
                 self.calibrator.add(d)
                 self._note_heard(d, self.calibrator.assign(d))
@@ -188,6 +226,17 @@ class ListenService:
             for d in dets:
                 self._note_heard(d, self.calibrator.assign(d))
         return out
+
+    def _finish_survey(self, rep: SurveyReport) -> None:
+        self.survey_report = rep
+        if rep.ok:
+            self.beacons = dict(rep.positions)
+            self.tracker = Tracker(rep.schedules, self.c, self.beacons, ear_offset=self.ear_offset)
+            self.state = "tracking"
+        else:
+            self.state = "tracking" if self.tracker is not None else "idle"
+        if self.on_survey:
+            self.on_survey(rep)
 
     def _note_heard(self, d: Detection, beacon: int | None) -> None:
         if beacon is not None:
@@ -236,12 +285,18 @@ class ListenService:
 
     def status_line(self) -> str:
         rates = "  ".join(f"B{k} {r:.1f}/s" for k, r in sorted(self.rates().items()))
-        cal = {"idle": "not calibrated", "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
-               "tracking": "calibrated"}[self.state]
+        cal = {"idle": "not set up" if self.surveyor is not None else "not calibrated",
+               "calibrating": f"calibrating, {self.calibration_remaining():.0f} s left",
+               "surveying": f"recording a mark, {self.calibration_remaining():.0f} s left",
+               "survey_walk": "walk to the next mark", "tracking": "calibrated"}[self.state]
         return f"phones {sorted(self.phones)}   chirps heard: {rates}   {cal}   {self.ranges} distances, {self.fixes} fixes"
 
     def status(self) -> StatusMsg:
-        return StatusMsg(component="locator", ok=self.state == "tracking", detail=self.status_line())
+        info = None
+        if self.tracker is not None:  # where the beacons are, so the room page can draw them
+            info = {f"B{k}_{axis}": round(float(v), 3)
+                    for k, p in sorted(self.beacons.items()) for axis, v in zip("xyz", p, strict=True)}
+        return StatusMsg(component="locator", ok=self.state == "tracking", detail=self.status_line(), info=info)
 
     def save_audio(self, folder: str) -> None:
         save_audio(self.phones, folder)

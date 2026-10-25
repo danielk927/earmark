@@ -44,8 +44,10 @@ class SelfTimedWorld:
         echo: bool = False,
         offsets_s: dict[int, float] | None = None,
         drifts_ppm: dict[int, float] | None = None,
+        jitter_s: float = 0.0,
     ) -> None:
         self.beacons, self.target, self.spec = dict(beacons), target, spec
+        self.jitter, self.seed = jitter_s, seed  # real phones: each chirp lands a fraction of a ms early or late
         self.c = speed_of_sound() if c is None else c
         self.cycle, self.slot, self.amp, self.echo = cycle_s, slot_s, amplitude_at_1m, echo
         r = random.Random(seed)
@@ -84,7 +86,10 @@ class SelfTimedWorld:
         length = self.spec.length_ms / 1000.0
         for k, m, te in self.emissions(times[0], times[-1]):
             d = self.distance(k, te)
-            copies = [(te + d / self.c, self.amp / max(d, 0.1))]
+            late = 0.0
+            if self.jitter:
+                late = float(np.random.default_rng((self.seed, k, m)).normal(0.0, self.jitter))
+            copies = [(te + d / self.c + late, self.amp / max(d, 0.1))]
             if self.echo:
                 delay = 0.001 + 0.002 * ((m * 0.618 + k * 0.1) % 1.0)  # 1 to 3 ms later, half as loud
                 copies.append((copies[0][0] + delay, copies[0][1] * 0.5))
@@ -164,6 +169,36 @@ def calibration_spot(beacons: dict[int, Pos], distance: float | None, at: Pos | 
     toward = np.array([0.0, 0.0, 1.25]) - np.array(b)  # from the beacon toward the middle of the room, chest height
     toward /= np.linalg.norm(toward)
     return tuple(float(v) for v in np.array(b) + (distance or 1.0) * toward)
+
+
+def tour(
+    marks: list[Pos], t_start: float, dwell_s: float, walk_s: float, then_walk: bool = True,
+) -> tuple[Callable[[float], Pos], list[float], float]:
+    """Stand on each mark for `dwell_s`, walking `walk_s` between them (the room-setup walk), then optionally pace.
+
+    Returns the path, the true time the user arrives at each mark, and when the last stop ends.
+    """
+    arrivals = [t_start + j * (dwell_s + walk_s) for j in range(len(marks))]
+    t_end = arrivals[-1] + dwell_s
+    pace = still_then_walk(marks[0], t_end + walk_s, reach=0.8)
+
+    def path(t: float) -> Pos:
+        if t <= arrivals[0]:
+            return marks[0]
+        for j, ta in enumerate(arrivals):
+            if t <= ta + dwell_s:
+                return marks[j]
+            if j + 1 < len(marks) and t < arrivals[j + 1]:
+                f = (t - ta - dwell_s) / walk_s
+                return tuple(a + f * (b - a) for a, b in zip(marks[j], marks[j + 1], strict=True))  # type: ignore[return-value]
+        if not then_walk:
+            return marks[-1]
+        f = min((t - t_end) / walk_s, 1.0)  # back to the mat, then pace
+        if f < 1.0:
+            return tuple(a + f * (b - a) for a, b in zip(marks[-1], marks[0], strict=True))  # type: ignore[return-value]
+        return pace(t)
+
+    return path, arrivals, t_end
 
 
 def still_then_walk(spot: Pos, t_move: float, speed: float = 0.5, reach: float = 1.0) -> Callable[[float], Pos]:

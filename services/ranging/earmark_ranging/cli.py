@@ -104,6 +104,8 @@ async def _listen(args) -> None:
     if not anchors:
         raise SystemExit("no beacons configured")
     at = tuple(args.calibrate_at) if args.calibrate_at else None
+    if args.setup:
+        at = at or (0.0, 0.0, 1.25)  # unused by the walk; keeps the one-spot calibration below happy
     if at is None and args.calibrate_distance is None:
         if len(anchors) == 1:
             args.calibrate_distance = 1.0
@@ -119,6 +121,21 @@ async def _listen(args) -> None:
         publisher=BusPublisher(bus), log_path=args.log, min_snr=args.min_snr,
     )
 
+    marks: list[tuple[str, tuple[float, float]]] = []
+    if args.setup:
+        from .config import load_marks
+        from .survey import DEFAULT_MARK_LABELS, DEFAULT_MARKS, Surveyor
+
+        marks = load_marks(args.beacons) or list(zip(DEFAULT_MARK_LABELS, DEFAULT_MARKS, strict=True))
+        svc.surveyor = Surveyor(
+            sorted(anchors), [xy for _, xy in marks], c, args.stop_seconds, args.cycle, args.slot,
+            wall_time=svc.wall_time, hints=anchors,
+        )
+
+    def mark_text(j: int) -> str:
+        label, (x, y) = marks[j]
+        return f"mark {j + 1} of {len(marks)}, {label} (x {x:.2f}, y {y:.2f})"
+
     def clock(wall: float | None) -> str:
         from datetime import datetime
 
@@ -127,7 +144,9 @@ async def _listen(args) -> None:
     def on_heard(det, beacon, wall) -> None:
         if beacon is None:
             return  # a chirp shape no configured beacon makes, or noise
-        what = "calibrating" if svc.state == "calibrating" else "not calibrated, press Enter when the phone is at the spot"
+        what = {"calibrating": "calibrating", "surveying": "recording the mark",
+                "survey_walk": "walk to the next mark, then press Enter"}.get(
+            svc.state, "not calibrated, press Enter when the phone is at the spot")
         print(f"{clock(wall)}  B{beacon}  heard   snr {det.snr:5.1f}   ({what})")
 
     def on_range(r, wall) -> None:
@@ -146,16 +165,67 @@ async def _listen(args) -> None:
         else:
             print("fix the problem, put the phone back at the spot and press Enter to try again.")
 
+    def on_mark_done(j: int) -> None:
+        nxt = svc.surveyor.next_mark if svc.surveyor else None
+        if nxt is None:
+            print(f"mark {j + 1} done. Working out where the beacons are...")
+        else:
+            print(f"mark {j + 1} done. Walk to {mark_text(nxt)}, stand still, then press Enter.")
+
+    def on_survey(rep) -> None:
+        print("\n".join(rep.lines()))
+        if rep.ok:
+            if not args.sim:
+                from datetime import datetime
+
+                from .config import save_beacons
+
+                save_beacons(args.beacons, rep.positions, datetime.now().isoformat(timespec="seconds"))
+                print(f"saved the beacon positions to {args.beacons}")
+            print("tracking. Walk around. Press Enter to set up again (starting from the mat).")
+        else:
+            print("fix the problem, go back to the mat and press Enter to walk the marks again.")
+
     svc.on_heard, svc.on_range, svc.on_fix, svc.on_report = on_heard, on_range, on_fix, on_report
+    svc.on_mark_done, svc.on_survey = on_mark_done, on_survey
     stop = asyncio.Event()
     tasks = []
     async with serve(svc.handler, "0.0.0.0", args.port, max_size=2**22):
         print(f"listen service ready. The user's phone connects to:  ws://{lan_ip()}:{args.port}")
         print(f"chirp band {spec.f_lo:.0f} to {spec.f_hi:.0f} Hz, cycle {args.cycle} s, slot {args.slot} s, c {c:.1f} m/s")
         print(f"beacons: {', '.join(f'B{k} at {v}' for k, v in sorted(anchors.items()))} (self-timed, they do not connect)")
-        print("Start the beacon phones in beacon mode. " + _listen_instructions(anchors, known, at, labels))
+        if args.setup:
+            print(f"Room setup: start the beacon phones in beacon mode, then the user's phone. Stand still on each of "
+                  f"{len(marks)} marks for {args.stop_seconds:.0f} s, phone at chest height. First: {mark_text(0)}. "
+                  "Press Enter when you are on it.")
+        else:
+            print("Start the beacon phones in beacon mode. " + _listen_instructions(anchors, known, at, labels))
         auto = args.calibrate_after
-        if args.sim:
+        if args.sim and args.setup:
+            import time
+
+            from .sim_listen import SelfTimedWorld, VirtualTargetPhone, tour
+            from .survey import PHONE_HEIGHT_M
+
+            t0 = time.time()
+            stops = [(x, y, PHONE_HEIGHT_M) for _, (x, y) in marks]
+            walk_s = 4.0
+            path, arrivals, _ = tour(stops, t0 + 3.0, args.stop_seconds + 1.5, walk_s)
+            truth = {k: (p[0] + 0.1 * ((k * 37) % 3 - 1), p[1] + 0.1 * ((k * 53) % 3 - 1), p[2]) for k, p in anchors.items()}
+            world = SelfTimedWorld(truth, path, spec, t0, c=c, seed=args.seed, echo=args.sim_echo, jitter_s=0.00015)
+            phone = VirtualTargetPhone(world, t0 + 0.5, seed=args.seed, noise_rms=args.sim_noise, dropout=args.sim_dropout)
+            print("SIMULATION: the beacons are really at "
+                  + ", ".join(f"B{k} ({p[0]:.2f}, {p[1]:.2f})" for k, p in sorted(truth.items()))
+                  + "; a virtual user walks the marks and presses Enter on each.")
+            tasks.append(asyncio.create_task(phone.run(f"ws://127.0.0.1:{args.port}", stop)))
+
+            async def press_enter_on_arrival() -> None:
+                for ta in arrivals:
+                    await asyncio.sleep(max(0.0, ta + 0.5 - time.time()))
+                    svc.start_survey_mark()
+
+            tasks.append(asyncio.create_task(press_enter_on_arrival()))
+        elif args.sim:
             from .sim_listen import SelfTimedWorld, VirtualTargetPhone, calibration_spot, still_then_walk
             import time
 
@@ -176,6 +246,15 @@ async def _listen(args) -> None:
             if svc.target is None:
                 print("no phone connected yet")
                 return
+            if args.setup:
+                if svc.state == "surveying":
+                    return
+                if svc.surveyor is not None and svc.surveyor.done():
+                    print("starting the room setup again.")
+                j = 0 if svc.surveyor is None or svc.surveyor.done() else svc.surveyor.next_mark
+                print(f"recording {mark_text(j or 0)} for {args.stop_seconds:.0f} s: keep the phone still...")
+                svc.start_survey_mark()
+                return
             print(f"calibrating for {args.calibration_seconds:.0f} s: keep the phone still...")
             svc.start_calibration()
 
@@ -193,6 +272,9 @@ async def _listen(args) -> None:
                 n += 1
                 if svc.state == "calibrating":
                     print(f"   calibrating... {svc.calibration_remaining():4.1f} s left, keep still")
+                elif svc.state == "surveying":
+                    print(f"   recording the mark... {svc.calibration_remaining():4.1f} s left, keep still")
+                    await svc.publisher.send(svc.status())
                 elif n % 2 == 0:
                     await svc.publisher.send(svc.status())
                     print(svc.status_line())
@@ -247,6 +329,9 @@ def main() -> None:
                     help="meters from the phone to the (single) beacon while calibrating")
     li.add_argument("--calibrate-at", type=float, nargs=3, metavar=("X", "Y", "Z"), help="where the phone is while calibrating")
     li.add_argument("--calibration-seconds", type=float, default=10.0)
+    li.add_argument("--setup", action="store_true",
+                    help="room setup with no tape measure: stand on each mark in turn; the Mac places the beacons")
+    li.add_argument("--stop-seconds", type=float, default=10.0, help="room setup: how long to stand on each mark")
     li.add_argument("--calibrate-after", type=float, metavar="S",
                     help="start calibrating S seconds after the first audio arrives")
     li.add_argument("--temperature", type=float, default=20.0, help="room temperature in C, for the speed of sound")
