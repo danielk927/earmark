@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import {
   examples,
   expectSchema,
@@ -10,6 +10,7 @@ import {
   post,
   READ,
   seed,
+  seedArgs,
   setup,
   stateUpdate,
   type T,
@@ -214,7 +215,9 @@ describe("POST /ingest anchors and pose", () => {
   let t: T;
   beforeEach(async () => {
     t = setup();
-    await seed(t);
+    // Seed without config anchors so every anchor row here comes from /ingest.
+    const args = seedArgs();
+    await t.mutation(internal.seed.seed, { ...args, space: { ...args.space, anchors: [] } });
   });
 
   const anchor = (id: string, over: Record<string, unknown> = {}) => ({
