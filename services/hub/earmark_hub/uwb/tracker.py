@@ -71,9 +71,10 @@ class Tracker:
 
     def _clear_track(self) -> None:
         self.filter: AlphaBeta | None = None
+        self.last_fix: tuple[Point, float] | None = None  # last solution the speed gate accepted, and when
         self.estimate: Point | None = None  # listener (head) estimate from the smoothed phone position
         self.facing: Point = FORWARD
-        self.history: collections.deque[tuple[float, Point]] = collections.deque()  # (t, smoothed phone)
+        self.history: collections.deque[tuple[float, Point]] = collections.deque()  # (t, accepted phone solution)
         self.residual: float | None = None
         self.used: list[str] = []
         self.blocked: list[str] = []
@@ -124,7 +125,7 @@ class Tracker:
         if self.mode != "frozen" or pos is None:
             return []
         d = math.dist(self.position, pos[:2])
-        if d <= self.cfg.reach_max_m:
+        if d <= self.cfg.reach_max_m + 1e-9:  # a point already moved to exactly reach_max_m stays put
             return []
         k = self.cfg.reach_max_m / d
         old = self.position
@@ -178,16 +179,20 @@ class Tracker:
         sol = solve(fresh, anchors, prev, counter_y=self.counter_y, outlier_rms_m=self.cfg.outlier_rms_m)
         if sol is None:
             return False
-        if self.filter and not speed_ok(sol.position, self.filter.pos, now - self.filter.t, self.cfg.max_speed_mps):
+        # Gate against the last accepted solution, not the smoothed position: the filter lags a fast walker by
+        # more than max_speed * dt, which would reject every good fix and stall the track.
+        if self.last_fix and not speed_ok(sol.position, self.last_fix[0], now - self.last_fix[1],
+                                          self.cfg.max_speed_mps):
             log.debug("uwb solution rejected by the speed gate", extra={"position": sol.position})
             return False
+        self.last_fix = (sol.position, now)
         alpha = self.cfg.alpha_still if self.motion == "still" else self.cfg.alpha
         if self.filter is None:
             self.filter = AlphaBeta(sol.position, now)
         else:
             self.filter.update(sol.position, now, alpha, self.cfg.beta)
         phone = self.filter.pos
-        self.history.append((now, phone))
+        self.history.append((now, sol.position))
         while self.history and self.history[0][0] < now - self.cfg.average_window_s:
             self.history.popleft()
         self.residual, self.used, self.blocked = sol.residual_m, sol.used, sol.blocked
@@ -217,11 +222,14 @@ class Tracker:
                 and math.dist(self.estimate, self.counter_ref) <= self.cfg.freeze_enter_m)
 
     def _landing_point(self, now: float) -> Point:
-        """Snap: counter_ref. Average: mean smoothed phone position over the still part of the last
-        average_window_s, moved back by the head offset facing the counter."""
+        """Snap: counter_ref. Average: mean phone position over the still part of the last average_window_s,
+        moved back by the head offset facing the counter. It averages the accepted solutions, not the
+        alpha-beta output: right after a stop the filter is still carrying the walking velocity and
+        overshoots (by ~0.25 m from 1.8 m/s), and that overshoot would be frozen in. Averaging ~7 raw fixes
+        already cuts sigma = 0.07 m noise to ~0.03 m."""
         if self.cfg.freeze_mode == "snap":
             return self.counter_ref
-        start = max(now - self.cfg.average_window_s, self.still_since or now)
+        start = max(now - self.cfg.average_window_s, self.still_since if self.still_since is not None else now)
         pts = [p for t, p in self.history if t >= start - 1e-9] or [self.filter.pos]
         mean = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
         return head_from_phone(mean, FORWARD, self.head_offset)

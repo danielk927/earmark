@@ -47,13 +47,13 @@ class WalkPath:
 
     def __init__(self, points: list[list[float]], speed: float, dwell: float, loop: bool) -> None:
         self.points = [(p[0], p[1]) for p in points]
-        self.lengths = [math.dist(a, b) for a, b in zip(self.points, self.points[1:])]
+        self.lengths = [math.dist(a, b) for a, b in zip(self.points, self.points[1:], strict=False)]
         self.length = sum(self.lengths)
         self.speed, self.dwell, self.loop = speed, dwell, loop
 
     def _at(self, s: float) -> tuple[Point, Point]:
         """Point and unit direction at arc length s."""
-        segs = list(zip(self.points, self.points[1:], self.lengths))
+        segs = list(zip(self.points, self.points[1:], self.lengths, strict=False))
         for i, (a, b, seg) in enumerate(segs):
             if seg == 0:
                 continue

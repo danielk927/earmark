@@ -17,7 +17,7 @@ def horizontal(distance_m: float, dz: float) -> float:
 
 
 def rms_residual(p: Point, anchors: list[Point], ranges: list[float]) -> float:
-    return math.sqrt(sum((math.dist(p, a) - h) ** 2 for a, h in zip(anchors, ranges)) / len(anchors))
+    return math.sqrt(sum((math.dist(p, a) - h) ** 2 for a, h in zip(anchors, ranges, strict=True)) / len(anchors))
 
 
 def gauss_newton(anchors: list[Point], ranges: list[float], init: Point, iters: int = 5) -> Point:
@@ -25,7 +25,7 @@ def gauss_newton(anchors: list[Point], ranges: list[float], init: Point, iters: 
     x, y = init
     for _ in range(iters):
         a11 = a12 = a22 = b1 = b2 = 0.0
-        for (ax, ay), h in zip(anchors, ranges):
+        for (ax, ay), h in zip(anchors, ranges, strict=True):
             dx, dy = x - ax, y - ay
             d = math.hypot(dx, dy)
             if d < 1e-9:
@@ -72,6 +72,11 @@ def solve_pair(a: Point, ra: float, b: Point, rb: float, prefer: Point, counter_
     return min(pool, key=lambda c: math.dist(c, prefer))
 
 
+# Leave-one-out: both intersections of a pair count as places the user could be unless one is more than this
+# much farther from the prediction than the other. 0.3 m covers the alpha-beta lag on a turn or a 1.8 m/s walk.
+TIE_M = 0.3
+
+
 @dataclass
 class Solution:
     position: Point
@@ -87,10 +92,12 @@ def solve(ranges: dict[str, float], anchors: dict[str, Point], prev: Point | Non
     3+ anchors: Gauss-Newton from `prev` (or the centroid), then leave-one-out. An anchor is dropped
     (reported in `blocked`) when the full solve's residual RMS exceeds `outlier_rms_m`, or, with a
     prediction, when the other anchors agree on a point closer to the prediction than the full solve and
-    the dropped anchor misses that point by more than `outlier_rms_m`. The second rule is needed because
-    least squares absorbs most of a single +0.4 m body-block error: with 3 anchors and 2 unknowns its RMS
-    stays near 0.1-0.2 m, under the PRD's 0.25 m. Among the candidates, the pair solve with the lowest
-    (residual + distance to the prediction) wins.
+    the dropped anchor misses every plausible solution of the others (both intersections of a pair unless
+    one is clearly farther from the prediction, see TIE_M) by more than `outlier_rms_m`. The second rule is
+    needed because least squares absorbs most of a single +0.4 m body-block error: with 3 anchors and
+    2 unknowns its RMS stays near 0.1-0.2 m, under the PRD's 0.25 m. Checking both intersections keeps it from
+    firing on clean ranges when the prediction lags (fast walk, turn) and sits nearer the mirror intersection.
+    Among the candidates, the pair solve with the lowest (residual + distance to the prediction) wins.
     2 anchors: circle intersection (see `solve_pair`). Fewer: None.
     """
     ids = sorted(k for k in ranges if k in anchors)
@@ -105,6 +112,19 @@ def solve(ranges: dict[str, float], anchors: dict[str, Point], prev: Point | Non
         else:
             p = gauss_newton(pts, hs, ref, iters)
         return (p, rms_residual(p, pts, hs)) if p is not None else None
+
+    def _miss(drop: str, keep: list[str]) -> float:
+        """How far the dropped anchor's range is from agreeing with the others. A pair has two solutions, and
+        the dropped anchor only disagrees if it misses both plausible ones (see TIE_M); judging by the one
+        nearest a lagging prediction drops a healthy anchor and locks onto the mirror point."""
+        if len(keep) == 2:
+            pts = circle_intersections(anchors[keep[0]], ranges[keep[0]], anchors[keep[1]], ranges[keep[1]])
+        else:
+            pts = [gauss_newton([anchors[i] for i in keep], [ranges[i] for i in keep], ref, iters)]
+        if prev is not None and pts:
+            near = min(math.dist(c, prev) for c in pts)
+            pts = [c for c in pts if math.dist(c, prev) <= near + TIE_M]
+        return min((abs(ranges[drop] - math.dist(c, anchors[drop])) for c in pts), default=math.inf)
 
     full = fit(ids)
     if full is None:
@@ -122,7 +142,7 @@ def solve(ranges: dict[str, float], anchors: dict[str, Point], prev: Point | Non
         if sub is None:
             continue
         q, rq = sub
-        miss = abs(ranges[drop] - math.dist(q, anchors[drop]))
+        miss = _miss(drop, keep)
         consistent = prev is None or math.dist(q, prev) < math.dist(p, prev)
         if miss > outlier_rms_m and consistent:
             cands.append((rq + math.dist(q, ref), drop, q, rq))
