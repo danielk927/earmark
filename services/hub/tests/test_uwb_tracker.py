@@ -513,3 +513,123 @@ def test_landing_point_still_averages_over_the_still_window_and_falls_back_to_th
     rig.tr.history.clear()
     fp = rig.tr.filter.pos
     assert rig.tr._landing_point(rig.now) == pytest.approx((fp[0], fp[1] - rig.offset), abs=1e-9)
+
+
+# ---------------------------------------------------------------- auto_freeze off
+
+
+def test_auto_freeze_off_never_freezes_by_standing_still(space):
+    rig = Rig(space, auto_freeze=False)
+    head = (0.2, -0.5)
+    rig.run(1.0, head, motion="moving")
+    poses = rig.run(5.0, head, motion="still")  # well over still_for_s (0.6 s), inside freeze_enter_m
+    assert {p.mode for p in poses} == {"tracked"} and rig.tr.mode == "tracked"
+
+
+def test_auto_freeze_off_voice_freeze_and_nfc_still_work(space):
+    rig = Rig(space, auto_freeze=False)
+    head = (0.2, -0.5)
+    rig.run(2.0, head, motion="still")
+    assert rig.tr.on_command("freeze", rig.now)[0].mode == "frozen"
+    assert rig.run(2.0, head, motion="still")[-1].mode == "frozen"
+    out = rig.tr.on_contact(2, rig.now, "pickup")
+    assert len(out) == 1 and out[0].mode == "frozen"
+    assert math.dist(rig.tr.position, space.spot_position(2)[:2]) == pytest.approx(rig.cfg.reach_max_m)
+
+
+# ---------------------------------------------------------------- tap-to-mark: mark_fix
+
+
+def walk_then_stop(space, still_ticks):
+    """Walk +x to x = 0.95 at 0.5 m/s, then stand at x = 1.0. Returns the rig and the phone position of the stop."""
+    rig = Rig(space, auto_freeze=False)
+    for i in range(20):
+        rig.step((0.05 * i, -2.0), motion="moving")
+    for _ in range(still_ticks):
+        rig.step((1.0, -2.0), motion="still")
+    return rig, (1.0, -2.0 + rig.offset)
+
+
+def test_mark_fix_after_a_stop_averages_only_the_still_period(space):
+    rig, phone = walk_then_stop(space, 8)
+    assert math.dist(rig.tr.mark_fix(rig.now, 1.5, 3), phone) < 0.02
+    assert math.dist(rig.tr.mean_fix(rig.now - 1.5, 3), phone) > 0.1  # the old window is pulled toward the walk
+
+
+def test_mark_fix_with_a_short_still_period_uses_the_last_min_fixes(space):
+    rig, phone = walk_then_stop(space, 2)  # 2 still fixes < min_fixes 3: the last 3 are 0.95, 1.0, 1.0
+    assert rig.tr.mark_fix(rig.now, 1.5, 3) == pytest.approx((0.95 / 3 + 2 / 3, phone[1]), abs=1e-6)
+
+
+def test_mark_fix_without_a_still_period_uses_the_window(space):
+    rig = Rig(space)
+    for i in range(20):
+        rig.step((0.05 * i, -2.0), motion="moving")
+    assert rig.tr.mark_fix(rig.now, 1.5, 3) == pytest.approx(rig.tr.mean_fix(rig.now - 1.5, 3))
+
+
+def test_mark_fix_with_too_few_fixes_is_none(space):
+    rig = Rig(space)
+    assert rig.tr.mark_fix(rig.now, 1.5, 3) is None
+    rig.run(0.2, (0.0, -1.0), motion="still")
+    assert rig.tr.mark_fix(rig.now, 1.5, 3) is None and rig.tr.mark_fix(rig.now, 1.5, 2) is not None
+
+
+# ---------------------------------------------------------------- range_offset_m
+
+
+def test_range_offset_removes_a_per_anchor_bias(space):
+    head = (0.3, -1.5)
+    biased = Rig(space)
+    biased.run(1.0, head, bias={"uwb_1": 0.12}, motion="still")
+    fixed = Rig(space, range_offset_m={"uwb_1": 0.12, "nobody": 5.0})  # an unknown anchor id is harmless
+    fixed.run(1.0, head, bias={"uwb_1": 0.12}, motion="still")
+    assert math.dist(fixed.tr.position, head) < 1e-3
+    assert math.dist(biased.tr.position, head) > 0.02
+
+
+def test_range_offset_never_goes_below_zero(space):
+    rig = Rig(space, range_offset_m={"uwb_1": 100.0})
+    rig.step((0.0, -1.0), motion="still")
+    assert rig.tr.ranges["uwb_1"][0] == 0.0
+
+
+# ---------------------------------------------------------------- turning in place
+
+
+def turn_in_place(space, motion):
+    """Stand at H and turn 360 degrees in 4 s (AirPods yaw at 10 Hz, phone 0.2 m ahead). Worst error of the head."""
+    rig = Rig(space, auto_freeze=False)
+    head = (0.4, -2.0)
+    rig.run(1.0, head, motion=motion)
+    worst = 0.0
+    for k in range(40):
+        yaw = 360.0 * (k + 1) / 40
+        rig.tr.on_head_pose(yaw, rig.now + DT)
+        face = (math.sin(math.radians(yaw)), math.cos(math.radians(yaw)))
+        poses = rig.step(head, facing=face, motion=motion)
+        worst = max(worst, math.dist(xy(poses[-1]), head))
+    return worst
+
+
+def test_turning_a_full_circle_in_place_keeps_the_head_within_3_cm(space):
+    assert turn_in_place(space, "moving") < 0.03
+
+
+def test_turning_in_place_reported_as_still_lags_more_but_stays_bounded(space):
+    # ponytail: alpha_still (0.2) smooths the circling phone more, so the head lags ~6.6 cm; not tuned here.
+    assert turn_in_place(space, "still") < 0.08
+
+
+def test_back_to_the_table_holds_the_last_position_and_resumes(space):
+    rig = Rig(space, auto_freeze=False, lost_hold_s=12.0)
+    head = (0.4, -2.0)
+    rig.run(1.0, head, motion="still")
+    good = rig.tr.position
+    poses = rig.run(5.0, head, only={"uwb_3"}, motion="still")  # the two anchors in front are body-blocked
+    modes = [p.mode for p in poses]
+    assert "lost" in modes and "fixed" not in modes
+    assert all(xy(p) == pytest.approx(good, abs=1e-3) for p in poses if p.mode == "lost")
+    assert rig.tr.mode == "lost" and rig.tr.position == pytest.approx(good, abs=1e-9)
+    back = rig.step(head, motion="still")
+    assert back[0].mode == "tracked" and math.dist(xy(back[0]), head) < 1e-3

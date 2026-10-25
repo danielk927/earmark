@@ -26,6 +26,7 @@ from websockets.asyncio.client import connect
 
 from conftest import SUGAR
 from earmark_hub.bus import Client, auth_error, is_loopback
+from earmark_hub.clock import VirtualClock
 from earmark_hub.config import UwbSimCfg
 from earmark_hub.hub import Hub
 from earmark_hub.uwb.sim import UwbSimAdapter
@@ -345,6 +346,68 @@ async def test_tap_while_tracking_marks_the_mean_phone_position_at_mark_z(hub):
     assert math.dist(got.position[:2], (head[0], head[1] + 0.2)) < 0.02  # the phone, 0.2 m in front of the head
     await listener.close()
     await wearer.close()
+
+
+async def test_tap_while_still_marks_the_still_period_not_the_steps_before(hub):
+    listener = await Peer.join(hub, "cli", subscribe=["tap_position"])
+    wearer = await Peer.join(hub, "ios_wearer", device_id="wearer", subscribe=[])
+    await wearer.send(MotionState(state="moving"))
+    for k in range(4):  # steps near A
+        for r in ranges_from(hub.space, (0.3, -1.9), seq=k):
+            await wearer.send(r)
+        await asyncio.sleep(0.15)
+    await wearer.send(MotionState(state="still"))
+    stop = (0.3, -1.6)
+    for k in range(4, 9):  # then standing at the stop
+        for r in ranges_from(hub.space, stop, seq=k):
+            await wearer.send(r)
+        await asyncio.sleep(0.15)
+    got = await tap(listener, wearer)
+    assert got.ok and hub.tracker.motion == "still"
+    assert math.dist(got.position[:2], (stop[0], stop[1] + 0.2)) < 0.02
+    await listener.close()
+    await wearer.close()
+
+
+async def test_solve_loop_runs_at_exactly_solve_hz_even_when_the_work_takes_time(hub_cfg, hub_root):
+    hub_cfg.uwb.solve_hz = 10
+    clock = VirtualClock(1000.0)
+    h = Hub(hub_cfg, clock=clock, root=hub_root)
+    times: list[float] = []
+
+    def tick(now):
+        times.append(now)
+        clock.advance(0.03)  # the work itself takes time; a sleep-after-work loop would run at 1/0.13 s
+        return []
+
+    h.tracker.tick = tick
+    task = asyncio.create_task(h._uwb_loop())
+    for _ in range(400):
+        await asyncio.sleep(0)
+    task.cancel()
+    assert len(times) > 100
+    assert [round(b - a, 9) for a, b in zip(times, times[1:], strict=False)] == [0.1] * (len(times) - 1)
+    assert (times[-1] - times[0]) / (len(times) - 1) == pytest.approx(0.1, rel=0.01)
+
+
+async def test_solve_loop_resyncs_instead_of_bursting_after_a_stall(hub_cfg, hub_root):
+    clock = VirtualClock(1000.0)
+    h = Hub(hub_cfg, clock=clock, root=hub_root)
+    times: list[float] = []
+
+    def tick(now):
+        times.append(now)
+        if len(times) == 5:
+            clock.advance(2.0)  # a 2 s stall
+        return []
+
+    h.tracker.tick = tick
+    task = asyncio.create_task(h._uwb_loop())
+    for _ in range(40):
+        await asyncio.sleep(0)
+    task.cancel()
+    gaps = [round(b - a, 6) for a, b in zip(times, times[1:], strict=False)]
+    assert min(gaps) >= 0.1 - 1e-6  # no catch-up burst of back-to-back ticks
 
 
 async def test_tap_with_no_tracker_and_no_beacon_pose_fails(hub):
