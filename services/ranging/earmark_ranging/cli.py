@@ -49,6 +49,8 @@ async def _serve(args) -> None:
                 if args.save_audio:
                     svc.save_audio(args.save_audio)
                 if args.verbose:
+                    for (x, y), d in sorted(svc.pairs.items()):
+                        print(f"   phones {x} and {y} are {d:.2f} m apart")
                     for slot in sorted(svc.phones):
                         d = svc.diag.get(slot)
                         who = "your phone" if slot == 0 else f"beacon {slot}"
