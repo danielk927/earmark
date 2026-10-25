@@ -147,7 +147,7 @@ dashboard-test:
 
 .PHONY: mac-test
 mac-test:
-	@if [ -f mac/Package.swift ]; then cd mac && swift test 2>&1 | tail -3; else echo "mac app not built yet"; fi
+	@if [ -f mac/Package.swift ]; then cd mac && swift test --scratch-path /tmp/earmark-mac-build 2>&1 | tail -3  # outside Documents: macOS file metadata there breaks code signing; else echo "mac app not built yet"; fi
 
 .PHONY: e2e-test
 e2e-test:

@@ -188,47 +188,6 @@ import Testing
         core.handle(example("state_update", "03"))
         #expect(core.states["salt"]?.status == .held)
     }
-}
-
-@MainActor
-@Suite struct FallbackLadderTests {
-    @Test func failingSpatialRendererFallsBackToStereoThenSpeechOnly() {
-        let head = MockHeadTracker()
-        head.start()
-        var made: [RendererKind] = []
-        let core = EarmarkCore(head: head, speech: MockSpeech(), bus: RecordingBus(), preferredRenderer: .avaudioHRTFHQ,
-                               makeRenderer: { kind in
-                                   made.append(kind)
-                                   let r = MockRenderer(); r.failOnStart = true; return r
-                               })
-        core.startAudio()
-        #expect(made == [.avaudioHRTFHQ, .stereoPan])
-        #expect(core.renderer == nil)
-        #expect(core.guidanceMode == .speechOnly)
-        #expect(core.rendererFailures.count == 2)
-    }
-
-    @Test func lostHeadTrackingFixesYawAtZero() {
-        let head = MockHeadTracker()
-        head.start()
-        let r = MockRenderer()
-        let core = EarmarkCore(head: head, speech: MockSpeech(), bus: RecordingBus(), preferredRenderer: .mock, makeRenderer: { _ in r })
-        core.startAudio()
-        head.setRawPose(yawDeg: 40)
-        #expect(r.yawDeg == 40)
-        head.stop()                                        // tracking lost
-        #expect(core.guidanceMode == .spatialUntracked)
-        #expect(r.yawDeg == 0)
-        head.setRawPose(yawDeg: 70)                        // samples no longer move the listener
-        #expect(r.yawDeg == 0)
-    }
-
-    @Test func modeResolution() {
-        #expect(GuidanceMode.resolve(renderer: .avaudioAuto, headTracking: true) == .spatialTracked)
-        #expect(GuidanceMode.resolve(renderer: .phaseManual, headTracking: false) == .spatialUntracked)
-        #expect(GuidanceMode.resolve(renderer: .stereoPan, headTracking: true) == .stereoPan)
-        #expect(GuidanceMode.resolve(renderer: nil, headTracking: true) == .speechOnly)
-    }
 
     // MARK: Locator (listener_pose)
 
@@ -272,5 +231,46 @@ import Testing
         guideKeys()
         run(5.5)
         #expect(renderer.target == EarmarkPoint(0, 3, 1))
+    }
+}
+
+@MainActor
+@Suite struct FallbackLadderTests {
+    @Test func failingSpatialRendererFallsBackToStereoThenSpeechOnly() {
+        let head = MockHeadTracker()
+        head.start()
+        var made: [RendererKind] = []
+        let core = EarmarkCore(head: head, speech: MockSpeech(), bus: RecordingBus(), preferredRenderer: .avaudioHRTFHQ,
+                               makeRenderer: { kind in
+                                   made.append(kind)
+                                   let r = MockRenderer(); r.failOnStart = true; return r
+                               })
+        core.startAudio()
+        #expect(made == [.avaudioHRTFHQ, .stereoPan])
+        #expect(core.renderer == nil)
+        #expect(core.guidanceMode == .speechOnly)
+        #expect(core.rendererFailures.count == 2)
+    }
+
+    @Test func lostHeadTrackingFixesYawAtZero() {
+        let head = MockHeadTracker()
+        head.start()
+        let r = MockRenderer()
+        let core = EarmarkCore(head: head, speech: MockSpeech(), bus: RecordingBus(), preferredRenderer: .mock, makeRenderer: { _ in r })
+        core.startAudio()
+        head.setRawPose(yawDeg: 40)
+        #expect(r.yawDeg == 40)
+        head.stop()                                        // tracking lost
+        #expect(core.guidanceMode == .spatialUntracked)
+        #expect(r.yawDeg == 0)
+        head.setRawPose(yawDeg: 70)                        // samples no longer move the listener
+        #expect(r.yawDeg == 0)
+    }
+
+    @Test func modeResolution() {
+        #expect(GuidanceMode.resolve(renderer: .avaudioAuto, headTracking: true) == .spatialTracked)
+        #expect(GuidanceMode.resolve(renderer: .phaseManual, headTracking: false) == .spatialUntracked)
+        #expect(GuidanceMode.resolve(renderer: .stereoPan, headTracking: true) == .stereoPan)
+        #expect(GuidanceMode.resolve(renderer: nil, headTracking: true) == .speechOnly)
     }
 }

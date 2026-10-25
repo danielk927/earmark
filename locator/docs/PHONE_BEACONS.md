@@ -14,6 +14,7 @@ The Mac works out where the user is and tells the rest of Earmark.
 1. `brew install xcodegen`
 2. `cd locator/ios/EarmarkPhone && xcodegen` then open `EarmarkPhone.xcodeproj` in Xcode.
 3. Click the project name, then "Signing", and pick your Apple ID team.
+3b. If Xcode asks, sign in with your Apple ID under Xcode > Settings > Accounts. On the phone turn on Settings > Privacy & Security > Developer Mode (it restarts the phone).
 4. Plug in a phone, choose it at the top, press Run. On the phone, if it asks, trust the developer in Settings > General > VPN and Device Management. Allow the microphone and local network when asked.
 5. Repeat for every phone.
 
