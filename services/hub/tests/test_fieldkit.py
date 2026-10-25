@@ -345,3 +345,12 @@ def test_cli_exit_codes(tmp_path, capsys) -> None:
     assert fk.main(["taps", str(taps), "--spots", "1,1"]) == 0
     assert fk.main(["taps", str(taps), "--spots", "2,2"]) == 1
     assert fk.main(["latency", str(taps)]) == 0
+
+
+def test_record_hello_is_a_valid_contract_message():
+    """The real hub validates hello: the component and every default subscription must be in the contract."""
+    from earmark_contracts import Hello
+
+    from earmark_hub.fieldkit import COMPONENT, DEFAULT_TYPES
+
+    Hello(component=COMPONENT, subscribe=list(DEFAULT_TYPES))

@@ -21,6 +21,7 @@ from typing import IO, Any
 
 DEFAULT_TYPES = ("uwb_range", "listener_pose", "head_pose", "motion_state", "object_tap", "tap_position",
                  "place_item", "guide_start", "guide_stop", "status")
+COMPONENT = "cli"  # hello component: must be in the contract's enum (a new value would be a contract change)
 
 Entry = dict[str, Any]
 Point = tuple[float, float]
@@ -425,7 +426,7 @@ async def record(out_path: Path, url: str | None, types: list[str], stdin: bool 
             waiting = False
             while True:
                 try:
-                    client = await BusClient.connect("fieldkit", subscribe=types, url=url)
+                    client = await BusClient.connect(COMPONENT, subscribe=types, url=url)
                 except (OSError, TimeoutError):
                     if not waiting:
                         print(f"waiting for the hub at {url or bus_url()} ...", file=sys.stderr)
