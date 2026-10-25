@@ -104,6 +104,12 @@
       "$ref": "#/$defs/tap_position"
     },
     {
+      "$ref": "#/$defs/positioning_select"
+    },
+    {
+      "$ref": "#/$defs/positioning"
+    },
+    {
       "$ref": "#/$defs/reset"
     }
   ],
@@ -1250,7 +1256,7 @@
       }
     },
     "tap_position": {
-      "description": "Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. UWB: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D). Otherwise the last beacon listener_pose. ok false (no position) when no tracker has a fresh fix.",
+      "description": "Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. Taps are UWB only: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D), whichever positioning system is active. ok false (no position, source none) when the UWB tracker is not tracking.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1278,6 +1284,123 @@
             "sim",
             "manual",
             "none"
+          ]
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "positioning_select": {
+      "description": "Dashboard or Mac app -> hub. Chooses which positioning system drives listener_pose (and so the audio and the Convex live map). Both systems keep running; the other one is still reported in `positioning`.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "active",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "positioning_select"
+        },
+        "active": {
+          "$ref": "#/$defs/positioning_system"
+        },
+        "t": {
+          "$ref": "#/$defs/t"
+        }
+      }
+    },
+    "positioning_system": {
+      "description": "uwb = the hub's UWB tracker; sound = listener_pose from a bus client (the sound-chirp ranging service, the beacon locator, or a simulator).",
+      "enum": [
+        "uwb",
+        "sound"
+      ]
+    },
+    "positioning_fix": {
+      "description": "One system's latest pose as the hub last saw it. age_s is hub-clock seconds since the hub produced (UWB) or received (sound) it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "position",
+        "quality",
+        "source",
+        "age_s"
+      ],
+      "properties": {
+        "position": {
+          "$ref": "#/$defs/vec3"
+        },
+        "quality": {
+          "enum": [
+            "ok",
+            "degraded",
+            "lost"
+          ]
+        },
+        "source": {
+          "enum": [
+            "beacons",
+            "uwb",
+            "sound",
+            "steps",
+            "sim",
+            "manual",
+            "none"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "tracked",
+            "frozen",
+            "lost",
+            "fixed"
+          ]
+        },
+        "age_s": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "positioning": {
+      "description": "Hub -> bus, a few times a second and at once after positioning_select or on hello. Which system is active and both systems' latest poses side by side, for comparing them on the dashboard and the Mac map. Only the active system's pose is sent as listener_pose. null = that system has not produced a pose (UWB: the tracker is fixed, i.e. not tracking).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "active",
+        "uwb",
+        "sound",
+        "t"
+      ],
+      "properties": {
+        "type": {
+          "const": "positioning"
+        },
+        "active": {
+          "$ref": "#/$defs/positioning_system"
+        },
+        "uwb": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/positioning_fix"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sound": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/positioning_fix"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "t": {

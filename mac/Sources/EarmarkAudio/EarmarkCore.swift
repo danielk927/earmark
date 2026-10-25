@@ -291,7 +291,7 @@ public final class EarmarkCore {
             // "recenter" (concierge voice command): same path as the R key. "freeze" is the hub's job.
             if c.action == .recenter { recenter() }
         case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other,
-             .uwbToken, .uwbRange, .motionState, .objectTap, .tapPosition:
+             .uwbToken, .uwbRange, .motionState, .objectTap, .tapPosition, .positioningSelect, .positioning:
             break
         }
         changed()

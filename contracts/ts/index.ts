@@ -58,6 +58,8 @@ export type BusMessage =
   | ListenerCommand
   | ObjectTap
   | TapPosition
+  | PositioningSelect
+  | Positioning
   | Reset;
 /**
  * Concierge -> hub. The user said where they put an item. Either `area` (an id from space.areas: "I put my keys in the drawer") or `position` (room frame, from the locator: "I'm leaving my keys here"). The hub records the item there and logs a `stored` event.
@@ -904,7 +906,7 @@ export interface ObjectTap {
   t: number;
 }
 /**
- * Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. UWB: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D). Otherwise the last beacon listener_pose. ok false (no position) when no tracker has a fresh fix.
+ * Hub -> bus, the answer to object_tap: where the phone was at the tap, room frame. Taps are UWB only: the mean of the raw phone fixes over the last ~1.5 s, z = tracking.mark_z_m (UWB is 2D), whichever positioning system is active. ok false (no position, source none) when the UWB tracker is not tracking.
  *
  * This interface was referenced by `EarmarkContracts`'s JSON-Schema
  * via the `definition` "TapPosition".
@@ -918,6 +920,55 @@ export interface TapPosition {
    * Unix seconds.
    */
   t: number;
+}
+/**
+ * Dashboard or Mac app -> hub. Chooses which positioning system drives listener_pose (and so the audio and the Convex live map). Both systems keep running; the other one is still reported in `positioning`.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "PositioningSelect".
+ */
+export interface PositioningSelect {
+  type: "positioning_select";
+  /**
+   * uwb = the hub's UWB tracker; sound = listener_pose from a bus client (the sound-chirp ranging service, the beacon locator, or a simulator).
+   */
+  active: "uwb" | "sound";
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * Hub -> bus, a few times a second and at once after positioning_select or on hello. Which system is active and both systems' latest poses side by side, for comparing them on the dashboard and the Mac map. Only the active system's pose is sent as listener_pose. null = that system has not produced a pose (UWB: the tracker is fixed, i.e. not tracking).
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "Positioning".
+ */
+export interface Positioning {
+  type: "positioning";
+  /**
+   * uwb = the hub's UWB tracker; sound = listener_pose from a bus client (the sound-chirp ranging service, the beacon locator, or a simulator).
+   */
+  active: "uwb" | "sound";
+  uwb: PositioningFix | null;
+  sound: PositioningFix | null;
+  /**
+   * Unix seconds.
+   */
+  t: number;
+}
+/**
+ * One system's latest pose as the hub last saw it. age_s is hub-clock seconds since the hub produced (UWB) or received (sound) it.
+ *
+ * This interface was referenced by `EarmarkContracts`'s JSON-Schema
+ * via the `definition` "PositioningFix".
+ */
+export interface PositioningFix {
+  position: Vec32;
+  quality: "ok" | "degraded" | "lost";
+  source: "beacons" | "uwb" | "sound" | "steps" | "sim" | "manual" | "none";
+  mode?: "tracked" | "frozen" | "lost" | "fixed";
+  age_s: number;
 }
 /**
  * Any -> bus. Return every component to the demo starting state (stop guidance and chirps, clear held state, hub re-reads seed/cache and re-sends snapshot).

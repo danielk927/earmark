@@ -447,6 +447,47 @@ public struct TapPosition: Codable, Sendable, Equatable {
     }
 }
 
+public enum PositioningSystem: String, Codable, Sendable { case uwb, sound }
+
+/// Dashboard or Mac app -> hub. Which positioning system drives listener_pose; both keep running.
+public struct PositioningSelect: Codable, Sendable, Equatable {
+    public var active: PositioningSystem
+    public var t: Double
+    public init(active: PositioningSystem, t: Double = BusCoding.now) { self.active = active; self.t = t }
+}
+
+/// One system's latest pose as the hub saw it; `ageS` is hub-clock seconds since then.
+public struct PositioningFix: Codable, Sendable, Equatable {
+    public var position: Vec3
+    public var quality: ListenerPose.Quality
+    public var source: PoseSource
+    public var mode: ListenerMode?
+    public var ageS: Double
+    public init(position: Vec3, quality: ListenerPose.Quality, source: PoseSource, mode: ListenerMode? = nil, ageS: Double) {
+        self.position = position; self.quality = quality; self.source = source; self.mode = mode; self.ageS = ageS
+    }
+}
+
+/// Hub -> bus. The active system and both systems' latest poses side by side (nil = no pose yet).
+public struct Positioning: Codable, Sendable, Equatable {
+    public var active: PositioningSystem
+    public var uwb: PositioningFix?
+    public var sound: PositioningFix?
+    public var t: Double
+    public init(active: PositioningSystem, uwb: PositioningFix?, sound: PositioningFix?, t: Double = BusCoding.now) {
+        self.active = active; self.uwb = uwb; self.sound = sound; self.t = t
+    }
+    private enum CodingKeys: String, CodingKey { case active, uwb, sound, t }
+    // `uwb` and `sound` are required-nullable in the schema, so encode explicit nulls.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(active, forKey: .active)
+        try c.encode(uwb, forKey: .uwb)
+        try c.encode(sound, forKey: .sound)
+        try c.encode(t, forKey: .t)
+    }
+}
+
 // MARK: - Union
 
 public enum BusMessage: Sendable {
@@ -477,6 +518,8 @@ public enum BusMessage: Sendable {
     case listenerCommand(ListenerCommand)
     case objectTap(ObjectTap)
     case tapPosition(TapPosition)
+    case positioningSelect(PositioningSelect)
+    case positioning(Positioning)
     /// A valid bus type this app does not act on (detection, chirp, trial_*, label, unknown_tag).
     case other(type: String)
 
@@ -509,6 +552,8 @@ public enum BusMessage: Sendable {
         case .listenerCommand: "listener_command"
         case .objectTap: "object_tap"
         case .tapPosition: "tap_position"
+        case .positioningSelect: "positioning_select"
+        case .positioning: "positioning"
         case .other(let type): type
         }
     }
@@ -548,6 +593,8 @@ extension BusMessage: Codable {
         case "listener_command": self = .listenerCommand(try one.decode(ListenerCommand.self))
         case "object_tap": self = .objectTap(try one.decode(ObjectTap.self))
         case "tap_position": self = .tapPosition(try one.decode(TapPosition.self))
+        case "positioning_select": self = .positioningSelect(try one.decode(PositioningSelect.self))
+        case "positioning": self = .positioning(try one.decode(Positioning.self))
         default: self = .other(type: type)
         }
     }
@@ -583,6 +630,8 @@ extension BusMessage: Codable {
         case .listenerCommand(let m): try m.encode(to: encoder)
         case .objectTap(let m): try m.encode(to: encoder)
         case .tapPosition(let m): try m.encode(to: encoder)
+        case .positioningSelect(let m): try m.encode(to: encoder)
+        case .positioning(let m): try m.encode(to: encoder)
         case .other: break
         }
     }
