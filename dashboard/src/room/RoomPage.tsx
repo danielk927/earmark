@@ -39,7 +39,9 @@ export function RoomPage() {
   const phones: Beacon[] = state.phones;
   const room = useMemo(() => roomSize(state.phones, state.places), [state.phones, state.places]);
   const roomRef = useRef(room);
-  roomRef.current = room;
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
 
   useEffect(() => {
     if (!gl || !host.current) return;
@@ -225,7 +227,7 @@ function Ask({ onAsk }: { onAsk: (text: string) => void }) {
 /** The UWB / Sound switch (native radios, so arrow keys and screen readers work) and the side-by-side readout. */
 export function PositioningCard({ state, onSelect }: { state: RoomState; onSelect: (s: System) => void }) {
   const p = state.positioning;
-  const { lines, gap } = compare(p, state.now || Date.now() / 1000);
+  const { lines, gap } = compare(p, state.now); // state.now is 0 only until the first tick, when ages read as the hub sent them
   return (
     <section className="room-card" aria-label="Positioning">
       <h2>Positioning</h2>
