@@ -91,7 +91,7 @@ The locator (`locator/`) tells the system where the user is standing, so the pin
 
 When the locator is used, positions in `config/space.json` must be measured in the locator's frame: origin on the floor under the mat center, `z` up from the floor (a shelf at 1 m is `z = 1.0`). The older seated setup measured `z` from head height.
 
-The Mac app sends `ptt start/stop` while the user speaks, so the phone can stream its microphone. Using the AirPods stem as the push-to-talk button and switching speech input to the phone microphone are not built yet.
+The Mac app sends `ptt start/stop` while the user speaks, so the phone can stream its microphone. Squeezing an AirPods stem starts talking (it reaches the Mac app as a play/pause command; the utterance ends on a second squeeze or a pause). Switching speech input to the phone microphone is not built yet.
 
 ## The live room page
 

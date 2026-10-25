@@ -115,7 +115,7 @@ private struct StatusBar: View {
     }
 
     private var micLabel: String {
-        m.flags.noMic ? "MIC" : (m.listenMode == .pushToTalk ? "MIC - HOLD SPACE" : "MIC - ALWAYS ON")
+        m.flags.noMic ? "MIC" : (m.listenMode == .pushToTalk ? "MIC - SPACE OR SQUEEZE" : "MIC - ALWAYS ON")
     }
 
     private func headValue(_ core: EarmarkCore) -> String {
@@ -295,7 +295,7 @@ private struct CaptionsCard: View {
 
     private var listeningHint: String {
         if m.flags.noMic { return "Microphone off" }
-        return m.listenMode == .pushToTalk ? "Hold Space and speak" : "Listening for speech"
+        return m.listenMode == .pushToTalk ? "Hold Space or squeeze an AirPod, then speak" : "Listening for speech"
     }
 
     private func captionBlock(title: String, icon: String, text: String?, placeholder: String, active: Bool, tag: String?) -> some View {
@@ -383,18 +383,19 @@ private struct TalkButton: View {
     @ObservedObject var m: AppModel
 
     var body: some View {
-        Label(m.pttHeld ? "Listening..." : "Hold to talk  (Space)", systemImage: m.pttHeld ? "mic.fill" : "mic")
+        let on = m.pttHeld || m.squeezeListening
+        Label(on ? "Listening..." : "Hold to talk  (Space)", systemImage: on ? "mic.fill" : "mic")
             .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(m.pttHeld ? Theme.background : Theme.textPrimary)
+            .foregroundStyle(on ? Theme.background : Theme.textPrimary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 13)
-            .background(m.pttHeld ? Theme.target : Theme.surfaceSunken, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(on ? Theme.target : Theme.surfaceSunken, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.border, lineWidth: 1))
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0).onChanged { _ in m.setPTT(true) }.onEnded { _ in m.setPTT(false) })
             .accessibilityElement()
             .accessibilityLabel("Hold to talk")
-            .accessibilityHint("Hold the Space bar while you speak")
+            .accessibilityHint("Hold the Space bar while you speak, or squeeze an AirPod stem once and speak")
             .accessibilityAddTraits(.isButton)
     }
 }

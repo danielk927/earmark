@@ -61,6 +61,8 @@ final class AppModel: ObservableObject {
     private let pipeline: MicPipeline
     private var mic: MicCapture?
     private let keys = KeyMonitor()
+    private let stem = StemButton()
+    private let squeeze: SqueezeToTalk
     private var timer: Timer?
     private var tickCount = 0
     private var refreshPending = false
@@ -73,13 +75,19 @@ final class AppModel: ObservableObject {
     @Published private(set) var appleStatus: String?
     @Published private(set) var micLevelDb = -120.0
     @Published private(set) var pttHeld = false
+    /// An AirPods squeeze opened the mic and the utterance has not ended yet.
+    @Published private(set) var squeezeListening = false
     @Published private(set) var routingNotice: String?
     @Published var showDebug: Bool
     @Published var showSettings = false
 
     @Published var mockHead: Bool { didSet { if mockHead != oldValue { core.replaceHead(makeHead()) } } }
     @Published var listenMode: ListenMode {
-        didSet { pipeline.mode = listenMode; core.listenMode = listenMode; UserDefaults.standard.set(listenMode.rawValue, forKey: "listenMode") }
+        didSet {
+            // A Space key-up in always-listening mode is not handled, so a key held across the switch would stay down.
+            setPTT(false)
+            pipeline.mode = listenMode; core.listenMode = listenMode; UserDefaults.standard.set(listenMode.rawValue, forKey: "listenMode")
+        }
     }
     @Published var enforceBuiltInMic: Bool {
         didSet { routes.enforceBuiltInMic = enforceBuiltInMic; UserDefaults.standard.set(enforceBuiltInMic, forKey: "enforceBuiltInMic"); routingNotice = routes.lastAction }
@@ -103,6 +111,7 @@ final class AppModel: ObservableObject {
         busClient = BusClient(url: flags.busURL ?? BusClient.defaultURL)
         speechPlayer = SpeechPlayer(phrases: PhraseLibrary.standard(repoRoot: RepoLocator.root()))
         pipeline = MicPipeline(mode: listen)
+        squeeze = SqueezeToTalk(pipeline: pipeline, speech: speechPlayer)
         let head: HeadTracking = flags.mockHead ? MockHeadTracker() : HeadphoneMotionTracker()
         core = EarmarkCore(head: head, speech: speechPlayer, bus: busClient, preferredRenderer: renderer)
         core.listenMode = listen
@@ -155,6 +164,10 @@ final class AppModel: ObservableObject {
         busClient.start()
 
         installKeys()
+        if !flags.noMic {
+            stem.onSqueeze = { [weak self] in self?.squeezed() }
+            stem.start()
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 50, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -243,6 +256,13 @@ final class AppModel: ObservableObject {
         pipeline.setPushToTalk(held: held)
     }
 
+    /// AirPods stem squeeze: start talking, or stop. Ignored while the mic is not capturing (nothing would end it).
+    private func squeezed() {
+        guard mic?.isRunning == true, core.micEnabled else { return }
+        squeeze.squeeze()
+        squeezeListening = squeeze.listening
+    }
+
     func recenter() { core.recenter() }
 
     /// A typed line goes to the concierge exactly like something you said.
@@ -263,6 +283,7 @@ final class AppModel: ObservableObject {
         pose.rateHz = core.head.updateRateHz
         pose.guidance = core.guidanceState
         if mic != nil { micLevelDb = pipeline.levelDb }
+        if squeeze.poll() { squeezeListening = squeeze.listening }
     }
 
     private func scheduleRefresh() {

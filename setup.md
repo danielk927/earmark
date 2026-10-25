@@ -64,7 +64,7 @@ Hold the judge phone at chest height, bottom edge facing out. Press **Enter** in
 1. Connect the AirPods to the Mac. Turn Spatial Audio **Off** (menu-bar AirPods icon). The app makes its own 3D sound.
 2. In the Mac app, accept the motion and microphone prompts.
 3. Stand on the mat facing forward. Press **R** to recenter.
-5. Back on the mat, hold **Space** in the Mac app window and say it: "Where are my keys?". Let go when done. The Mac only listens while Space is held. Speak clearly and keep the room quiet.
-   - Can't reach the Mac? A teammate can hold Space for you, or type into the Ask box on the room page.
+5. Back on the mat, squeeze one AirPod stem once (a short rising sound means Earmark is listening) and say it: "Where are my keys?". It stops listening by itself when you stop talking (a falling sound). Or hold **Space** in the Mac app window while you speak. Speak clearly and keep the room quiet.
+   - Squeeze does nothing? Make sure no music or video is playing on the Mac (it takes the squeeze). A teammate can hold Space for you, or type into the Ask box on the room page.
 
 You should hear the ping from the item. It gets faster and louder as you get close. At half a meter it stops and says "You're here".

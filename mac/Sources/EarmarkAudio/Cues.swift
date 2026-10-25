@@ -11,6 +11,15 @@ public enum Cue: String, CaseIterable, Sendable {
     case locked
 }
 
+/// Short centered sounds on the speech layer (never spatialized): the mic opened or closed after an AirPods squeeze,
+/// which the user cannot see or feel.
+public enum Earcon: String, CaseIterable, Sendable {
+    /// Two quick rising notes, lower and shorter than the locked chime: Earmark is listening.
+    case listening
+    /// The same two notes falling: Earmark stopped listening.
+    case done
+}
+
 /// Ping timbre. Pure tones localize poorly front/back because HRTF spectral cues need broadband
 /// energy (docs/sponsors/vendor-notes/apple-spatial-audio.md section 3), so the spike makes this switchable.
 public enum PingTimbre: String, CaseIterable, Sendable, Identifiable {
@@ -39,6 +48,13 @@ public enum CueSynth {
 
     public static func buffer(_ cue: Cue, timbre: PingTimbre = .tone, format: AVAudioFormat) -> AVAudioPCMBuffer {
         PCM.floatBuffer(samples(cue, timbre: timbre, sampleRate: format.sampleRate), format: format)
+    }
+
+    /// G5 and C6, 60 ms each with a 10 ms gap.
+    public static func samples(_ earcon: Earcon, sampleRate sr: Double = sampleRate) -> [Float] {
+        let low = note(784, ms: 60, sr: sr), high = note(1_046.5, ms: 60, sr: sr)
+        let gap = [Float](repeating: 0, count: Int(sr * 0.010))
+        return normalized(earcon == .listening ? low + gap + high : high + gap + low, peak: 0.35)
     }
 
     /// 1 kHz sine with 2nd and 3rd harmonics, 4 ms raised-cosine attack, ~18 ms exponential decay, 70 ms total.
@@ -76,16 +92,18 @@ public enum CueSynth {
 
     /// Two rising notes (E6 then A6), 90 ms each with a 10 ms gap.
     static func lockedChime(sr: Double) -> [Float] {
-        func note(_ hz: Double, ms: Double) -> [Float] {
-            let n = Int(sr * ms / 1000), attack = 0.006 * sr
-            return (0..<n).map { i in
-                let t = Double(i) / sr
-                let env = Double(i) < attack ? 0.5 - 0.5 * cos(.pi * Double(i) / attack) : exp(-(t - 0.006) / 0.045)
-                return Float(env * (sin(2 * .pi * hz * t) + 0.2 * sin(4 * .pi * hz * t)))
-            }
-        }
         let gap = [Float](repeating: 0, count: Int(sr * 0.010))
-        return normalized(note(1_318.5, ms: 90) + gap + note(1_760, ms: 130), peak: 0.45)
+        return normalized(note(1_318.5, ms: 90, sr: sr) + gap + note(1_760, ms: 130, sr: sr), peak: 0.45)
+    }
+
+    /// One soft note: 6 ms raised-cosine attack, 45 ms exponential decay, a little 2nd harmonic.
+    static func note(_ hz: Double, ms: Double, sr: Double) -> [Float] {
+        let n = Int(sr * ms / 1000), attack = 0.006 * sr
+        return (0..<n).map { i in
+            let t = Double(i) / sr
+            let env = Double(i) < attack ? 0.5 - 0.5 * cos(.pi * Double(i) / attack) : exp(-(t - 0.006) / 0.045)
+            return Float(env * (sin(2 * .pi * hz * t) + 0.2 * sin(4 * .pi * hz * t)))
+        }
     }
 
     /// Low, muffled thud: 300 -> 220 Hz glide, soft 15 ms attack, 150 ms decay, low-passed.

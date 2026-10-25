@@ -150,8 +150,12 @@ private func writeWav(_ url: URL, seconds: Double = 0.5, rate: Double = 24_000) 
     @Test func debouncerCoalescesBursts() async {
         let q = DispatchQueue(label: "debounce-test")
         let fired = SpeechPlayerTests.Events()
-        let d = DebouncedTrigger(delay: 0.05, minSpacing: 0.3, queue: q) { fired.add("fire") }
-        for i in 0..<10 { q.asyncAfter(deadline: .now() + Double(i) * 0.01) { d.trigger() } }
+        // minSpacing leaves ~330 ms between the "not yet" check below and the deferred fire: with 0.3 s that margin
+        // was ~30 ms, which sleep overshoot ate when the whole suite ran in parallel.
+        let d = DebouncedTrigger(delay: 0.05, minSpacing: 0.6, queue: q) { fired.add("fire") }
+        // One block on the serial queue: the burst spans ~45 ms, but the pending fire cannot run in between, so a
+        // busy machine (make test) cannot split it the way separate asyncAfter calls could.
+        q.async { for _ in 0..<10 { d.trigger(); usleep(5_000) } }
         #expect(await waitUntil { fired.all.count == 1 })
         try? await Task.sleep(nanoseconds: 150_000_000)
         #expect(fired.all.count == 1)                    // a burst of 10 changes -> one restart

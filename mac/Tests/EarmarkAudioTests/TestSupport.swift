@@ -40,6 +40,7 @@ final class MockSpeech: SpeechOutput {
     func speakText(utteranceId: String, text: String) { calls.append("text \(utteranceId)") }
     func stopAll() { calls.append("stopAll") }
     func setMasterGain(_ gain: Float) {}
+    func playEarcon(_ earcon: Earcon) { calls.append("earcon \(earcon.rawValue)") }
     /// Simulates playback starting/finishing.
     func emit(_ id: String, _ e: Playback.Event) {
         onPlayback?(id, e)

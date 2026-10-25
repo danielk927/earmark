@@ -19,7 +19,7 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 - "Earmark helps blind and low-vision people find everyday things by sound, and it never needs a camera in the home."
 
 **0:15 - 1:10 Live demo (Judge + Operator)**
-- Judge (push-to-talk: Operator holds Space, or always-listening): "Where's the sugar?"
+- Judge (squeezes an AirPod stem once, or the operator holds Space, or always-listening): "Where's the sugar?"
 - Earmark: "The sugar is at your one o'clock, about an arm's length away." A ping plays from the jar.
 - Presenter: "Turn your head. The sound stays on the jar, because we read the AirPods' head tracking ourselves and render the audio in 3D."
 - Judge reaches. If they lift the salt: "That's the salt. The sugar is one spot to your right." (This is the hero moment; it is fine to nudge the judge toward the wrong jar first.)

@@ -93,6 +93,87 @@ private func audioCount(_ out: [GateOutput]) -> Int { out.filter { if case .audi
         #expect(!g.isOpen)
     }
 
+    @Test func squeezeOpensAtOnceAndEndsOnAPauseAfterSpeech() {
+        var g = VoiceGate(mode: .pushToTalk)
+        _ = run(&g, Array(repeating: quiet, count: 20))
+        let started = g.startHandsFree()
+        #expect(started)
+        var out = run(&g, [quiet])
+        #expect(out == [.began, .audio(quiet), .audio(quiet), .audio(quiet)])   // open before any speech, with pre-roll
+        out = run(&g, Array(repeating: speech, count: 5) + Array(repeating: quiet, count: 20))
+        // 5 speech chunks, then 1.5 s of quiet ends it; the quiet is already sent, so no extra trailing audio.
+        #expect(audioCount(out) == 5 + 15)
+        #expect(out.filter { $0 == .ended }.count == 1)
+        #expect(!g.isOpen && !g.handsFree)
+    }
+
+    @Test func squeezeWithNoSpeechClosesAfterFiveSeconds() {
+        var g = VoiceGate(mode: .pushToTalk)
+        _ = run(&g, Array(repeating: quiet, count: 20))
+        g.startHandsFree()
+        // One click is not speech, so the 1.5 s end-of-speech rule never starts; only the 5 s rule ends it.
+        let out = run(&g, Array(repeating: quiet, count: 6) + [speech] + Array(repeating: quiet, count: 60))
+        #expect(audioCount(out) == 3 + 50)
+        #expect(out.last == .ended)
+        #expect(!g.handsFree)
+    }
+
+    @Test func listeningEarconIsNotSpeech() {
+        var g = VoiceGate(mode: .pushToTalk)
+        _ = run(&g, Array(repeating: quiet, count: 20))
+        g.startHandsFree()
+        // The earcon through the Mac speakers: two loud chunks right after the squeeze. Counted as speech, they
+        // would end the utterance 1.5 s later, before the user has said anything.
+        let out = run(&g, [quiet, speech, speech] + Array(repeating: quiet, count: 20))
+        #expect(!out.contains(.ended))
+        #expect(g.handsFree)
+    }
+
+    @Test func secondSqueezeStopsWithTrailingAudio() {
+        var g = VoiceGate(mode: .pushToTalk)
+        _ = run(&g, Array(repeating: quiet, count: 20))
+        g.startHandsFree()
+        _ = run(&g, [quiet] + Array(repeating: speech, count: 10))
+        g.stopHandsFree()
+        let out = run(&g, Array(repeating: speech, count: 15))
+        #expect(audioCount(out) == 10)                                    // 1 s trailing, like a key release
+        #expect(out.last == .ended)
+    }
+
+    @Test func squeezeIsCapped() {
+        var cfg = VoiceGateConfig()
+        cfg.maxHandsFreeChunks = 20
+        var g = VoiceGate(mode: .pushToTalk, config: cfg)
+        _ = run(&g, Array(repeating: quiet, count: 20))
+        g.startHandsFree()
+        let out = run(&g, Array(repeating: speech, count: 40))          // never pauses
+        #expect(out.filter { $0 == .began }.count == 1)
+        #expect(out.filter { $0 == .ended }.count == 1)
+        #expect(audioCount(out) == 3 + 20)
+    }
+
+    @Test func heldKeyOutlastsASqueeze() {
+        var g = VoiceGate(mode: .pushToTalk)
+        _ = run(&g, Array(repeating: quiet, count: 20))
+        g.startHandsFree()
+        g.setPushToTalk(held: true)
+        #expect(!run(&g, Array(repeating: quiet, count: 60)).contains(.ended))   // squeeze timed out, key still held
+        #expect(!g.handsFree && g.isOpen)
+        g.setPushToTalk(held: false)
+        #expect(run(&g, Array(repeating: quiet, count: 10)).last == .ended)
+    }
+
+    @Test func squeezeDoesNothingInAlwaysListening() {
+        var g = VoiceGate(mode: .alwaysListening)
+        let started = g.startHandsFree()
+        #expect(!started)
+        #expect(run(&g, Array(repeating: quiet, count: 20)).isEmpty)
+        var p = VoiceGate(mode: .pushToTalk)
+        p.startHandsFree()
+        p.mode = .alwaysListening                                          // switching modes ends a squeeze
+        #expect(!p.handsFree)
+    }
+
     @Test func noiseFloorAdapts() {
         // Steady room noise at -45 dBFS: the floor rises, so -42 dBFS noise no longer opens the gate,
         // while real speech still does.

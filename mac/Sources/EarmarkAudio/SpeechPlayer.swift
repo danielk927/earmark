@@ -21,6 +21,8 @@ public protocol SpeechOutput: AnyObject {
     /// Interrupts whatever is playing.
     func stopAll()
     func setMasterGain(_ gain: Float)
+    /// A short UI sound on its own player node: it never interrupts or counts as speech.
+    func playEarcon(_ earcon: Earcon)
 }
 
 /// Finds cached phrase WAVs: `EARMARK_PHRASES_DIR`, then the app bundle's `Resources/phrases`,
@@ -72,6 +74,7 @@ public final class SpeechPlayer: SpeechOutput {
 
     public let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
+    private let earconPlayer = AVAudioPlayerNode()
     public static let playRate: Double = 48_000
     private let playFormat = PCM.monoFloat(SpeechPlayer.playRate)
     private let offlineFormat: AVAudioFormat?
@@ -119,11 +122,14 @@ public final class SpeechPlayer: SpeechOutput {
                 try engine.enableManualRenderingMode(.offline, format: offlineFormat, maximumFrameCount: 4_096)
             }
             engine.attach(player)
+            engine.attach(earconPlayer)
             engine.connect(player, to: engine.mainMixerNode, format: playFormat)
+            engine.connect(earconPlayer, to: engine.mainMixerNode, format: playFormat)
             engine.mainMixerNode.outputVolume = masterGain
             engine.prepare()
             try engine.start()
             player.play()
+            earconPlayer.play()
             running = true
         }
         Log.speech("speech player started")
@@ -135,10 +141,13 @@ public final class SpeechPlayer: SpeechOutput {
             interruptLocked()
             engine.stop()
             engine.disconnectNodeOutput(player)
+            engine.disconnectNodeOutput(earconPlayer)
             engine.connect(player, to: engine.mainMixerNode, format: playFormat)
+            engine.connect(earconPlayer, to: engine.mainMixerNode, format: playFormat)
             engine.prepare()
             try engine.start()
             player.play()
+            earconPlayer.play()
         }
         Log.speech("speech player restarted")
     }
@@ -179,6 +188,15 @@ public final class SpeechPlayer: SpeechOutput {
 
     public func stopAll() {
         queue.async { self.interruptLocked() }
+    }
+
+    public func playEarcon(_ earcon: Earcon) {
+        queue.async {
+            guard self.running, self.engineRunningLocked() else { return }
+            let buf = PCM.floatBuffer(CueSynth.samples(earcon, sampleRate: Self.playRate), format: self.playFormat)
+            self.earconPlayer.scheduleBuffer(buf, at: nil, options: .interrupts)
+            if !self.earconPlayer.isPlaying { self.earconPlayer.play() }
+        }
     }
 
     // MARK: Internals (on `queue`)
@@ -225,8 +243,7 @@ public final class SpeechPlayer: SpeechOutput {
     }
 
     private func scheduleLocked(_ buffer: AVAudioPCMBuffer, _ u: Utterance) {
-        guard running, buffer.frameLength > 0 else { return }
-        if !engine.isRunning { try? engine.start() }
+        guard running, buffer.frameLength > 0, engineRunningLocked() else { return }
         if !player.isPlaying { player.play() }
         u.outstanding += 1
         let gen = u.generation
@@ -241,6 +258,13 @@ public final class SpeechPlayer: SpeechOutput {
             }
         }
         if !u.started { markStartedLocked(u) }
+    }
+
+    /// Starts a stopped engine (a route change stops it). `play()` on a node of a stopped engine raises an
+    /// Objective-C exception Swift cannot catch, so callers skip playback when this is false.
+    private func engineRunningLocked() -> Bool {
+        if !engine.isRunning { try? engine.start() }
+        return engine.isRunning
     }
 
     private func markStartedLocked(_ u: Utterance) {
@@ -266,7 +290,7 @@ public final class SpeechPlayer: SpeechOutput {
         if u.sayProcess?.isRunning == true { u.sayProcess?.terminate() }
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
         emit(u.id, .interrupted)
-        if running { player.play() }
+        if running && engine.isRunning { player.play() }
         releaseSpeakingSoon()
     }
 

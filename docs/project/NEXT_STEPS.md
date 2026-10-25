@@ -63,7 +63,7 @@ You need three tools first: `brew install arduino-cli` (to put the program on th
 | Hardware (one or two people) | Steps 1 to 4 above |
 | Phone (one person with the Mac and Xcode) | Tools, step 5, AirPods spatial test |
 | Accounts and story (one person) | Cartesia key, Fetch.ai accounts, Devpost, talk to a blind or low-vision person, record the demo video |
-| Software (Claude sessions) | Wire in whatever the tests find; stem-button push-to-talk and phone-microphone speech are not built yet |
+| Software (Claude sessions) | Wire in whatever the tests find; phone-microphone speech is not built yet. The AirPods stem squeeze is built but not yet tried on real AirPods |
 
 ## Keys: do teammates share them?
 

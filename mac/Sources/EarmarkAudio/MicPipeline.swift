@@ -16,6 +16,13 @@ public final class MicPipeline {
 
     public func setPushToTalk(held: Bool) { lock.withLock { gate.setPushToTalk(held: held) } }
 
+    /// A squeeze utterance (see `VoiceGate.startHandsFree`); false in always-listening mode.
+    @discardableResult
+    public func startHandsFree() -> Bool { lock.withLock { gate.startHandsFree() } }
+    public func stopHandsFree() { lock.withLock { gate.stopHandsFree() } }
+    /// False once the squeeze utterance ended, by a second squeeze or on its own.
+    public var handsFreeActive: Bool { lock.withLock { gate.handsFree } }
+
     public var levelDb: Double { lock.withLock { gate.lastLevelDb } }
     public var thresholdDb: Double { lock.withLock { gate.speechThresholdDb } }
     public var isOpen: Bool { lock.withLock { gate.isOpen } }
