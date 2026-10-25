@@ -27,7 +27,8 @@ async def test_area_without_fob(h):
     await h.feed(state("salt", area="kitchen_counter"))
     out = await h.say("where is the salt")
     [text] = h.spoken(out)
-    assert text.startswith("The salt is near the counter. I noted that at ")
+    assert text.startswith("The salt is in the counter, at your twelve o'clock")
+    assert "I noted that at " in text
     assert not h.of("chirp", out)
 
 

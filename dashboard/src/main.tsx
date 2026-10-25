@@ -16,9 +16,23 @@ import { createFixtureBackend } from "./data/fixtureBackend";
 import { makeFixtures } from "./data/fixtures";
 
 const root = createRoot(document.getElementById("root")!);
+
+// The live room view (/room) talks only to the local Earmark bus, so it needs no Convex.
+if (window.location.pathname.replace(/\/+$/, "") === "/room") {
+  void import("./room/RoomPage").then(({ RoomPage }) =>
+    root.render(
+      <StrictMode>
+        <RoomPage />
+      </StrictMode>,
+    ),
+  );
+}
 let mode: AppMode = resolveMode(window.location.search, import.meta.env.VITE_CONVEX_URL as string | undefined);
 
-if (mode.kind === "convex") {
+const isRoom = window.location.pathname.replace(/\/+$/, "") === "/room";
+if (isRoom) {
+  // rendered above
+} else if (mode.kind === "convex") {
   let client: ConvexReactClient | null = null;
   try {
     client = new ConvexReactClient(mode.url);
@@ -35,7 +49,9 @@ if (mode.kind === "convex") {
     );
   }
 }
-if (mode.kind === "demo") {
+if (isRoom) {
+  // rendered above
+} else if (mode.kind === "demo") {
   root.render(
     <StrictMode>
       <App backend={createFixtureBackend(makeFixtures(Date.now() / 1000))} mode={mode} />

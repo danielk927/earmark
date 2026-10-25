@@ -107,6 +107,7 @@ async def test_no_mac_app_uses_local_say(tmp_path):
     script.chmod(0o755)
     h = await ready(make_settings(tmp_path, say_cmd=str(script)), mac_app=False)
     out = await h.say("Where's the sugar?")
-    assert not h.of("speak_text", out) and not h.of("speak_cached", out)
+    assert not h.of("speak_cached", out) and not h.of("speak", out)
+    assert [m["text"] for m in h.of("speak_text", out)] == [TEXT]  # a caption for the live room page
     assert h.of("guide_start", out)
     assert marker.read_text().strip() == TEXT

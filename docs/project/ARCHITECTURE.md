@@ -93,6 +93,10 @@ When the locator is used, positions in `config/space.json` must be measured in t
 
 The Mac app sends `ptt start/stop` while the user speaks, so the phone can stream its microphone. Using the AirPods stem as the push-to-talk button and switching speech input to the phone microphone are not built yet.
 
+## The live room page
+
+`make dashboard`, then open http://localhost:5173/room. It shows the room from above in 2D: the mat, the three beacon phones, the saved places, the items, and you, moving as the phones report your position (a trail shows where you have been). A side panel shows the current guidance (distance and direction), the conversation, what Earmark remembered, and where each item is. You can type a question into the page, and tick "Simulate walking" to move around with the arrow keys when no phones are running. It reads the Earmark bus directly (`ws://127.0.0.1:8765`) and needs no Convex.
+
 ## Coordinate system
 
 Meters, +x right, +y forward, +z up, origin at the calibrated head position.

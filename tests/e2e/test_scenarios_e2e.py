@@ -109,7 +109,7 @@ def test_put_in_place(stack):
     assert [m["location"]["area"] for m in keys] == ["drawer", "bag"]
     text = spoken(msgs)
     assert "Got it, the keys are in the drawer." in text
-    assert any(t.startswith("The keys are near the drawer.") for t in text)
+    assert any(t.startswith("The keys are in the drawer, at your") for t in text)
     assert any(t.startswith("The keys are near the bag, noted at") and "Before that, they were near the drawer" in t
                for t in text)
 

@@ -107,6 +107,16 @@ def locate(world: World, obj: RegistryObject, now: float, stale_s: float) -> Pla
             object_id=obj.object_id,
         )
 
+    # A saved place has a position measured at setup, so the ping can lead there however long ago it was noted.
+    if st is not None and st.precision == "area" and st.location.area and st.location.position:
+        pos = list(st.location.position)
+        noted = f" I noted that {time_phrase(st.last_seen_t, now, tz)}." if st.last_seen_t else ""
+        return Plan(
+            text=(f"{cap(name)} {g.is_} in {world.area_label(st.location.area)}, "
+                  f"{direction_phrase(world.relative(pos))}.{noted}"),
+            guide=GuideTarget(obj.object_id, obj.name, pos, "area"), object_id=obj.object_id,
+        )
+
     fresh = st is not None and (st.last_seen_t is None or now - st.last_seen_t <= stale_s)
     if st is not None and st.precision in ("area", "proximity") and fresh:
         loc = st.location

@@ -4,6 +4,6 @@
   "beacons": [
     { "id": "B1", "label": "front left", "position": [-1.6, 1.5, 0.75] },
     { "id": "B2", "label": "front right", "position": [1.6, 1.5, 0.75] },
-    { "id": "B3", "label": "back", "position": [0.0, -1.7, 0.75] }
+    { "id": "B3", "label": "back", "position": [-1.2, -1.7, 0.75] }
   ]
 }
