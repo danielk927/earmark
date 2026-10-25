@@ -12,6 +12,9 @@ options:
 packages:
   EarmarkContracts:
     path: ../../contracts/swift
+  # Sound positioning (chirp beacon + microphone listener), shared with the standalone locator app.
+  EarmarkPhone:
+    path: ../../locator/ios/EarmarkPhone
 
 settings:
   base:
@@ -32,6 +35,8 @@ targets:
     dependencies:
       - package: EarmarkContracts
         product: EarmarkContracts
+      - package: EarmarkPhone
+        product: PhoneCore
     settings:
       base:
         # Must be unique to your team. If Xcode says the id is taken, change it (e.g. com.<you>.earmark.uwb).
@@ -43,7 +48,7 @@ targets:
         # Xcode generates the standard keys; Info.plist adds the usage strings and the ATS local-network exception.
         GENERATE_INFOPLIST_FILE: "YES"
         INFOPLIST_FILE: Info.plist
-        INFOPLIST_KEY_CFBundleDisplayName: Earmark UWB
+        INFOPLIST_KEY_CFBundleDisplayName: Earmark
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait

@@ -20,6 +20,10 @@ final class PhoneAudio: @unchecked Sendable {
     private var lastEnd: Int64?
     private var onChunk: ((Int, Data) -> Void)?
     private var onLevel: ((Float) -> Void)?
+    /// Optional second consumer of the microphone: gets every raw input buffer (hardware format) on the audio
+    /// thread, before the chirp-timeline processing. The buffer is only valid during the call, so convert or
+    /// copy synchronously. Set before `start`. Used by the UWB app to share this one capture path with push-to-talk.
+    var micTap: (@Sendable (AVAudioPCMBuffer) -> Void)?
     private let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: phoneSampleRate, channels: 1, interleaved: false)!
 
     func start(chirp: ChirpSpec, onChunk: @escaping (Int, Data) -> Void, onLevel: @escaping (Float) -> Void) throws {
@@ -82,6 +86,7 @@ final class PhoneAudio: @unchecked Sendable {
     // MARK: Recording
 
     private func process(_ buffer: AVAudioPCMBuffer, _ when: AVAudioTime) {
+        micTap?(buffer)
         var floats: [Float]
         var gap = 0
         if let c = converter {

@@ -21,9 +21,9 @@ struct RootView: View {
         Group {
             switch model.active {
             case .anchor(let controller)?:
-                AnchorView(controller: controller, hub: controller.hub) { model.disconnect() }
+                AnchorView(controller: controller, hub: controller.hub, beacon: controller.beacon) { model.disconnect() }
             case .wearer(let controller)?:
-                WearerView(controller: controller, hub: controller.hub) { model.disconnect() }
+                WearerView(controller: controller, hub: controller.hub, sound: controller.sound) { model.disconnect() }
             case nil:
                 RolePickerView(model: model)
             }

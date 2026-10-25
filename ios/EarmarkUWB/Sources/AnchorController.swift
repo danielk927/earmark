@@ -20,12 +20,15 @@ final class AnchorController: ObservableObject {
     @Published private(set) var batteryText = "Unknown"
 
     private let peer: PeerSession
+    /// uwb_N also chirps as sound beacon N. Independent of the NI session.
+    let beacon: SoundBeaconModel
     private var loops: [Task<Void, Never>] = []
 
     init(role: DeviceRole, hub: HubConnection) {
         precondition(role.isAnchor, "AnchorController needs an anchor role")
         self.role = role
         self.hub = hub
+        self.beacon = SoundBeaconModel(deviceId: role.deviceId)
         self.uwbSupported = CapabilityCheck.supportsUWB
         self.peer = PeerSession(localId: role.deviceId, peerId: DeviceRole.wearer.deviceId)
         peer.onToken = { [weak self] token in self?.hub.send(.uwbToken(token)) }
@@ -43,6 +46,7 @@ final class AnchorController: ObservableObject {
         }
         hub.start()
         peer.start()
+        beacon.start()
         refresh()
         loops = [
             everySeconds(0.25) { [weak self] in self?.refresh() },
@@ -53,12 +57,14 @@ final class AnchorController: ObservableObject {
     func stop() {
         loops.forEach { $0.cancel() }
         loops = []
+        beacon.stop()
         peer.stop()
         hub.stop()
     }
 
     func appBecameActive() {
         hub.reconnectNow()
+        beacon.appBecameActive()
         refresh()
     }
 
@@ -110,6 +116,9 @@ final class AnchorController: ObservableObject {
         info["distance_age_s"] = peer.distanceAge.map { JSONScalar.number(($0 * 10).rounded() / 10) } ?? .null
         info["battery"] = DeviceInfo.batteryLevel.map { JSONScalar.number($0) } ?? .null
         info["charging"] = .bool(DeviceInfo.isCharging)
+        info["sound_beacon"] = .bool(beacon.enabled && beacon.beaconNumber != nil)
+        info["beacon_number"] = beacon.beaconNumber.map { JSONScalar.number(Double($0)) } ?? .null
+        info["sound_beacon_chirping"] = .bool(beacon.chirping)
 
         let ok: Bool
         let detail: String

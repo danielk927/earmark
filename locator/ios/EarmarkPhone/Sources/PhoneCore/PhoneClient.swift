@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 public let phoneSampleRate = 48000.0
@@ -33,6 +34,12 @@ public final class PhoneClient: @unchecked Sendable {
     private var sentSamples = 0
     private let queue = DispatchQueue(label: "earmark.phone.client")
     public var onEvent: (@Sendable (PhoneEvent) -> Void)?
+    /// Every raw microphone buffer the listener captures (audio thread, hardware format; valid only during the
+    /// call). Lets a host app reuse this one capture path instead of opening a second engine. Set before `start`.
+    public var onMicBuffer: (@Sendable (AVAudioPCMBuffer) -> Void)? {
+        get { audio.micTap }
+        set { audio.micTap = newValue }
+    }
 
     public init(url: URL, slot: Int, name: String) {
         self.url = url; self.slot = slot; self.name = name

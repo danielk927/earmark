@@ -8,6 +8,7 @@ import SwiftUI
 struct WearerView: View {
     @ObservedObject var controller: WearerController
     @ObservedObject var hub: HubConnection
+    @ObservedObject var sound: SoundListenerModel
     let onStop: @MainActor () -> Void
 
     var body: some View {
@@ -32,10 +33,22 @@ struct WearerView: View {
 
                 Card {
                     InfoRow(title: "Motion", value: motionText)
+                    InfoRow(title: "Audio", value: audioFollowsValue)
                     if let pose = controller.poseSummary {
                         InfoRow(title: "Hub position", value: pose)
                     }
                     InfoRow(title: "Battery", value: controller.batteryText)
+                }
+
+                Card {
+                    Toggle(isOn: $sound.enabled) {
+                        Text("Sound positioning")
+                            .font(.headline)
+                    }
+                    .accessibilityHint("Listens for the anchors' chirps through the microphone and sends them to the ranging service")
+                    Text(sound.statusLine)
+                        .font(.title3)
+                        .foregroundStyle(sound.enabled && !sound.connected ? Color.orange : Color.primary)
                 }
 
                 Card {
@@ -73,6 +86,10 @@ struct WearerView: View {
             }
             .padding()
         }
+    }
+
+    private var audioFollowsValue: String {
+        SoundStatusText.audioFollows(controller.positioningActive).replacingOccurrences(of: "Audio follows: ", with: "follows ")
     }
 
     private var motionText: String {

@@ -1,12 +1,60 @@
 # Earmark UWB iPhone app (`ios/EarmarkUWB`)
 
-One app, four iPhones: three fixed **UWB Reader/Emitter 1/2/3** anchors and one handheld **Wearer**.
-The wearer measures its distance to each anchor with Nearby Interaction and streams `uwb_range` and `motion_state` to the hub, which solves the position and publishes `listener_pose`.
+One app, four iPhones: three **fixed phones** (UWB anchors `uwb_1..3`, which are also sound beacons 1..3) and one handheld **Wearer**.
+The wearer measures its distance to each anchor with Nearby Interaction and streams `uwb_range` and `motion_state` to the hub, which solves the position.
+At the same time it streams microphone audio to the sound ranging service, which hears the fixed phones' chirps and sends its own position to the hub.
+The hub sends one of the two as `listener_pose` (the dashboard or Mac app switches which) and both side by side as `positioning`.
 Spec: `docs/project/UWB-PRD.md` section 7. API notes: `docs/sponsors/vendor-notes/apple-nearby-interaction.md`.
 
-This code was written on Windows without a Swift toolchain, so **it has never been compiled**.
-Expect a few small fixes on the first build (see "If it doesn't compile" below).
-On a Mac, run `scripts/mac_check.sh` (or `/mac-bringup` in Claude Code) to build and test everything.
+Build and test everything on a Mac with `scripts/mac_check.sh`.
+
+## Both positioning systems (UWB + sound)
+
+### Roles
+
+| Role | UWB | Sound |
+|---|---|---|
+| `uwb_1`, `uwb_2`, `uwb_3` (anchors) | Nearby Interaction anchor, talks to the wearer | **Sound beacon N** (uwb_1 is beacon 1, ...): chirps every 0.5 s on its own clock, 12000-16000 Hz, volume 0.8. No network, no microphone, `.playback` audio session. |
+| `wearer` | Three NI sessions, knock / Mark here, Talk | **Sound listener**: streams 48 kHz microphone audio to the ranging service as "the user's phone" (slot 0) and receives its fixes. |
+
+Both are on by default, with a visible toggle ("Sound beacon" on anchors, "Sound positioning" on the wearer) and a
+status line (chirping / chirps played / error; connected / last fix age / error). Turning the sound side off does
+not touch the Nearby Interaction session. The sound code is `PhoneCore` from `locator/ios/EarmarkPhone`
+(`SelfTimedBeacon`, `PhoneClient`), linked as a local package; the standalone app there still works.
+
+The wearer also shows "Audio follows: UWB" or "Sound": the hub's `positioning.active` (read-only here; the
+dashboard or Mac app chooses with `positioning_select`). Both systems keep running either way. Mark here and the
+knock send `object_tap`; the hub answers `tap_position` only while UWB is tracking.
+
+### Addresses
+
+- Hub address: `ws://<mac>:8765` (the bus).
+- Ranging address (wearer only): leave it empty and the app uses the hub's host on port 8766
+  (`ws://<mac>:8766`, where `earmark-ranging listen` runs). Type another address to override; it is remembered.
+
+Run the ranging service in calibrate-then-listen mode (`services/ranging/README.md`); the wearer holds still at the
+calibration spot while it calibrates.
+
+### Shared microphone (wearer)
+
+iOS gives the app one audio session and one microphone. The sound listener opens it as `.playAndRecord` /
+`.measurement`. Push-to-talk used to set `.record` and deactivate the session when released, which would kill the
+listener. Now there is one capture path:
+
+- Listener running (connected, microphone open): the listener hands every raw input buffer to `PushToTalk.feed`,
+  which resamples to 16 kHz mono Int16 in 100 ms chunks (the same code as before) and sends `mic_audio` while Talk
+  is held. Talk opens no engine and never changes or deactivates the session.
+- Listener off or not connected yet: Talk behaves as before (own engine, `.record`, built-in mic, session released
+  afterwards). If the listener connects while Talk is held, Talk switches to the shared buffers without touching
+  the session. If the listener loses the microphone while Talk is held, Talk stops with a message.
+
+Note: in shared mode the voice comes through `.measurement` mode, which turns off Apple's automatic gain, so
+speech may be quieter than with the standalone Talk path.
+
+### Tests
+
+`Tests/` compiles `Sources/Logic/` directly: motion, knock, rates, hub and ranging addresses, beacon number from
+the device id, status texts.
 
 ## Files
 

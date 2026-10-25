@@ -53,6 +53,8 @@ final class WearerController: ObservableObject {
     @Published private(set) var poseSummary: String?
     @Published private(set) var batteryText = "Unknown"
     @Published private(set) var roundRobinNote: String?
+    /// The hub's `positioning.active` ("uwb" or "sound"): which system drives the audio. nil until the first message.
+    @Published private(set) var positioningActive: String?
     /// Result of the last Mark here ("Saved", "No position", ...), cleared after a few seconds.
     @Published private(set) var markStatus: String?
     @Published var roundRobin: Bool {
@@ -71,6 +73,8 @@ final class WearerController: ObservableObject {
     private var anchorStatusSeen: [String: Double] = [:]
     private let motionDetector = MotionDetector()
     private let mic = PushToTalk()
+    /// The sound-positioning listener (PhoneClient, slot 0). Shares the microphone with `mic`.
+    let sound: SoundListenerModel
     private var micSeq = 0
     private var loops: [Task<Void, Never>] = []
     private var roundRobinLoop: Task<Void, Never>?
@@ -78,8 +82,9 @@ final class WearerController: ObservableObject {
     private var roundRobinTick = 0
     private var running = false
 
-    init(hub: HubConnection) {
+    init(hub: HubConnection, rangingURL: @escaping () -> URL?) {
         self.hub = hub
+        self.sound = SoundListenerModel(mic: mic, url: rangingURL)
         self.uwbSupported = CapabilityCheck.supportsUWB
         self.roundRobin = UserDefaults.standard.bool(forKey: Self.roundRobinKey)
         for id in Self.anchorIds {
@@ -107,6 +112,8 @@ final class WearerController: ObservableObject {
         motionDetector.onKnock = { [weak self] in self?.markHere() }
         motionDetector.start()
         mic.onChunk = { [weak self] data in self?.sendMic(data) }
+        sound.onCaptureChanged = { [weak self] on in self?.soundCaptureChanged(on) }
+        sound.start()
 
         for id in Self.anchorIds { slots[id]?.start() }
         applyRoundRobin()
@@ -125,6 +132,7 @@ final class WearerController: ObservableObject {
         roundRobinLoop?.cancel(); roundRobinLoop = nil
         markClear?.cancel(); markClear = nil
         setTalking(false)
+        sound.stop()
         motionDetector.stop()
         slots.values.forEach { $0.stop() }
         hub.stop()
@@ -132,6 +140,7 @@ final class WearerController: ObservableObject {
 
     func appBecameActive() {
         hub.reconnectNow()
+        sound.appBecameActive()
         refresh()
     }
 
@@ -165,6 +174,16 @@ final class WearerController: ObservableObject {
                 self.micMessage = "Microphone error: \(error.localizedDescription)"
                 Log.mic.error("talk start failed: \(error.localizedDescription, privacy: .public)")
             }
+        }
+    }
+
+    /// The sound listener opened or closed the microphone. While it is open, Talk reads its buffers (one capture
+    /// path); when it closes under a running Talk there is nothing left to read, so Talk ends.
+    private func soundCaptureChanged(_ on: Bool) {
+        mic.setShared(on)
+        if !on, talking {
+            setTalking(false)
+            micMessage = "Talk stopped because the sound positioning microphone closed. Try again."
         }
     }
 
@@ -271,6 +290,8 @@ final class WearerController: ObservableObject {
             poseSummary = Self.describe(pose)
         case .tapPosition(let tap):
             tapResult(tap)
+        case .positioning(let positioning):
+            if positioningActive != positioning.active.rawValue { positioningActive = positioning.active.rawValue }
         case .status(let status):
             guard status.component == .iosAnchor, case .string(let id)? = status.info?["device_id"] else { return }
             anchorStatusSeen[id] = uptime()
@@ -304,6 +325,7 @@ final class WearerController: ObservableObject {
         if next != rows { rows = next }
         let battery = DeviceInfo.batteryText
         if battery != batteryText { batteryText = battery }
+        sound.refreshStatus()
     }
 
     private func sendStatus() {
@@ -313,6 +335,9 @@ final class WearerController: ObservableObject {
         info["device_id"] = .string(role.deviceId)
         info["round_robin"] = .bool(roundRobin)
         info["talking"] = .bool(talking)
+        info["sound_listening"] = .bool(sound.capturing)
+        info["sound_fix_age_s"] = sound.lastFixAge.map { JSONScalar.number(($0 * 10).rounded() / 10) } ?? .null
+        info["positioning_active"] = positioningActive.map { JSONScalar.string($0) } ?? .null
         info["motion"] = motion.map { JSONScalar.string($0.rawValue) } ?? .null
         info["battery"] = DeviceInfo.batteryLevel.map { JSONScalar.number($0) } ?? .null
         info["charging"] = .bool(DeviceInfo.isCharging)
