@@ -8,7 +8,7 @@ public struct ChirpSpec: Equatable, Sendable {
     public var amplitude: Double
     public var direction: String  // "up" or "down"
 
-    public init(fLo: Double = 17000, fHi: Double = 20000, lengthMs: Double = 24, amplitude: Double = 0.8, direction: String = "up") {
+    public init(fLo: Double = 17000, fHi: Double = 20000, lengthMs: Double = 40, amplitude: Double = 0.8, direction: String = "up") {
         self.fLo = fLo; self.fHi = fHi; self.lengthMs = lengthMs; self.amplitude = amplitude; self.direction = direction
     }
 

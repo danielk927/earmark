@@ -37,11 +37,12 @@ class AudioBuffer:
         self.n = int(seconds * FS)
         self.data = np.zeros(self.n, dtype=np.float32)
         self.end = 0  # first sample not yet received
+        self.first = 0  # the phone's counter when it joined (it does not start at zero)
         self.started = False
 
     def write(self, start: int, samples: np.ndarray) -> None:
         if not self.started:
-            self.end, self.started = start, True
+            self.end, self.first, self.started = start, start, True
         if start > self.end:  # a chunk went missing: keep the timeline honest with silence
             gap = min(start - self.end, self.n)
             self._put(start - gap, np.zeros(gap, dtype=np.float32))
@@ -88,6 +89,23 @@ class BusPublisher:
         except Exception as e:  # noqa: BLE001 - any failure means "try again at the next fix"
             log.debug("bus unavailable: %s", e)
             self.ws = None
+
+
+def save_audio(phones: dict[int, Phone], folder: str) -> None:
+    """Write what each phone heard recently, so it can be opened in any audio tool or run through the band test."""
+    import os
+    import wave
+
+    os.makedirs(folder, exist_ok=True)
+    for slot, ph in phones.items():
+        audio = ph.buf.get(max(ph.buf.end - 6 * FS, 0), ph.buf.end) if ph.buf.started else None
+        if audio is None:
+            continue
+        with wave.open(os.path.join(folder, f"phone{slot}.wav"), "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(FS)
+            w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
 
 
 class RangingService:
@@ -249,20 +267,7 @@ class RangingService:
             await self.publisher.send(ListenerPose(position=pos, quality="lost", beacons_heard=0, source="beacons"))
 
     def save_audio(self, folder: str) -> None:
-        """Write what each phone heard recently, so it can be opened in any audio tool or run through the band test."""
-        import os
-        import wave
-
-        os.makedirs(folder, exist_ok=True)
-        for slot, ph in self.phones.items():
-            audio = ph.buf.get(max(ph.buf.end - 6 * FS, 0), ph.buf.end) if ph.buf.started else None
-            if audio is None:
-                continue
-            with wave.open(os.path.join(folder, f"phone{slot}.wav"), "wb") as w:
-                w.setnchannels(1)
-                w.setsampwidth(2)
-                w.setframerate(FS)
-                w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
+        save_audio(self.phones, folder)
 
     def status(self) -> StatusMsg:
         have = sorted(self.phones)
