@@ -4,6 +4,10 @@ import { clockHour, horizontalDistance, type LogLine, type RoomState, type Vec3 
 import { RoomScene, webglAvailable, type Beacon } from "./scene";
 import { RoomModel } from "./scene3d";
 import { useBus } from "./useBus";
+import "@fontsource/stix-two-text/latin-400.css";
+import "@fontsource/stix-two-text/latin-400-italic.css";
+import "@fontsource/stix-two-text/latin-600.css";
+import "@fontsource/stix-two-text/latin-600-italic.css";
 import "./room.css";
 
 const BEACONS: Beacon[] = beaconConfig.beacons.map((b) => ({ id: b.id, label: b.label, position: b.position as Vec3 }));
