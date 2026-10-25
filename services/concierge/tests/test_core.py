@@ -377,3 +377,24 @@ async def test_leaving_it_here_still_works_with_a_fix_a_few_seconds_old(h):
     h.core.world.listener = (h.core.world.listener[0], time.time() - 7)  # a beacon dropped out a moment ago
     out = await h.say("I'm leaving my glasses here.")
     assert h.of("place_item", out) and not h.spoken(out)[0].startswith("I can't tell where you are")
+
+
+async def test_leaving_it_here_saves_where_you_said_it_not_where_you_walked_to(h):
+    from earmark_contracts import ListenerPose
+
+    def at(x, y):
+        return ListenerPose(position=[x, y, 1.5], quality="ok", beacons_heard=3, source="beacons")
+
+    await h.feed(at(0.8, -0.4))
+    decide = h.core.router.decide
+
+    async def walk_back_while_thinking(text, world):
+        await h.core.handle(at(0.0, 0.0))  # the user heads back to the mat while the LLM decides
+        return await decide(text, world)
+
+    h.core.router.decide = walk_back_while_thinking
+    out = await h.say("I'm leaving my keys here.")
+    assert [p["position"][:2] for p in h.of("place_item", out)] == [[0.8, -0.4]]
+    await h.feed(at(0.8, -0.4))
+    out = await h.say("I'm leaving my glasses here.")  # a brand-new item takes the same path
+    assert [p["position"][:2] for p in h.of("place_item", out)] == [[0.8, -0.4]]

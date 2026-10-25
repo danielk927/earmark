@@ -214,8 +214,11 @@ class Concierge:
     # ------------------------------------------------------------ turns
 
     async def _utterance(self, text: str, source: str) -> None:
+        # "Here" is where the user stood when they said it, not where they are once the LLM and the turn
+        # queue are done: they may already be walking away.
+        here = self.world.listener_position(SAVE_SPOT_FIX_S)
         async with self._turn_lock:
-            turn = {"id": self._id("t"), "t_final": time.time(), "source": source}
+            turn = {"id": self._id("t"), "t_final": time.time(), "source": source, "here": here}
             self.latency.log("final_transcript", turn=turn["id"], source=source, text=text)
             if self.silent_trial is not None:
                 self.latency.log("tool", turn=turn["id"], tool="silent_baseline_trial")
@@ -274,12 +277,12 @@ class Concierge:
             return policy.clarify(self.world, res.object_ids, call.name, call.args, text)
         return policy.unknown_object()
 
-    def _maybe_new_item(self, call: ToolCall, plan: Plan) -> Plan:
+    def _maybe_new_item(self, call: ToolCall, plan: Plan, turn: dict) -> Plan:
         """'I'm leaving my glasses here' for an unknown item adds it at the user's spot; anything else is unchanged."""
         if (plan.phrase_id != policy.PHRASE_UNKNOWN_OBJECT or call.name != "put_in_place"
                 or call.args.get("place") or call.args.get("area") or not call.args.get("query")):
             return plan
-        here = self.world.listener_position(SAVE_SPOT_FIX_S)
+        here = turn.get("here")
         if here is None:
             return policy.no_position_yet()
         return policy.new_item_here(call.args["query"], here, set(self.world.objects))
@@ -303,7 +306,7 @@ class Concierge:
             return policy.label(tag, call.args["name"], call.args.get("aliases", []), spot)
         target = await self._target(call, turn, text)
         if isinstance(target, Plan):
-            return self._maybe_new_item(call, target)
+            return self._maybe_new_item(call, target, turn)
         if call.name == "chirp_fob":
             return policy.chirp(self.world, target, now, self.s.stale_s)
         if call.name == "put_in_place":
@@ -313,7 +316,7 @@ class Concierge:
                 return policy.put_in_place(self.world, target, area)
             if place:
                 return policy.unknown_place(self.world)
-            here = self.world.listener_position(SAVE_SPOT_FIX_S)
+            here = turn.get("here")
             return policy.put_here(target, here) if here else policy.ask_place(self.world, target)
         if call.name == "place_history":
             return policy.place_history(self.world, target, now)
