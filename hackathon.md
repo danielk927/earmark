@@ -4,7 +4,7 @@
 - **Event:** Cal Hacks 13.0
 - **What it does:** Helps blind and low-vision people find everyday objects by sound, with a ping through AirPods that comes from the item's direction.
 - **Live app:** not deployed
-- **Repo:** https://github.com/danielk927/earmark (private)
+- **Repo:** https://github.com/danielk927/earmark
 - **Frontend:** not deployed
 - **Convex deployment:** https://diligent-ptarmigan-12.convex.cloud
 - **Components:** none
