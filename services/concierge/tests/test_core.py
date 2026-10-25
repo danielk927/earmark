@@ -287,6 +287,22 @@ async def test_leaving_it_here_saves_the_position_when_the_locator_knows_it(h):
     assert h.spoken(out) == ["Got it, I'll remember where you left the keys."]
 
 
+async def test_leaving_an_unknown_item_here_adds_it(h):
+    from earmark_contracts import ListenerPose
+    await h.feed(ListenerPose(position=[0.8, -0.4, 1.5], quality="ok", beacons_heard=3, source="beacons"))
+    out = await h.say("I'm leaving my glasses here.")
+    [lb] = h.of("label", out)
+    [m] = h.of("place_item", out)
+    assert (lb["name"], lb["tag"]) == ("glasses", "VOICE-glasses")
+    assert (m["object_id"], m["position"]) == ("glasses", [0.8, -0.4, 1.0])
+    assert h.spoken(out) == ["Got it, I've added the glasses and I'll remember where you left them."]
+
+
+async def test_an_unknown_item_is_not_added_without_a_position(h):
+    out = await h.say("I'm leaving my glasses here.")
+    assert not h.of("label", out) and not h.of("place_item", out)
+
+
 async def test_a_lost_locator_fix_is_not_saved(h):
     from earmark_contracts import ListenerPose
     await h.feed(ListenerPose(position=[0.8, -0.4, 1.5], quality="lost", beacons_heard=0, source="beacons"))

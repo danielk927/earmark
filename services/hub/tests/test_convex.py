@@ -288,3 +288,23 @@ async def test_place_item_with_a_position_is_synced_without_an_area(fake, hub_cf
         await c.close()
     finally:
         await hub.stop()
+
+
+async def test_a_new_item_named_by_voice_is_added_then_placed(fake, hub_cfg, hub_root):
+    from earmark_contracts import Label, PlaceItem
+
+    fake.start()
+    hub_cfg.convex = fast_cfg()
+    hub = Hub(hub_cfg, root=hub_root, convex_env=ConvexEnv(fake.url, SECRET))
+    await hub.start()
+    try:
+        c = await BusClient.connect("concierge", subscribe=["state_update"], url=f"ws://127.0.0.1:{hub.bus.port}")
+        await c.send(Label(tag="VOICE-glasses", name="glasses", aliases=[], t=time.time()))
+        await c.send(PlaceItem(object_id="glasses", position=[0.8, -0.4, 1.0], t=time.time()))
+        await wait_for(lambda: any(fake.events[k]["kind"] == "stored" for k in fake.order))
+        stored = [fake.events[k] for k in fake.order if fake.events[k]["kind"] == "stored"]
+        assert stored[0]["object_id"] == "glasses"
+        assert any(o.object_id == "glasses" for o in hub.registry.registry.objects)
+        await c.close()
+    finally:
+        await hub.stop()

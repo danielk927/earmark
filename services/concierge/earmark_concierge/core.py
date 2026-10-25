@@ -262,7 +262,9 @@ class Concierge:
         q = call.args.get("query", "")
         if grammar.normalize(q) in PRONOUNS and self.last_object in self.world.objects:
             return self.world.objects[self.last_object]
-        res = await self.resolver.resolve(q)
+        # "I'm leaving X here" may name a brand-new item, so only a name match counts, not a word in a description.
+        here = call.name == "put_in_place" and not call.args.get("place") and not call.args.get("area")
+        res = await self.resolver.resolve(q, strict=here)
         self.latency.log("resolve", turn=turn["id"], engine=res.engine, kind=res.kind, ids=res.object_ids,
                          moss_status=res.moss_status,
                          moss_ms=round(res.moss_ms, 2) if res.moss_ms is not None else None)
@@ -271,6 +273,16 @@ class Concierge:
         if res.kind == "ambiguous":
             return policy.clarify(self.world, res.object_ids, call.name)
         return policy.unknown_object()
+
+    def _maybe_new_item(self, call: ToolCall, plan: Plan) -> Plan:
+        """'I'm leaving my glasses here' for an unknown item adds it at the user's spot; anything else is unchanged."""
+        if (plan.phrase_id != policy.PHRASE_UNKNOWN_OBJECT or call.name != "put_in_place"
+                or call.args.get("place") or call.args.get("area") or not call.args.get("query")):
+            return plan
+        here = self.world.listener_position()
+        if here is None:
+            return plan
+        return policy.new_item_here(call.args["query"], here, set(self.world.objects))
 
     async def _execute(self, call: ToolCall | None, text: str, turn: dict) -> Plan:
         now = time.time()
@@ -291,7 +303,7 @@ class Concierge:
             return policy.label(tag, call.args["name"], call.args.get("aliases", []), spot)
         target = await self._target(call, turn)
         if isinstance(target, Plan):
-            return target
+            return self._maybe_new_item(call, target)
         if call.name == "chirp_fob":
             return policy.chirp(self.world, target, now, self.s.stale_s)
         if call.name == "put_in_place":

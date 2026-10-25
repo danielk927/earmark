@@ -5,12 +5,13 @@ messages. Every sentence is computed here, never by an LLM.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from earmark_contracts import RegistryObject
 
 from .phrasing import (
-    Grammar, cap, clock_phrase, clock_time, direction_phrase, join_and, join_or, number_word,
+    Grammar, bare_name, cap, clock_phrase, clock_time, direction_phrase, join_and, join_or, number_word,
     relative_spot_phrase, the, time_phrase,
 )
 from .world import Sighting, World
@@ -228,6 +229,19 @@ def put_here(obj: RegistryObject, listener: list[float]) -> Plan:
     spot = [round(listener[0], 2), round(listener[1], 2), HAND_HEIGHT_M]
     return Plan(text=f"Got it, I'll remember where you left {the(obj.name)}.",
                 place=PlaceAction(obj.object_id, position=spot), object_id=obj.object_id)
+
+
+def new_item_here(name: str, listener: list[float], existing: set[str]) -> Plan:
+    """'I'm leaving my glasses here' for an item Earmark has never heard of: add it, then keep the spot."""
+    # Same id the hub derives from the name, so the place message that follows the label finds the new item.
+    base = re.sub(r"[^a-z0-9]+", "_", bare_name(name).lower()).strip("_") or "object"
+    object_id, n = base, 2
+    while object_id in existing:
+        object_id, n = f"{base}_{n}", n + 1
+    spot = [round(listener[0], 2), round(listener[1], 2), HAND_HEIGHT_M]
+    return Plan(text=f"Got it, I've added {the(name)} and I'll remember where you left {Grammar(name).it}.",
+                label=LabelAction(tag=f"VOICE-{object_id}", name=bare_name(name), aliases=[], spot=None),
+                place=PlaceAction(object_id, position=spot), object_id=object_id)
 
 
 def ask_place(world: World, obj: RegistryObject) -> Plan:
