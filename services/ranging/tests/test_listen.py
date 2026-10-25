@@ -215,3 +215,33 @@ async def test_three_beacons_over_the_socket_give_a_position():
     assert math.dist(fix.position, me) < 0.2
     assert pose.position == pytest.approx((me[0], me[1], me[2] + 0.35), abs=0.2)
     assert pose.quality in ("ok", "degraded") and pose.beacons_heard == 3 and pose.source == "beacons"
+
+
+def _jump_tracker():
+    from earmark_ranging.listen import BeaconSchedule
+
+    return Tracker({1: BeaconSchedule(a=0.0, b=0.5)}, C, {1: (0.0, 0.0, 0.0)})
+
+
+def _range(t, d, n):
+    from earmark_ranging.listen import Range
+
+    return Range(1, d, t, n, 30.0)
+
+
+def test_one_wild_distance_is_ignored_but_a_real_move_is_followed():
+    tr = _jump_tracker()
+    tr.latest[1] = _range(10.0, 1.00, 20)
+    assert not tr._jumped(1, _range(10.5, 1.08, 21))  # ordinary wobble
+    tr.latest[1] = _range(10.5, 1.08, 21)
+    assert tr._jumped(1, _range(11.0, 2.20, 22))  # a lone echo
+    assert not tr._jumped(1, _range(11.5, 1.12, 23))  # back to normal: the echo is forgotten
+    tr.latest[1] = _range(11.5, 1.12, 23)
+    assert tr._jumped(1, _range(12.0, 3.00, 24))  # first far reading: held back
+    assert not tr._jumped(1, _range(12.5, 3.05, 25))  # second agrees: the phone really went there
+
+
+def test_a_long_silence_resets_the_filter():
+    tr = _jump_tracker()
+    tr.latest[1] = _range(10.0, 1.00, 20)
+    assert not tr._jumped(1, _range(14.0, 4.00, 28))

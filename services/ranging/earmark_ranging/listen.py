@@ -30,6 +30,9 @@ MIN_KEPT = 12  # chirps a calibration needs from each beacon
 MAX_RESIDUAL_S = 0.0003  # how ragged the fitted schedule may be
 MAX_PERIOD_PPM = 150.0  # two phone clocks differ by tens of ppm; more than this means the phone was moving
 MAX_JUMP_M = 2.0
+MAX_WALK_MPS = 1.2  # a distance may change this fast at most (a blindfolded user walks slowly)
+JUMP_SLACK_M = 0.3  # plus this much measurement wobble
+JUMP_FORGET_S = 2.0  # after this long without a good distance, believe the next one
 
 Pos = tuple[float, float, float]
 
@@ -351,6 +354,23 @@ class Tracker:
         self.last_fix: Fix | None = None
         self.last_fix_t: float | None = None
         self._outliers = 0
+        self._suspect: dict[int, Range] = {}  # a distance that jumped; believed only if the next one agrees
+
+    def _jumped(self, k: int, r: Range) -> bool:
+        """True for a distance that changed faster than a person can walk, unless the next one agrees with it."""
+        prev = self.latest.get(k)
+        if prev is None or r.t - prev.t > JUMP_FORGET_S:
+            self._suspect.pop(k, None)
+            return False
+        if abs(r.distance_m - prev.distance_m) <= JUMP_SLACK_M + MAX_WALK_MPS * (r.t - prev.t):
+            self._suspect.pop(k, None)
+            return False
+        sus = self._suspect.get(k)
+        if sus is not None and abs(r.distance_m - sus.distance_m) <= JUMP_SLACK_M + MAX_WALK_MPS * (r.t - sus.t):
+            self._suspect.pop(k, None)
+            return False  # two in a row agree: the phone really went there
+        self._suspect[k] = r
+        return True
 
     def add(self, dets: list[Detection], seen_up_to: float) -> list[Range]:
         """Feed newly heard chirps; `seen_up_to` is how far the recording has been searched (seconds)."""
@@ -375,6 +395,8 @@ class Tracker:
             if not self.d_min <= dist <= self.d_max or n <= self.last_cycle.get(k, -(10**9)):
                 continue
             r = Range(k, dist, d.t, n, d.snr)
+            if self._jumped(k, r):
+                continue
             self.latest[k], self.last_cycle[k] = r, n
             out.append(r)
         return out
