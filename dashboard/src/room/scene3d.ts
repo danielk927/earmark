@@ -1,6 +1,5 @@
 /**
- * The room as a mathematician would draw it: a dark plane with a coordinate grid, flat bright colors, and the
- * geometry made visible. Circles around each beacon phone show how far it measured you to be; they meet where you stand.
+ * The room drawn in the 3Blue1Brown style: near-black, flat bright colors, a math-textbook serif. No axes or numbers.
  * Earmark's (x right, y forward, z up) maps to three's (x, y up, -z forward).
  */
 import * as THREE from "three";
@@ -9,13 +8,12 @@ import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRe
 import type { RoomState, Vec3 } from "./model";
 import type { Beacon } from "./scene";
 
-// The classic palette: blue, green, yellow, red on near-black.
-const BG = 0x0d1013;
-const BLUE = 0x58c4dd;
-const GREEN = 0x83c167;
-const YELLOW = 0xffff72;
-const RED = 0xfc6255;
-const WHITE = 0xeeeeee;
+// Black and white: white and greys on black. Things are told apart by shape, brightness and label, not by color.
+const BG = 0x050505;
+const BLUE = 0xcfcfcf; // the figure and the mat: light grey
+const GREEN = 0xffffff; // the beacon phones: white
+const YELLOW = 0xffffff; // the item: a bright white dot
+const RED = 0xffffff; // the arrow to the item
 
 const P = (p: Vec3, lift = 0) => new THREE.Vector3(p[0], p[2] + lift, -p[1]);
 
@@ -35,23 +33,20 @@ function line(points: THREE.Vector3[], color: number, opacity = 1, dashed = fals
   return l;
 }
 
-const circlePoints = (r: number, n = 96) =>
-  Array.from({ length: n + 1 }, (_, i) => new THREE.Vector3(Math.cos((i / n) * Math.PI * 2) * r, 0, Math.sin((i / n) * Math.PI * 2) * r));
-
 /** A person you would recognise: head, neck, torso, two arms, two legs, drawn as flat blue shapes with bright edges. */
 function buildHuman(): THREE.Group {
   const g = new THREE.Group();
-  const fill = new THREE.MeshBasicMaterial({ color: 0x14303a });
+  const fill = new THREE.MeshBasicMaterial({ color: 0x161616 });
   const edge = new THREE.LineBasicMaterial({ color: BLUE });
-  const part = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0) => {
+  const part = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0, angle = 25) => {
     const m = new THREE.Mesh(geo, fill);
     m.position.set(x, y, z);
     m.rotation.set(rx, 0, rz);
-    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), edge));
+    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, angle), edge));
     g.add(m);
     return m;
   };
-  part(new THREE.SphereGeometry(0.115, 20, 14), 0, 1.62, 0); // head
+  part(new THREE.SphereGeometry(0.115, 12, 8), 0, 1.62, 0, 0, 0, 1); // head: a few facets so its outline shows
   part(new THREE.CylinderGeometry(0.04, 0.045, 0.1, 10), 0, 1.47, 0); // neck
   part(new THREE.CylinderGeometry(0.2, 0.15, 0.58, 14), 0, 1.15, 0); // torso, broad at the shoulders
   part(new THREE.CylinderGeometry(0.15, 0.17, 0.14, 14), 0, 0.82, 0); // hips
@@ -86,9 +81,7 @@ export class RoomModel {
   private personTag: CSS2DObject;
   private trail: THREE.Line;
   private arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 1, YELLOW, 0.14, 0.08);
-  private arrowTag = tag("", "m3-var");
   private waves: THREE.Mesh[] = [];
-  private beaconGroups: { circle: THREE.Line; link: THREE.Line; tag: CSS2DObject; floor: THREE.Vector3; top: THREE.Vector3 }[] = [];
   private shown = new THREE.Vector3();
   private shownTarget = new THREE.Vector3();
   private yaw = 0;
@@ -125,8 +118,6 @@ export class RoomModel {
     this.scene.add(this.trail);
     this.arrow.visible = false;
     this.scene.add(this.arrow);
-    this.arrowTag.element.style.display = "none";
-    this.scene.add(this.arrowTag);
     for (let i = 0; i < 4; i++) {
       const w = new THREE.Mesh(new THREE.TorusGeometry(1, 0.016, 8, 72), new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, depthWrite: false }));
       w.visible = false;
@@ -148,50 +139,19 @@ export class RoomModel {
     this.controls.update();
   }
 
-  /** The coordinate plane: a faint grid every 0.25 m, bright lines every meter, axes through the middle of the mat. */
+  /** The floor: a plain dark slab with a thin outline, and the mat with its arrow. */
   private buildPlane() {
     const { w, d } = this.room;
-    const half = Math.max(w, d) / 2 + 0.6;
-    const minor: THREE.Vector3[] = [];
-    const major: THREE.Vector3[] = [];
-    for (let v = -Math.ceil(half * 4) / 4; v <= half + 1e-6; v += 0.25) {
-      const bucket = Math.abs(v - Math.round(v)) < 1e-6 ? major : minor;
-      bucket.push(new THREE.Vector3(v, 0, -half), new THREE.Vector3(v, 0, half), new THREE.Vector3(-half, 0, v), new THREE.Vector3(half, 0, v));
-    }
-    const mk = (pts: THREE.Vector3[], color: number, opacity: number) => {
-      const l = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity }));
-      l.position.y = 0.001;
-      this.scene.add(l);
-    };
-    mk(minor, BLUE, 0.1);
-    mk(major, BLUE, 0.32);
-    const axisMat = { transparent: true, opacity: 0.9 };
-    const ax = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-half, 0.003, 0), new THREE.Vector3(half, 0.003, 0)]), new THREE.LineBasicMaterial({ color: WHITE, ...axisMat }));
-    const ay = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0.003, half), new THREE.Vector3(0, 0.003, -half)]), new THREE.LineBasicMaterial({ color: WHITE, ...axisMat }));
-    this.scene.add(ax, ay);
-    // Meter marks along each axis.
-    for (let m = 1; m <= Math.floor(half); m++) {
-      for (const s of [-1, 1]) {
-        const tx = tag(`${s < 0 ? "−" : ""}${m}`, "m3-tick");
-        tx.position.set(s * m, 0.01, 0.13);
-        const ty = tag(`${s < 0 ? "−" : ""}${m}`, "m3-tick");
-        ty.position.set(0.13, 0.01, -s * m);
-        this.scene.add(tx, ty);
-      }
-    }
-    const xl = tag("<i>x</i> (meters, right)", "m3-axis");
-    xl.position.set(half - 0.1, 0.02, 0.42);
-    const yl = tag("<i>y</i> (meters, forward)", "m3-axis");
-    yl.position.set(0.55, 0.02, -half + 0.1);
-    this.scene.add(xl, yl);
-    // The edge of the play area, dashed.
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.5, d + 0.5), new THREE.MeshBasicMaterial({ color: 0x0e0e0e }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.002;
+    this.scene.add(floor);
     const edge = line([
       new THREE.Vector3(-w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, d / 2),
       new THREE.Vector3(-w / 2, 0.004, d / 2), new THREE.Vector3(-w / 2, 0.004, -d / 2),
-    ], WHITE, 0.4, true);
+    ], BLUE, 0.5);
     this.scene.add(edge);
-    // The mat, drawn as the unit square the whole room is measured from.
-    const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, opacity: 0.12, side: THREE.DoubleSide }));
+    const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, opacity: 0.14, side: THREE.DoubleSide }));
     mat.rotation.x = -Math.PI / 2;
     mat.position.y = 0.002;
     this.scene.add(mat);
@@ -216,15 +176,6 @@ export class RoomModel {
       const t = tag(`<i>B</i><sub>${i + 1}</sub>`, "m3-beacon");
       t.position.copy(top).add(new THREE.Vector3(0, 0.22, 0));
       this.scene.add(t);
-      // Its distance to you: a circle on the floor and a line to your chest. Resized as you move.
-      const circle = line(circlePoints(1), GREEN, 0.38, true);
-      circle.position.copy(floor).setY(0.005);
-      this.scene.add(circle);
-      const link = line([top, top.clone()], GREEN, 0.9);
-      this.scene.add(link);
-      const dt = tag("", "m3-dist");
-      this.scene.add(dt);
-      this.beaconGroups.push({ circle, link, tag: dt, floor, top });
     });
   }
 
@@ -273,17 +224,7 @@ export class RoomModel {
     this.yaw += (this.yawTarget - this.yaw) * 0.25;
     this.person.rotation.y = this.yaw;
     this.personTag.element.style.transform = ""; // the tag stays upright (CSS2D), only the figure turns
-    // Circles and links: each beacon's distance to your chest.
     const chest = this.shown.clone().setY(1.3);
-    this.beaconGroups.forEach((b) => {
-      const horizontal = Math.hypot(b.floor.x - this.shown.x, b.floor.z - this.shown.z);
-      b.circle.scale.setScalar(Math.max(horizontal, 0.01));
-      b.link.geometry.dispose();
-      b.link.geometry = new THREE.BufferGeometry().setFromPoints([b.top, chest]);
-      const d = b.top.distanceTo(chest);
-      b.tag.element.textContent = `${d.toFixed(2)} m`;
-      b.tag.position.copy(b.top.clone().lerp(chest, 0.5));
-    });
     const g = s?.guide;
     if (g && s) {
       const to = P([g.target[0], g.target[1], 0], 0.02);
@@ -296,9 +237,6 @@ export class RoomModel {
         this.arrow.setDirection(dir.clone().normalize());
         this.arrow.setLength(len, 0.16, 0.09);
         this.arrow.setColor(RED);
-        this.arrowTag.element.style.display = "";
-        this.arrowTag.element.innerHTML = `<i>d</i> = ${Math.hypot(g.target[0] - s.user[0], g.target[1] - s.user[1]).toFixed(2)} m`;
-        this.arrowTag.position.copy(from.clone().lerp(to, 0.5)).setY(0.12);
       }
       const src = P(g.target);
       const dst = chest;
@@ -312,7 +250,6 @@ export class RoomModel {
       });
     } else {
       this.arrow.visible = false;
-      this.arrowTag.element.style.display = "none";
       for (const w of this.waves) w.visible = false;
     }
   }

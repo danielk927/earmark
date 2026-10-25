@@ -100,16 +100,16 @@
  * things being talked about, and a math-textbook serif. The side panel follows: plain text on thin rules, no boxes.
  */
 .room.is-3d {
-  --r-bg: #0d1013;
-  --r-panel: #101418;
-  --r-card: #161b20;
-  --r-line: #2a333a;
-  --r-ink: #eeeeee;
-  --r-soft: #9aa7b0;
-  --r-accent: #58c4dd;
-  --r-item: #ffff72;
-  --r-guide: #fc6255;
-  --r-bad: #fc6255;
+  --r-bg: #050505;
+  --r-panel: #0a0a0a;
+  --r-card: #141414;
+  --r-line: #2e2e2e;
+  --r-ink: #ffffff;
+  --r-soft: #a0a0a0;
+  --r-accent: #ffffff;
+  --r-item: #ffffff;
+  --r-guide: #ffffff;
+  --r-bad: #ffffff;
   font-family: "STIX Two Text", "Times New Roman", serif;
   color-scheme: dark;
 }
@@ -118,37 +118,48 @@
 .room.is-3d .room-head h1 { font-size: 1.9rem; font-weight: 600; font-style: italic; }
 .room.is-3d .room-head h1 span { font-weight: 400; font-style: normal; color: var(--r-soft); }
 .room.is-3d .room-pill { background: transparent; border: none; padding: 0 12px 0 0; color: var(--r-soft); font-size: 0.95rem; }
-.room.is-3d .room-pill.ok .dot { background: #83c167; }
+.room.is-3d .room-pill .dot { background: #5a5a5a; }
+.room.is-3d .room-pill.ok .dot { background: #ffffff; }
+.room.is-3d .room-pill.bad .dot { background: #ffffff; box-shadow: 0 0 0 2px #050505, 0 0 0 3px #ffffff; }
 .room.is-3d .room-card { background: transparent; border: none; border-top: 1px solid var(--r-line); border-radius: 0; padding: 14px 0; }
-.room.is-3d .room-card h2 { font-size: 1.1rem; letter-spacing: 0; text-transform: none; color: var(--r-accent); font-weight: 600; font-style: italic; }
-.room.is-3d .room-guide { border-top-color: var(--r-guide); }
-.room.is-3d .room-guide-name { color: var(--r-item); font-size: 2.2rem; font-style: italic; font-weight: 600; text-transform: none; }
+.room.is-3d .room-card h2 { font-size: 1.1rem; letter-spacing: 0; text-transform: none; color: var(--r-ink); font-weight: 600; font-style: italic; }
+.room.is-3d .room-guide { border-top-color: #ffffff; }
+.room.is-3d .room-guide-name { color: #ffffff; font-size: 2.2rem; font-style: italic; font-weight: 600; text-transform: none; }
 .room.is-3d .room-guide-facts dt { font-size: 0.85rem; font-style: italic; }
 .room.is-3d .room-meter { background: var(--r-line); height: 3px; }
-.room.is-3d .room-meter span { background: var(--r-guide); }
+.room.is-3d .room-meter span { background: #ffffff; }
 .room.is-3d .room-ask { border-top: 1px solid var(--r-line); padding: 14px 0; }
-.room.is-3d .room-ask label { text-transform: none; letter-spacing: 0; font-size: 1.1rem; color: var(--r-accent); font-weight: 600; font-style: italic; }
-.room.is-3d .room-ask input { background: #0d1013; border-color: var(--r-line); border-radius: 4px; font-size: 1rem; }
-.room.is-3d .room-ask button { background: var(--r-accent); color: #0d1013; border-color: var(--r-accent); border-radius: 4px; }
-.room.is-3d .room-log .log-said .who { color: var(--r-accent); }
-.room.is-3d .room-log .log-memory .who, .room.is-3d .room-log .log-found .who { color: #83c167; }
+.room.is-3d .room-ask label { text-transform: none; letter-spacing: 0; font-size: 1.1rem; color: var(--r-ink); font-weight: 600; font-style: italic; }
+.room.is-3d .room-ask input { background: #000000; border-color: var(--r-line); border-radius: 4px; font-size: 1rem; }
+.room.is-3d .room-ask input:focus { outline: 2px solid #ffffff; }
+.room.is-3d .room-ask button { background: #ffffff; color: #000000; border-color: #ffffff; border-radius: 4px; }
+.room.is-3d .room-log .who { color: var(--r-soft); }
 .room.is-3d .room-items .name { text-transform: none; font-style: italic; }
-.room.is-3d .room-items .dist { color: var(--r-item); }
+.room.is-3d .room-items .dist { color: #ffffff; }
 .room.is-3d .room-viewbar button { border-radius: 4px; background: var(--r-card); }
-.room.is-3d .room-viewbar button[aria-pressed="true"] { background: var(--r-accent); color: #0d1013; border-color: var(--r-accent); }
+.room.is-3d .room-viewbar button[aria-pressed="true"] { background: #ffffff; color: #000000; border-color: #ffffff; }
+.room.is-3d .room-toggle input { accent-color: #ffffff; }
 
 .room-caption { position: absolute; left: 28px; right: 28px; bottom: 24px; margin: 0; max-width: 36ch; z-index: 2; pointer-events: none;
-  font-size: clamp(1.5rem, 2.6vw, 2.4rem); line-height: 1.2; font-weight: 400; font-style: italic; color: var(--r-ink); text-shadow: 0 0 12px #0d1013; }
+  font-size: clamp(1.5rem, 2.6vw, 2.4rem); line-height: 1.2; font-weight: 400; font-style: italic; color: var(--r-ink); text-shadow: 0 0 12px #050505; }
 
 .m3-labels { position: absolute; inset: 0; }
 .m3-tag { pointer-events: none; font-family: "STIX Two Text", "Times New Roman", serif; font-size: 17px; line-height: 1; white-space: nowrap;
-  text-shadow: 0 0 6px #0d1013, 0 0 6px #0d1013, 0 0 3px #0d1013; color: #eeeeee; }
+  text-shadow: 0 0 6px #050505, 0 0 6px #050505, 0 0 3px #050505; color: #ffffff; }
 .m3-tag sub { font-size: 0.65em; }
-.m3-you { color: #58c4dd; font-size: 19px; }
-.m3-item { color: #ffff72; font-size: 19px; }
-.m3-beacon { color: #83c167; font-size: 20px; }
-.m3-dist { color: #83c167; font-size: 14px; opacity: 0.9; }
-.m3-var { color: #fc6255; font-size: 17px; }
-.m3-tick { color: #9aa7b0; font-size: 13px; }
-.m3-axis { color: #9aa7b0; font-size: 14px; }
+.m3-you { color: #ffffff; font-size: 19px; }
+.m3-item { color: #ffffff; font-size: 19px; }
+.m3-beacon { color: #ffffff; font-size: 20px; }
 @media (max-width: 900px) { .room-caption { bottom: 14px; } }
+
+/* The conversation: plain white on black, one question then its answer, in order. */
+.room-convo ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 14px; max-height: 38vh; overflow-y: auto; }
+.room-convo li p { margin: 0; }
+.convo-line { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font-size: 1rem; line-height: 1.35; }
+.convo-line span { font-size: 0.8rem; padding-top: 3px; font-weight: 600; }
+.convo-you { color: #ffffff; }
+.convo-you span { color: #ffffff; }
+.convo-earmark { color: #a8a8a8; margin-top: 3px; }
+.convo-earmark span { color: #a8a8a8; }
+.room.is-3d .room-convo .convo-you, .room.is-3d .room-convo .convo-you span { color: #ffffff; }
+.room.is-3d .room-convo .convo-earmark, .room.is-3d .room-convo .convo-earmark span { color: #a8a8a8; }

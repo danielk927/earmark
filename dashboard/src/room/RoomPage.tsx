@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import beaconConfig from "../../../config/beacons.json";
-import { clockHour, horizontalDistance, type LogLine, type RoomState, type Vec3 } from "./model";
+import { clockHour, horizontalDistance, type LogLine, type RoomState, type Turn, type Vec3 } from "./model";
 import { RoomScene, webglAvailable, type Beacon } from "./scene";
 import { RoomModel } from "./scene3d";
 import { useBus } from "./useBus";
@@ -161,7 +161,7 @@ export function RoomPage() {
             echo(text);
           }} />
         <WhereUser state={state} simulate={walking} setSimulate={setSimulate} realFix={realFix} />
-        <Log title="Conversation" lines={state.log.filter((l) => l.kind === "heard" || l.kind === "said")} empty="Ask something and the conversation shows here." />
+        <Conversation turns={state.convo} />
         <Log title="Memory" lines={state.log.filter((l) => l.kind === "memory" || l.kind === "found" || l.kind === "info")} empty='Say "I put my keys in the drawer".' />
         <Items state={state} />
       </aside>
@@ -285,13 +285,49 @@ function Log({ title, lines, empty }: { title: string; lines: LogLine[]; empty: 
   );
 }
 
+function Conversation({ turns }: { turns: Turn[] }) {
+  const end = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "nearest" });
+  }, [turns]);
+  return (
+    <section className="room-card room-convo">
+      <h2>Conversation</h2>
+      {turns.length === 0 ? (
+        <p className="room-empty">Ask something and the conversation shows here.</p>
+      ) : (
+        <ol>
+          {turns.slice(-6).map((t, i) => (
+            <li key={`${t.t}-${i}`}>
+              {t.q !== null && (
+                <p className="convo-line convo-you">
+                  <span>You</span>
+                  {t.q}
+                </p>
+              )}
+              {t.a.map((line, k) => (
+                <p key={k} className="convo-line convo-earmark">
+                  <span>Earmark</span>
+                  {line}
+                </p>
+              ))}
+            </li>
+          ))}
+          <li ref={end} aria-hidden="true" />
+        </ol>
+      )}
+    </section>
+  );
+}
+
 function Items({ state }: { state: RoomState }) {
-  const items = Object.values(state.items);
+  // Only things that have been added show here: an item counts once it has a place.
+  const items = Object.values(state.items).filter((it) => it.position);
   return (
     <section className="room-card room-items">
       <h2>Items</h2>
       {items.length === 0 ? (
-        <p className="room-empty">Waiting for the hub.</p>
+        <p className="room-empty">Nothing added yet. Say "I put my keys in the drawer" to add one.</p>
       ) : (
         <ul>
           {items.map((it) => (

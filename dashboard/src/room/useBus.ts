@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { initialState, MAX_LOG, reduce, tick, type RoomState } from "./model";
+import { ask, initialState, reduce, tick, type RoomState } from "./model";
 
 /** Message types the room view shows. `speak` is listed so spoken Cartesia text arrives (its audio is ignored). */
 const SUBSCRIBE = [
@@ -18,7 +18,7 @@ type Action = { kind: "echo"; text: string } | { kind: "local"; msg: Record<stri
 
 function reducer(s: RoomState, a: Action): RoomState {
   const now = Date.now() / 1000;
-  if (a.kind === "echo") return { ...s, now, log: [{ t: now, kind: "heard" as const, text: a.text }, ...s.log].slice(0, MAX_LOG) };
+  if (a.kind === "echo") return { ...ask(s, a.text, now), now };
   if (a.kind === "local") return { ...reduce(s, a.msg, now), now };
   if (a.kind === "msg") return { ...reduce(s, a.msg, now), now };
   if (a.kind === "down") return { ...s, connected: false };

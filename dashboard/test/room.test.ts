@@ -62,9 +62,21 @@ describe("room model", () => {
       ["memory", "Remembered: the keys is in the drawer"],
       ["heard", "I put my keys in the drawer"],
     ]);
+    expect(s.convo.map((t) => [t.q, t.a])).toEqual([["I put my keys in the drawer", ["Got it, the keys are in the drawer."]]]);
     expect(s.items.keys).toMatchObject({ where: "in the drawer", position: [1.5, 0, 0.4] });
     expect(s.guide).toMatchObject({ objectId: "keys", target: [1.5, 0, 0.4] });
     expect(reduce(s, { type: "guide_stop", reason: "found", object_id: "keys" }, 200).guide).toBeNull();
+  });
+
+  it("pairs each answer with its question even when questions come faster than answers", () => {
+    const said = (text: string) => ({ type: "speak_text", text, utterance_id: "u" });
+    const heard = (text: string) => ({ type: "transcript", text, is_final: true, source: "typed" });
+    const s = run(snapshot, heard("first?"), heard("second?"), said("answer one"), said("answer two"), said("more on two"));
+    expect(s.convo.map((t) => [t.q, t.a])).toEqual([
+      ["first?", ["answer one"]],
+      ["second?", ["answer two", "more on two"]],
+    ]);
+    expect(run(snapshot, said("hello")).convo).toEqual([{ t: 101, q: null, a: ["hello"] }]);
   });
 
   it("gives the clock direction from where the user stands and faces", () => {

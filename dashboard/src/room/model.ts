@@ -23,6 +23,12 @@ export interface LogLine {
   kind: "heard" | "said" | "memory" | "found" | "info";
   text: string;
 }
+/** One exchange: what the person said, then what Earmark answered (q is null for something Earmark said unprompted). */
+export interface Turn {
+  t: number;
+  q: string | null;
+  a: string[];
+}
 export interface Guide {
   objectId: string;
   name: string;
@@ -42,18 +48,38 @@ export interface RoomState {
   headT: number | null;
   guide: Guide | null;
   log: LogLine[];
+  convo: Turn[];
   status: Record<string, { ok: boolean; detail: string; t: number }>;
   now: number; // when the state last changed or ticked, unix seconds
 }
 
 export const MAX_TRAIL = 80;
 export const MAX_LOG = 40;
+export const MAX_TURNS = 20;
+
+/** A question starts a new exchange. */
+export function ask(s: RoomState, text: string, now: number): RoomState {
+  return { ...s, convo: [...s.convo, { t: now, q: text, a: [] }].slice(-MAX_TURNS) };
+}
+
+/** Earmark's words go under the oldest question that has no answer yet, so the page reads question, answer, question, answer. */
+function answer(s: RoomState, text: string, now: number): RoomState {
+  const convo = s.convo.map((t) => ({ ...t, a: [...t.a] }));
+  let turn = convo.find((t) => t.q !== null && t.a.length === 0);
+  if (!turn) turn = convo[convo.length - 1];
+  if (!turn) {
+    convo.push({ t: now, q: null, a: [text] });
+  } else if (turn.a[turn.a.length - 1] !== text) {
+    turn.a.push(text);
+  }
+  return { ...s, convo: convo.slice(-MAX_TURNS) };
+}
 const MAT: Vec3 = [0, 0, 1.55];
 
 export function initialState(): RoomState {
   return {
     connected: false, places: [], items: {}, user: MAT, userLive: false, userSource: "mat", lastFixT: null,
-    trail: [], headYaw: null, headT: null, guide: null, log: [], status: {}, now: 0,
+    trail: [], headYaw: null, headT: null, guide: null, log: [], convo: [], status: {}, now: 0,
   };
 }
 
@@ -145,12 +171,12 @@ export function reduce(s: RoomState, m: Msg, now: number): RoomState {
       }
       return s;
     case "transcript":
-      return m.is_final ? { ...s, log: addLog(s, { t: now, kind: "heard", text: String(m.text) }) } : s;
+      return m.is_final ? ask({ ...s, log: addLog(s, { t: now, kind: "heard", text: String(m.text) }) }, String(m.text), now) : s;
     case "speak":
-      return m.seq === 0 && typeof m.text === "string" ? { ...s, log: addLog(s, { t: now, kind: "said", text: m.text }) } : s;
+      return m.seq === 0 && typeof m.text === "string" ? answer({ ...s, log: addLog(s, { t: now, kind: "said", text: m.text }) }, m.text, now) : s;
     case "speak_text":
     case "speak_cached":
-      return typeof m.text === "string" ? { ...s, log: addLog(s, { t: now, kind: "said", text: m.text }) } : s;
+      return typeof m.text === "string" ? answer({ ...s, log: addLog(s, { t: now, kind: "said", text: m.text }) }, m.text, now) : s;
     case "place_item": {
       const name = s.items[String(m.object_id)]?.name ?? String(m.object_id);
       const area = typeof m.area === "string" ? s.places.find((p) => p.id === m.area)?.label ?? m.area : null;
