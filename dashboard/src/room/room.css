@@ -86,3 +86,57 @@
   .room { position: static; grid-template-columns: 1fr; grid-template-rows: 60vh auto; min-height: 100vh; }
   .room-panel { border-left: none; border-top: 1px solid var(--r-line); }
 }
+
+/* View switch (both modes). */
+.room-viewbar { position: absolute; top: 16px; left: 16px; display: flex; align-items: center; gap: 6px; z-index: 2; }
+.room-viewbar button { font: inherit; font-weight: 600; font-size: 0.9rem; color: var(--r-ink); background: var(--r-card); border: 1px solid var(--r-line);
+  border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+.room-viewbar button[aria-pressed="true"] { background: var(--r-ink); color: var(--r-bg); border-color: var(--r-ink); }
+.room-viewbar button:focus-visible { outline: 2px solid var(--r-accent); outline-offset: 2px; }
+.room-viewgap { width: 14px; }
+
+/*
+ * The 3D model: a pale concrete table, charcoal ink, cobalt only for sound and orange only for the things you look for.
+ * The side panel turns into plain text on hairlines, not boxes.
+ */
+.room.is-3d {
+  --r-bg: #e9e7e1;
+  --r-panel: #f3f2ee;
+  --r-card: #f3f2ee;
+  --r-line: #c9c6bd;
+  --r-ink: #22272b;
+  --r-soft: #5a6166;
+  --r-accent: #2f4bff;
+  --r-item: #d63d1c;
+  --r-guide: #2f4bff;
+  --r-bad: #b3261e;
+  color-scheme: light;
+}
+.room.is-3d .room-panel { gap: 0; padding: 22px 24px; background: var(--r-panel); border-left: 1px solid var(--r-line); }
+.room.is-3d .room-head h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.01em; }
+.room.is-3d .room-head h1 span { font-weight: 400; }
+.room.is-3d .room-pill { background: transparent; border: none; padding: 0 12px 0 0; color: var(--r-soft); }
+.room.is-3d .room-card { background: transparent; border: none; border-top: 1px solid var(--r-line); border-radius: 0; padding: 14px 0; }
+.room.is-3d .room-card h2 { font-size: 1rem; letter-spacing: 0; text-transform: none; color: var(--r-ink); font-weight: 700; }
+.room.is-3d .room-guide { border-top-color: var(--r-accent); }
+.room.is-3d .room-guide-name { color: var(--r-accent); font-size: 2rem; letter-spacing: -0.01em; }
+.room.is-3d .room-meter { background: var(--r-line); height: 4px; }
+.room.is-3d .room-meter span { background: var(--r-accent); }
+.room.is-3d .room-ask label { text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--r-ink); font-weight: 700; }
+.room.is-3d .room-ask { border-top: 1px solid var(--r-line); padding: 14px 0; }
+.room.is-3d .room-ask input { background: #fff; border-color: var(--r-line); border-radius: 8px; }
+.room.is-3d .room-ask button { background: var(--r-ink); color: var(--r-bg); border-color: var(--r-ink); border-radius: 8px; }
+.room.is-3d .room-log .log-said .who { color: var(--r-accent); }
+.room.is-3d .room-items .dist { color: var(--r-item); }
+
+.room-caption { position: absolute; left: 24px; right: 24px; bottom: 22px; margin: 0; max-width: 34ch; z-index: 2; pointer-events: none;
+  font-size: clamp(1.4rem, 2.6vw, 2.3rem); line-height: 1.18; font-weight: 700; letter-spacing: -0.015em; color: var(--r-ink); }
+
+.m3-labels { position: absolute; inset: 0; }
+.m3-tag { pointer-events: none; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1; padding: 4px 8px; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.92); color: #22272b; box-shadow: 0 1px 0 rgba(34, 39, 43, 0.18); white-space: nowrap; }
+.m3-you { background: #22272b; color: #fff; }
+.m3-item { background: #ff5b3a; color: #fff; }
+.m3-target { background: #2f4bff; color: #fff; font-size: 14px; }
+.m3-beacon { width: 22px; height: 22px; padding: 0; display: grid; place-items: center; border-radius: 50%; background: #22272b; color: #fff; font-size: 12px; }
+@media (max-width: 900px) { .room-caption { bottom: 14px; } }

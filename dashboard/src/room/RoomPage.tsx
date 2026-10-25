@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import beaconConfig from "../../../config/beacons.json";
 import { clockHour, horizontalDistance, type LogLine, type RoomState, type Vec3 } from "./model";
 import { RoomScene, webglAvailable, type Beacon } from "./scene";
+import { RoomModel } from "./scene3d";
 import { useBus } from "./useBus";
 import "./room.css";
 
@@ -17,10 +18,39 @@ const SOURCE_TEXT: Record<string, string> = {
   sim: "From a recording",
 };
 
+interface Stage {
+  update(s: RoomState): void;
+  dispose(): void;
+  onFloorClick: ((x: number, y: number) => void) | null;
+  view?(kind: "angle" | "top"): void;
+}
+
+type Mode = "2d" | "3d";
+
+function initialMode(): Mode {
+  const q = new URLSearchParams(window.location.search).get("view");
+  if (q === "2d" || q === "3d") return q;
+  try {
+    return window.localStorage.getItem("room-mode") === "3d" ? "3d" : "2d";
+  } catch {
+    return "2d";
+  }
+}
+
 export function RoomPage() {
   const { state, send, echo, local } = useBus();
   const host = useRef<HTMLDivElement>(null);
-  const scene = useRef<RoomScene | null>(null);
+  const scene = useRef<Stage | null>(null);
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const chooseMode = (m: Mode) => {
+    setMode(m);
+    try {
+      window.localStorage.setItem("room-mode", m);
+    } catch {
+      // no storage: the choice just is not remembered
+    }
+  };
+  const lastSaid = state.log.find((l) => l.kind === "said");
   const [gl] = useState(webglAvailable);
   const [simulate, setSimulate] = useState(false);
   const simPos = useRef<Vec3>([0, 0, 1.55]);
@@ -29,17 +59,17 @@ export function RoomPage() {
 
   useEffect(() => {
     if (!gl || !host.current) return;
-    const s = new RoomScene(host.current, BEACONS, ROOM);
+    const s: Stage = mode === "3d" ? new RoomModel(host.current, BEACONS, ROOM) : new RoomScene(host.current, BEACONS, ROOM);
     scene.current = s;
     return () => {
       s.dispose();
       scene.current = null;
     };
-  }, [gl]);
+  }, [gl, mode]);
 
   useEffect(() => {
     scene.current?.update(state);
-  }, [state]);
+  }, [state, mode]);
 
   // Walking simulator: arrow keys or WASD move a pretend user, shift-click puts them on a spot.
   // It sends the same position message the phones do, so the ping and the voice follow it.
@@ -92,13 +122,29 @@ export function RoomPage() {
     };
     // state.user is read once, when walking starts
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walking, send, local]);
+  }, [walking, send, local, mode]);
 
   return (
-    <div className="room">
+    <div className={`room ${mode === "3d" ? "is-3d" : ""}`}>
       <section className="room-stage" aria-label="The room, seen from above">
         {gl ? <div ref={host} className="room-canvas" /> : <p className="room-nogl">This browser cannot draw the room.</p>}
-        <Legend />
+        <div className="room-viewbar" role="group" aria-label="View">
+          <button type="button" aria-pressed={mode === "2d"} onClick={() => chooseMode("2d")}>2D</button>
+          <button type="button" aria-pressed={mode === "3d"} onClick={() => chooseMode("3d")}>3D</button>
+          {mode === "3d" && (
+            <>
+              <span className="room-viewgap" />
+              <button type="button" onClick={() => scene.current?.view?.("angle")}>Angle</button>
+              <button type="button" onClick={() => scene.current?.view?.("top")}>Top</button>
+            </>
+          )}
+        </div>
+        {mode === "3d" && (
+          <p className="room-caption" aria-live="polite">
+            {lastSaid ? lastSaid.text : "Ask a question, or say where you left something."}
+          </p>
+        )}
+        {mode === "2d" && <Legend />}
       </section>
       <aside className="room-panel">
         <header className="room-head">
