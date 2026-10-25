@@ -218,6 +218,7 @@ function WhereUser({ state, simulate, setSimulate, realFix }: { state: RoomState
         <input type="checkbox" checked={simulate} disabled={realFix} onChange={(e) => setSimulate(e.target.checked)} />
         <span>{realFix ? "Phones are tracking you" : "Simulate walking (arrow keys, or click the floor)"}</span>
       </label>
+      {!state.status.locator?.ok && <p className="room-note">The beacons appear on the map once the phones are calibrated on the mat.</p>}
     </section>
   );
 }

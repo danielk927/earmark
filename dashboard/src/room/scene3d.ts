@@ -108,6 +108,8 @@ export class RoomModel {
   private obs: ResizeObserver;
   private state: RoomState | null = null;
   private itemsGroup = new THREE.Group();
+  private beaconGroup = new THREE.Group(); // hidden until the phones are set up (calibrated)
+  private beaconsShown = false;
   private itemsKey = "";
   private person = new THREE.Group();
   private figure = buildHuman();
@@ -145,6 +147,8 @@ export class RoomModel {
 
     this.buildPlane();
     this.buildBeacons();
+    this.setBeaconsVisible(false);
+    this.scene.add(this.beaconGroup);
     this.scene.add(this.itemsGroup);
 
     this.figure.rotation.y = 0;
@@ -199,6 +203,11 @@ export class RoomModel {
     this.scene.add(arrow);
   }
 
+  private setBeaconsVisible(v: boolean) {
+    // Each label is hidden on its own too: CSS2D labels do not follow a hidden parent.
+    this.beaconGroup.traverse((o) => (o.visible = v));
+  }
+
   private buildBeacons() {
     this.beacons.forEach((b, i) => {
       const top = P(b.position);
@@ -207,15 +216,15 @@ export class RoomModel {
       const phone = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.15, 0.012), new THREE.MeshBasicMaterial({ color: GREEN }));
       phone.position.copy(top);
       phone.rotation.y = Math.atan2(-floor.x, -floor.z);
-      this.scene.add(phone);
-      this.scene.add(line([floor.clone().setY(0.005), top], GREEN, 0.5, true));
+      this.beaconGroup.add(phone);
+      this.beaconGroup.add(line([floor.clone().setY(0.005), top], GREEN, 0.5, true));
       const foot = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.065, 24), new THREE.MeshBasicMaterial({ color: GREEN, side: THREE.DoubleSide }));
       foot.rotation.x = -Math.PI / 2;
       foot.position.copy(floor).setY(0.006);
-      this.scene.add(foot);
+      this.beaconGroup.add(foot);
       const t = tag(`<i>B</i><sub>${i + 1}</sub>`, "m3-beacon");
       t.position.copy(top).add(new THREE.Vector3(0, 0.22, 0));
-      this.scene.add(t);
+      this.beaconGroup.add(t);
     });
   }
 
@@ -248,6 +257,11 @@ export class RoomModel {
   update(s: RoomState) {
     this.state = s;
     this.rebuildItems(s);
+    // The map starts empty: the beacons appear once the phones are calibrated, and stay.
+    if (!this.beaconsShown && s.status.locator?.ok) {
+      this.beaconsShown = true;
+      this.setBeaconsVisible(true);
+    }
     this.shownTarget.copy(P([s.user[0], s.user[1], 0]));
     this.yawTarget = -((s.headYaw ?? 0) * Math.PI) / 180;
     this.gaze.visible = s.headYaw !== null;

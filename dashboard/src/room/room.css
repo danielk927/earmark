@@ -59,6 +59,7 @@
 .room-where { display: flex; flex-direction: column; gap: 2px; }
 .room-where span { color: var(--r-soft); }
 .room-toggle { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 0.92rem; }
+.room-note { margin: 8px 0 0; font-size: 0.88rem; opacity: 0.75; }
 .room-log ol, .room-items ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
 .room-log li { display: grid; grid-template-columns: 70px 1fr; gap: 8px; font-size: 0.95rem; }
 .room-log .who { color: var(--r-soft); font-size: 0.8rem; padding-top: 2px; }
