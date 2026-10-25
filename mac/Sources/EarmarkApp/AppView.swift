@@ -359,6 +359,7 @@ private struct ActionButtons: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            PositioningPicker(m: m)
             Button { m.recenter() } label: {
                 Label("Recenter  (R)", systemImage: "scope")
                     .font(.system(size: 20, weight: .bold))
@@ -372,6 +373,34 @@ private struct ActionButtons: View {
             }
             if let mock = m.mockTracker {
                 MockHeadStrip(mock: mock)
+            }
+        }
+    }
+}
+
+/// Which positioning system drives the audio (UWB or sound chirps); both keep running. Follows the hub's answer.
+private struct PositioningPicker: View {
+    @ObservedObject var m: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("POSITIONING  (P)")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.5)
+                .foregroundStyle(Theme.textSecondary)
+            Picker("Positioning", selection: Binding(get: { m.activePositioning }, set: { m.selectPositioning($0) })) {
+                Text("UWB").tag(PositioningSystem.uwb)
+                Text("Sound").tag(PositioningSystem.sound)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel("Positioning system")
+            .accessibilityValue(PositioningText.name(m.activePositioning))
+            .accessibilityHint("Chooses whether UWB or sound chirps drive the audio. Keyboard shortcut P.")
+            if let p = m.core.positioning {
+                Text(PositioningText.inactiveLine(p))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.textSecondary)
             }
         }
     }

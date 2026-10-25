@@ -17,6 +17,10 @@ struct MapScene {
     var anchors: [UWBText.AnchorLine] = []
     var listenerPose: ListenerPose?
     var wearerLine = ""
+    /// Dual positioning: the inactive system's fresh fix (ghost dot) and its text line; nil until the hub reports.
+    var ghost: EarmarkPoint?
+    var ghostName = ""
+    var positioningLine: String?
     /// Show the walking layer (anchors, wearer badge, wider bounds) only when UWB is configured or reporting.
     var showsWalking: Bool { !anchors.isEmpty || listenerPose != nil }
     var modeBadge: String { UWBText.mode(listenerPose?.mode) }
@@ -61,6 +65,11 @@ struct MapScene {
         listenerPose = core.listenerPose
         anchors = UWBText.anchors(space: core.space, pose: core.listenerPose, listener: core.listenerPosition)
         wearerLine = UWBText.wearerLine(pose: core.listenerPose, listener: core.listenerPosition)
+        if let p = core.positioning {
+            ghost = PositioningText.ghost(p).flatMap { Geometry.point($0.position) }
+            ghostName = PositioningText.name(PositioningText.other(p.active))
+            positioningLine = PositioningText.inactiveLine(p)
+        }
     }
 
     /// Text equivalent of the map, for VoiceOver and the list under it.
@@ -75,6 +84,7 @@ struct MapScene {
             parts.append(wearerLine)
             parts += anchors.map(\.text)
         }
+        if let l = positioningLine { parts.append(l) }
         return parts.joined(separator: ". ")
     }
 }
@@ -119,6 +129,7 @@ struct MapView: View {
             pts += Self.walkingArea
             pts.append(pose.listener)
         }
+        if let g = scene.ghost { pts.append(g) }
         var top = pts.map(\.y).max() ?? 0.6
         for l in scene.loose { if let p = l.position { pts.append(p); top = max(top, p.y + Self.proximityRadius(l.detail) + 0.08) } }
         // Anchors carry two lines of text, so the walking layer gets extra margin on every side.
@@ -188,9 +199,19 @@ struct MapView: View {
                      at: CGPoint(x: c.x, y: c.y + 24))
         }
 
+        if let g = scene.ghost { drawGhost(ctx, f.pt(g), name: scene.ghostName) }
+
         ctx.fill(Path(ellipseIn: CGRect(x: you.x - 17, y: you.y - 17, width: 34, height: 34)), with: .color(Theme.head))
         ctx.draw(Text("You").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.background), at: you)
         if scene.showsWalking { drawModeBadge(ctx, at: you) }
+    }
+
+    /// The inactive positioning system's position: a hollow dashed ring with its name, so it never reads as the listener.
+    private func drawGhost(_ ctx: GraphicsContext, _ c: CGPoint, name: String) {
+        let ring = Path(ellipseIn: CGRect(x: c.x - 12, y: c.y - 12, width: 24, height: 24))
+        ctx.stroke(ring, with: .color(Theme.textPrimary.opacity(0.75)), style: StrokeStyle(lineWidth: 2, dash: [3, 3]))
+        ctx.draw(Text(name).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.textSecondary),
+                 at: CGPoint(x: c.x, y: c.y - 21))
     }
 
     private func drawHead(_ ctx: GraphicsContext, _ f: Frame, at c: CGPoint) {
@@ -373,6 +394,20 @@ struct MapList: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(a.text)
                 }
+            }
+            if let line = scene.positioningLine {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("OTHER POSITIONING")
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(0.5)
+                        .foregroundStyle(Theme.textSecondary)
+                    Text(line)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text("OFF THE SPOTS")

@@ -55,6 +55,7 @@ Environment: `EARMARK_BUS_URL`, `EARMARK_PHRASES_DIR` (cached phrase WAVs), `EAR
 ### Keys
 
 - `R`: recenter (both apps).
+- `P`: switch the positioning system between UWB and Sound (app).
 - `Space` (hold): push to talk.
 - Left and right arrows: turn the virtual head 15 deg (Shift: 5 deg) when the mock head is on.
 - These never fire while typing in a text field.
@@ -175,6 +176,7 @@ Applied automatically; the status bar shows "GUIDANCE - LEVEL n OF 4", and `stat
 - Guidance angles, behind, lock, and the clock face use the vector target - listener. The ping interval is the angle curve times a distance factor (1.0 within 1 m, 1.6 at 4 m and beyond).
 - Distance attenuation (inverse, full volume within 0.6 m, no quieter beyond 8 m, rolloff 1) is tunable by ear in Settings. PHASE takes the rolloff only, and only when its renderer is built.
 - `listener_command recenter` (the concierge's "recenter") recenters the AirPods like the R key. `head_pose` goes out at 10 Hz whenever head tracking runs.
+- Dual positioning: UWB and sound chirps run together. The UWB / Sound picker (or `P`) sends `positioning_select`; the hub then sends only the chosen system as `listener_pose`, so the audio path is unchanged. The app subscribes to `positioning` (about 5 Hz) and mirrors `active` in the picker. The map draws the other system as a hollow dashed ring (hidden when its fix is older than 2 s or lost) and the list says e.g. "Sound: 0.18 m from UWB, 0.3 s old", "Sound: not heard" or "UWB: not tracking".
 - `status.info` adds `uwb_mode` (`off` when no pose), `uwb_anchors_used`, `uwb_residual_m`.
 - Settings > Calibrate UWB anchors: anchor positions in cm from the origin mark (same convention as `scripts/calibrate.py`), phone height and head offset, a five-mark verify against the PRD targets, recenter, and Save, which writes `config/space.json` (old file kept as `space.json.bak`) and sends `reset` so the hub reloads it. The file is found through `EARMARK_REPO_ROOT`, the `EarmarkRepoRoot` key `build_app.sh` writes, or a parent folder containing `BUILD_BRIEF.md`; without one, Save is off.
 

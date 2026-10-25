@@ -90,6 +90,8 @@ public final class EarmarkCore {
     public private(set) var devices = DeviceReport()
     /// Latest `listener_pose` (UWB, beacons, sound, or simulator); nil when none arrived for `fixTimeout`.
     public private(set) var listenerPose: ListenerPose?
+    /// Latest `positioning` from the hub (active system plus both systems' fixes); nil until one arrives.
+    public private(set) var positioning: Positioning?
     public var distanceAttenuation = DistanceAttenuation() { didSet { renderer?.setDistanceAttenuation(distanceAttenuation) } }
     /// Every listener_pose as it arrives (main thread); the calibration screen averages them.
     public var onListenerPose: ((ListenerPose) -> Void)?
@@ -244,6 +246,11 @@ public final class EarmarkCore {
         if space == nil { space = s; changed() }
     }
 
+    /// Ask the hub to switch which positioning system drives the audio. The hub confirms with a `positioning`.
+    public func selectPositioning(_ system: PositioningSystem) {
+        send(.positioningSelect(PositioningSelect(active: system)))
+    }
+
     public func recenter() {
         head.recenter()
         addCaption(.system, "Recentered: this direction is now straight ahead.", source: "app")
@@ -285,13 +292,15 @@ public final class EarmarkCore {
             if st.component != .macApp { componentStatus[st.component.rawValue] = st }
         case .listenerPose(let p):
             applyListenerPose(p)
+        case .positioning(let p):
+            positioning = p
         case .reset:
             reset()
         case .listenerCommand(let c):
             // "recenter" (concierge voice command): same path as the R key. "freeze" is the hub's job.
             if c.action == .recenter { recenter() }
         case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other,
-             .uwbToken, .uwbRange, .motionState, .objectTap, .tapPosition, .positioningSelect, .positioning:
+             .uwbToken, .uwbRange, .motionState, .objectTap, .tapPosition, .positioningSelect:
             break
         }
         changed()
