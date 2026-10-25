@@ -344,3 +344,28 @@ async def test_arrival_for_something_else_is_ignored(h):
     h.clear()
     await h.feed(GuideFeedback(object_id="keys", event="arrived", turn=None, error_deg=0.0))
     assert not h.of("guide_stop") and not h.spoken(h.out)
+
+
+async def test_clarification_keeps_the_place_from_the_original_request(h):
+    out = await h.say("I put something for my eggs in the drawer")
+    assert h.spoken(out) == ["Do you mean the salt or the pepper?"]
+    out = await h.say("the first one")
+    [p] = h.of("place_item", out)
+    assert (p["object_id"], p["area"]) == ("salt", "drawer")
+
+
+async def test_medication_advice_check_uses_the_original_question(h):
+    from earmark_concierge.core import Pending
+    h.core.pending = Pending(["bp_meds", "salt"], "last_seen", time.time(), {"query": "pills"},
+                             "should I take too many pills")
+    out = await h.say("the pills")
+    assert h.spoken(out)[0].startswith("I can't give medical advice")
+
+
+async def test_new_guidance_stops_the_old_ping_first(h):
+    await h.say("Where's the sugar?")
+    h.clear()
+    await h.say("Where's the salt?")
+    types = [m["type"] for m in h.out if m["type"] in ("guide_stop", "guide_start")]
+    assert types == ["guide_stop", "guide_start"]
+    assert h.of("guide_stop")[0]["object_id"] == "sugar" and h.of("guide_start")[0]["object_id"] == "salt"

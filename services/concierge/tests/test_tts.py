@@ -107,7 +107,22 @@ async def test_no_mac_app_uses_local_say(tmp_path):
     script.chmod(0o755)
     h = await ready(make_settings(tmp_path, say_cmd=str(script)), mac_app=False)
     out = await h.say("Where's the sugar?")
-    assert not h.of("speak_cached", out) and not h.of("speak", out)
-    assert [m["text"] for m in h.of("speak_text", out)] == [TEXT]  # a caption for the live room page
+    assert not h.of("speak_cached", out) and not h.of("speak_text", out)  # a silent Mac app must not speak it too
+    [cap] = h.of("speak", out)  # a caption for the live room page
+    assert (cap["seq"], cap["chunk_b64"], cap["final"], cap["text"]) == (0, "", True, TEXT)
     assert h.of("guide_start", out)
     assert marker.read_text().strip() == TEXT
+
+
+async def test_sonic_socket_is_opened_ahead_of_the_first_answer(tmp_path, sonic):
+    h = await ready(tts_settings(tmp_path, sonic.url))
+    await h.core.speaker.tts.warm()
+    assert len(sonic.auth) == 1
+    out = await h.say("Where's the sugar?")
+    assert [m["type"] for m in out if m["type"].startswith("speak")] == ["speak"] * 4
+    assert len(sonic.auth) == 1  # the answer reused the warm socket
+
+
+async def test_warm_up_failure_is_not_fatal(tmp_path):
+    h = await ready(tts_settings(tmp_path, "ws://127.0.0.1:1"))
+    await h.core.speaker.tts.warm()

@@ -22,7 +22,6 @@ PHRASE_STOPPING = "stopping"
 PHRASE_NO_NEW_TAG = "no_new_tag"
 PHRASE_CHIRPING = "chirping"
 PHRASE_STT_FALLBACK = "stt_fallback"
-PHRASE_READY = "ready"
 
 
 @dataclass
@@ -59,6 +58,8 @@ class Plan:
     stop: bool = False
     clarify: list[str] = field(default_factory=list)
     clarify_tool: str | None = None
+    clarify_args: dict = field(default_factory=dict)  # the original tool arguments, re-applied to the answer
+    clarify_text: str = ""  # the original question
     object_id: str | None = None  # what this turn was about (for "it" follow-ups)
 
 
@@ -202,9 +203,10 @@ def list_objects(world: World) -> Plan:
     return Plan(text=f"I know about {number_word(n)} {word}: {join_and([the(o.name) for o in objs])}.")
 
 
-def clarify(world: World, object_ids: list[str], tool: str) -> Plan:
+def clarify(world: World, object_ids: list[str], tool: str, args: dict | None = None, text: str = "") -> Plan:
     names = [the(world.objects[i].name) for i in object_ids]
-    return Plan(text=f"Do you mean {join_or(names)}?", clarify=list(object_ids), clarify_tool=tool)
+    return Plan(text=f"Do you mean {join_or(names)}?", clarify=list(object_ids), clarify_tool=tool,
+                clarify_args=dict(args or {}), clarify_text=text)
 
 
 def label(tag: str, name: str, aliases: list[str], spot: int | None) -> Plan:
@@ -222,6 +224,7 @@ def put_in_place(world: World, obj: RegistryObject, area: str) -> Plan:
 
 # The phone is held at chest height, but the item is down where the hand put it.
 HAND_HEIGHT_M = 1.0
+HEIGHT_DIFF_M = 0.4  # an item this far above or below the hand is "up high" or "down low"
 
 
 def put_here(obj: RegistryObject, listener: list[float]) -> Plan:
@@ -282,8 +285,18 @@ def arrived(world: World, obj: RegistryObject, pos: list[float]) -> str:
     """The user is within half a meter: say where to reach (height, then side), from where they stand."""
     g = Grammar(obj.name)
     rel = world.relative(pos)
-    height = "up high" if pos[2] >= 1.3 else "down low" if pos[2] <= 0.5 else "at chest height"
-    return f"You're here. {cap(the(obj.name))} {g.is_} {height}, {clock_phrase(rel[0], rel[1])}."
+    clock = clock_phrase(rel[0], rel[1])
+    if world.listener_position() is not None:
+        # Locator z is measured from the floor. Spots sit on the counter at z 0.0, so only a clearly
+        # different item height is worth saying.
+        dz = pos[2] - HAND_HEIGHT_M
+        height = None
+        if pos[2] != 0.0 and abs(dz) > HEIGHT_DIFF_M:
+            height = "up high" if dz > 0 else "down low"
+    else:
+        height = "up high" if pos[2] >= 1.3 else "down low" if pos[2] <= 0.5 else "at chest height"
+    where = f"{height}, {clock}" if height else clock
+    return f"You're here. {cap(the(obj.name))} {g.is_} {where}."
 
 
 def stop() -> Plan:

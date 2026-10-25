@@ -50,6 +50,13 @@ class SonicTts:
             self._reader = asyncio.create_task(self._read(self._ws))
             return self._ws
 
+    async def warm(self) -> None:
+        """Open the socket ahead of the first answer, so its handshake does not eat the first-chunk budget."""
+        try:
+            await self._ensure()
+        except Exception as e:
+            log.info("tts warm-up failed (%s); will connect on first use", type(e).__name__)
+
     async def _read(self, ws: ClientConnection) -> None:
         err: Exception = TtsError("tts socket closed")
         try:

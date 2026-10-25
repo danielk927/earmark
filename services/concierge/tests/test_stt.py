@@ -1,6 +1,7 @@
 """Cartesia Ink STT against fake servers: transcripts, lazy open/close, fallback, recovery."""
 import asyncio
 import base64
+import struct
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -9,7 +10,8 @@ from conftest import Harness, make_settings, snapshot
 from earmark_contracts import MicAudio
 from fakes import FakeInk, wait_until
 
-CHUNK = base64.b64encode(bytes(3200)).decode()  # 100 ms of 16 kHz s16le
+CHUNK = base64.b64encode(bytes(3200)).decode()  # 100 ms of 16 kHz s16le, silence
+LOUD = base64.b64encode(struct.pack("<h", 8000) * 1600).decode()  # 100 ms of 16 kHz s16le, loud
 
 
 def stt_settings(tmp_path, url, **kw):
@@ -20,9 +22,9 @@ def stt_settings(tmp_path, url, **kw):
     return make_settings(tmp_path, **base)
 
 
-async def stream(h, n=10, seq0=0, dt=0.02):
+async def stream(h, n=10, seq0=0, dt=0.02, chunk=CHUNK):
     for i in range(n):
-        await h.core.handle(MicAudio(seq=seq0 + i, sample_rate=16000, chunk_b64=CHUNK))
+        await h.core.handle(MicAudio(seq=seq0 + i, sample_rate=16000, chunk_b64=chunk))
         await asyncio.sleep(dt)
 
 
@@ -92,9 +94,27 @@ async def test_no_turn_events_while_audio_flows_falls_back(tmp_path, ink):
     ink.mode = "mute"
     h = Harness(stt_settings(tmp_path, ink.url))
     await h.feed(snapshot())
-    await stream(h, 40)
+    await stream(h, 40, chunk=LOUD)
     assert h.of("stt_mode") and "no transcript" in h.of("stt_mode")[0]["reason"]
 
+
+async def test_silence_while_push_to_talk_is_held_does_not_fall_back(tmp_path, ink):
+    ink.mode = "mute"
+    h = Harness(stt_settings(tmp_path, ink.url))
+    await h.feed(snapshot())
+    await stream(h, 40)  # silence streams while the key is held, and no turn ever starts
+    assert not h.of("stt_mode") and h.core.stt.engine == "cartesia"
+
+
+async def test_preconnect_buffer_is_capped_by_time_not_chunk_count(tmp_path):
+    from earmark_concierge.stt import CartesiaStt
+    s = make_settings(tmp_path, cartesia_api_key="sk_car_test", stt_url="ws://127.0.0.1:1/x")
+    stt = CartesiaStt(s, keyterms=lambda: [])
+    big = base64.b64encode(bytes(16000 * 2)).decode()  # one 1 s chunk
+    for i in range(10):
+        await stt.on_mic_audio(MicAudio(seq=i, sample_rate=16000, chunk_b64=big))
+    assert stt._burst.queue.qsize() == 3  # 3 s of audio, whatever the chunk size
+    stt._burst.task.cancel()
 
 async def test_server_error_falls_back(tmp_path, ink):
     ink.mode = "error"

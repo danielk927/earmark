@@ -1,4 +1,6 @@
 """Resolver: exact, Moss (faked), fallbacks, ambiguity. Thresholds tuned on the seed objects."""
+import asyncio
+
 import pytest
 
 from conftest import OBJECTS
@@ -91,7 +93,24 @@ async def test_exact_name_wins_over_moss():
     # sugar's description mentions the salt jar, so Moss may rank sugar for "salt".
     hits = {"salt": [Hit("sugar", 0.6), Hit("salt", 0.59)]}
     r = await Resolver(world(), FakeIndex(hits)).resolve("salt")
-    assert r.object_ids == ["salt"] and r.engine == "exact" and r.moss_status == "ok"
+    assert r.object_ids == ["salt"] and r.engine == "exact" and r.moss_status == "skipped"
+
+
+async def test_exact_name_does_not_query_moss():
+    idx = FakeIndex()
+    idx.query = lambda *a, **k: pytest.fail("Moss was queried for an exact name")
+    r = await Resolver(world(), idx).resolve("the salt")
+    assert r.engine == "exact"
+
+
+async def test_slow_moss_times_out_and_falls_back(monkeypatch):
+    class SlowIndex(FakeIndex):
+        async def query(self, text, top_k=5):
+            await asyncio.sleep(5)
+
+    monkeypatch.setattr("earmark_concierge.resolver.MOSS_TIMEOUT_S", 0.05)
+    r = await Resolver(world(), SlowIndex()).resolve("something for my eggs")
+    assert r.moss_status == "error" and r.engine == "lexical" and r.object_ids == ["salt", "pepper"]
 
 
 async def test_candidates_and_strict_mode():
@@ -117,6 +136,27 @@ def test_moss_doc_text_has_every_field():
 
 async def test_real_moss_index_without_credentials_reports_error():
     idx = MossIndex("bad-project", "bad-key", "earmark-test")
+    await idx.sync(OBJECTS)
     with pytest.raises(RuntimeError):
         await idx.query("sugar")
     assert idx.status == "error"
+
+
+async def test_moss_retry_runs_in_the_background_not_in_the_query():
+    idx = MossIndex("p", "k", "i")
+    idx.status = "error"
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_start():
+        started.set()
+        await release.wait()
+        idx.status = "ready"
+
+    idx._start = slow_start
+    with pytest.raises(RuntimeError):  # returns at once; the restart is not awaited here
+        await asyncio.wait_for(idx.query("sugar"), 0.5)
+    await asyncio.wait_for(started.wait(), 0.5)
+    release.set()
+    await idx._retry
+    assert idx.status == "ready"

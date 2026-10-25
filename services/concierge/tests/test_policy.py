@@ -112,3 +112,30 @@ async def test_chirp_with_fob_uses_cached_phrase(h):
     out = await h.say("make my keys beep")
     assert h.of("speak_cached", out)[0]["phrase_id"] == "chirping"
     assert h.of("chirp", out)[0]["action"] == "start"
+
+
+async def _arrive_at(h, z, listener=True):
+    from earmark_contracts import GuideFeedback, ListenerPose, Location, ObjectState
+    msgs = [ObjectState(object_id="keys", location=Location(position=[0.0, 3.0, z]), precision="exact",
+                        status="roaming", home_spot=None, last_seen_t=time.time(), source="none")]
+    if listener:
+        msgs.append(ListenerPose(position=[0.0, 2.7, 1.5], quality="ok", beacons_heard=5, source="beacons"))
+    await h.feed(*msgs)
+    await h.say("Where are my keys?")
+    h.clear()
+    await h.feed(GuideFeedback(object_id="keys", event="arrived", turn=None, error_deg=0.0))
+    return h.spoken(h.out)[0]
+
+
+async def test_arrival_at_a_counter_spot_says_nothing_about_height(h):
+    assert await _arrive_at(h, 0.0) == "You're here. The keys are at your twelve o'clock."
+
+
+async def test_arrival_with_locator_compares_to_hand_height(h):
+    assert await _arrive_at(h, 1.2) == "You're here. The keys are at your twelve o'clock."
+    assert "up high" in await _arrive_at(h, 1.6)
+    assert "down low" in await _arrive_at(h, 0.4)
+
+
+async def test_arrival_without_locator_keeps_floor_thresholds(h):
+    assert "down low" in await _arrive_at(h, 0.3, listener=False)

@@ -28,7 +28,8 @@ from .config import Settings
 log = logging.getLogger(__name__)
 MAX_KEYTERMS = 100
 MAX_KEYTERM_CHARS = 1200
-PREROLL_MAX_BYTES = 16000 * 2 * 3  # 3 s at 16 kHz s16le
+PREROLL_MAX_S = 3.0  # audio buffered while the socket connects
+LOUD_PEAK = 500  # s16 peak that counts as sound (about -36 dBFS), not room hush
 
 
 class SttListener(Protocol):
@@ -57,10 +58,17 @@ def stt_url(settings: Settings, sample_rate: int, keyterms: list[str]) -> str:
     return f"{settings.stt_url}?{urlencode(params)}"
 
 
+def _peak(pcm: bytes) -> int:
+    samples = memoryview(pcm[:len(pcm) // 2 * 2]).cast("h")
+    return max(max(samples, default=0), -min(samples, default=0))
+
+
 class _Burst:
     def __init__(self, sample_rate: int) -> None:
         self.sample_rate = sample_rate
         self.queue: asyncio.Queue[bytes] = asyncio.Queue()
+        self.queued_bytes = 0
+        self.first_loud: float | None = None
         self.first_audio = time.monotonic()
         self.last_audio = self.first_audio
         self.connected = asyncio.Event()
@@ -101,7 +109,10 @@ class CartesiaStt:
                             msg.sample_rate, self.s.stt_sample_rate, msg.sample_rate)
             b.task = asyncio.create_task(self._run_burst(b))
         b.last_audio = time.monotonic()
-        if b.queue.qsize() * 3200 < PREROLL_MAX_BYTES:
+        if b.first_loud is None and _peak(pcm) >= LOUD_PEAK:
+            b.first_loud = b.last_audio
+        if b.queued_bytes < PREROLL_MAX_S * b.sample_rate * 2:
+            b.queued_bytes += len(pcm)
             b.queue.put_nowait(pcm)
 
     async def _run_burst(self, b: _Burst) -> None:
@@ -142,6 +153,7 @@ class CartesiaStt:
                 if b.turn_open and time.monotonic() - b.last_audio >= 0.2:
                     await ws.send(silence)
                 continue
+            b.queued_bytes -= len(chunk)
             await ws.send(chunk)
         b.closing = True
         await ws.send(json.dumps({"type": "close"}))
@@ -155,13 +167,18 @@ class CartesiaStt:
         except asyncio.TimeoutError:
             raise SttFailure("cartesia stt not connected within "
                              f"{self.s.stt_connect_timeout_s:g} s") from None
-        left = self.s.stt_first_event_timeout_s - (time.monotonic() - b.first_audio)
-        try:
-            await asyncio.wait_for(b.turn_seen.wait(), max(0.0, left))
-        except asyncio.TimeoutError:
-            if time.monotonic() - b.last_audio < 0.5:  # audio is still flowing
-                raise SttFailure("no transcript from cartesia within "
-                                 f"{self.s.stt_first_event_timeout_s:g} s of speech") from None
+        # Push-to-talk streams silence while the key is held, so only sound counts: the clock
+        # starts at the first loud chunk, not at the first audio.
+        while not b.turn_seen.is_set():
+            try:
+                await asyncio.wait_for(b.turn_seen.wait(), 0.1)
+            except asyncio.TimeoutError:
+                now = time.monotonic()
+                if now - b.last_audio >= 0.5:  # audio stopped
+                    return
+                if b.first_loud is not None and now - b.first_loud >= self.s.stt_first_event_timeout_s:
+                    raise SttFailure("no transcript from cartesia within "
+                                     f"{self.s.stt_first_event_timeout_s:g} s of speech") from None
 
     async def _read(self, ws, b: _Burst) -> None:
         try:

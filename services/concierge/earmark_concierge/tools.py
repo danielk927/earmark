@@ -2,7 +2,7 @@
 
 A ToolCall's args hold either an `object_id` (validated against the registry)
 or a free-text `query` that the resolver turns into an object. The LLM gives
-object ids for every tool except locate_object; the grammar gives queries.
+object ids for every tool except locate_object and put_in_place; the grammar gives queries.
 """
 from __future__ import annotations
 
@@ -75,11 +75,12 @@ def tool_schemas(world: World) -> list[dict]:
            "('did I take my pills').",
            {"object_id": oid}, ["object_id"]),
         fn("put_in_place", "The user says where they put an item ('I put my keys in the drawer', "
-           "'I'm leaving my keys here'). Pass the saved place id, or an empty place if they said 'here'.",
-           {"object_id": oid,
+           "'I'm leaving my keys here'). Pass the item in the user's own words, even if it is not a known "
+           "object, and the saved place id, or an empty place if they said 'here'.",
+           {"name": {"type": "string", "description": "The item as the user said it."},
             "place": {"type": "string", "description": "One of: " + (", ".join(world.area_ids()) or "(none)")
                       + ". Empty if the user did not name a place."}},
-           ["object_id", "place"]),
+           ["name", "place"]),
         fn("place_history", "Where an item was before, or its earlier places ('where did I put my keys before').",
            {"object_id": oid}, ["object_id"]),
         fn("stop_guidance", "Stop guidance and beeping ('stop', 'cancel', 'never mind').", {}, []),
@@ -94,6 +95,12 @@ def system_prompt(world: World) -> str:
         "Rules: never give medical advice; medication questions use last_seen. "
         "If the utterance is unclear or not a request about items, call locate_object with an empty name.",
         f"Saved places: {', '.join(world.area_ids()) or '-'}.",
+    ]
+    last = world.objects.get(world.last_object) if world.last_object else None
+    if last is not None:
+        lines.append(f"Last item discussed: {last.object_id} ({last.name}). "
+                     "'it', 'them' and 'that' mean this item.")
+    lines += [
         "Known objects (object_id: name; aliases; notes):",
     ]
     for o in world.objects.values():
@@ -142,7 +149,15 @@ def validate_llm_call(name: str, arguments: str | dict | None, world: World) -> 
             raise InvalidToolCall("name too long")
         return ToolCall(name, {"query": q})
     if name == "put_in_place":
-        _only_keys(args, {"object_id", "place"})
+        _only_keys(args, {"name", "place"})
+        q = args.get("name")
+        if not isinstance(q, str):
+            raise InvalidToolCall("name must be a string")
+        q = q.strip()
+        if not q:
+            raise DeclinedToolCall("empty name")
+        if len(q) > MAX_QUERY_LEN:
+            raise InvalidToolCall("name too long")
         place = args.get("place", "")
         if place is None:
             place = ""
@@ -151,7 +166,7 @@ def validate_llm_call(name: str, arguments: str | dict | None, world: World) -> 
         area = world.resolve_area(place) if place.strip() else ""
         if area is None:
             raise InvalidToolCall(f"unknown place {place!r}")
-        return ToolCall(name, {"object_id": _object_id(args, world), "area": area})
+        return ToolCall(name, {"query": q, "area": area})
     if name in ("guide_to_object", "chirp_fob", "last_seen", "place_history"):
         _only_keys(args, {"object_id"})
         return ToolCall(name, {"object_id": _object_id(args, world)})

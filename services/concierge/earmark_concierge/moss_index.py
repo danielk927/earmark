@@ -3,10 +3,11 @@
 One document per object (name, aliases, notes, description). Rebuilt by diff
 (delete removed ids, upsert the rest) on every registry change. Any Moss error
 marks the index unavailable; the resolver then uses its local fallbacks, and
-start is retried at most once a minute.
+start is retried at most once a minute, in the background.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -48,6 +49,7 @@ class MossIndex:
         self._ids: set[str] = set()
         self._objects: list[RegistryObject] = []
         self._last_attempt = 0.0
+        self._retry: asyncio.Task | None = None
         self.status = "starting"
         self.last_error: str | None = None
 
@@ -82,6 +84,12 @@ class MossIndex:
             self._fail(e)
             return False
 
+    def _kick_retry(self) -> None:
+        """Retry startup in the background when due, never inside a user's turn."""
+        if (self.status == "error" and time.monotonic() - self._last_attempt >= RETRY_S
+                and (self._retry is None or self._retry.done())):
+            self._retry = asyncio.create_task(self._ensure())
+
     async def _upsert(self, objects: list[RegistryObject]) -> None:
         from moss import DocumentInfo, MutationOptions
 
@@ -109,7 +117,8 @@ class MossIndex:
 
     async def query(self, text: str, top_k: int = 5) -> list[Hit]:
         """Raises RuntimeError when Moss is unavailable."""
-        if not await self._ensure():
+        if self.status != "ready":
+            self._kick_retry()
             raise RuntimeError(f"moss unavailable: {self.last_error}")
         from moss import QueryOptions
         try:

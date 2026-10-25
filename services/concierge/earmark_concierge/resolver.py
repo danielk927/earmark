@@ -8,6 +8,7 @@ into a question (honest uncertainty), never narrow it.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import re
@@ -29,6 +30,7 @@ FUZZY_MIN = 80.0
 FUZZY_MARGIN = 5.0
 LEXICAL_MIN = 0.5
 LEXICAL_RATIO = 0.75
+MOSS_TIMEOUT_S = 0.8  # a slow Moss answer must not hold up the turn
 _STOP = {
     "i", "me", "my", "the", "a", "an", "some", "something", "for", "to", "of", "and", "or", "with",
     "that", "this", "it", "is", "are", "need", "want", "where", "find", "please", "can", "you",
@@ -63,7 +65,7 @@ class Resolution:
     object_ids: list[str] = field(default_factory=list)
     engine: str = "none"  # exact | moss | fuzzy | lexical | ordinal | none
     moss_ms: float | None = None
-    moss_status: str = "disabled"  # ok | error | disabled
+    moss_status: str = "disabled"  # ok | error | disabled | skipped (exact name match)
 
 
 class Resolver:
@@ -165,10 +167,10 @@ class Resolver:
             return None
         t0 = time.perf_counter()
         try:
-            hits = await self.index.query(q, top_k=5)
+            hits = await asyncio.wait_for(self.index.query(q, top_k=5), MOSS_TIMEOUT_S)
         except Exception as e:
             res.moss_status = "error"
-            log.info("moss query failed (%s); using fallback", e)
+            log.info("moss query failed (%r); using fallback", e)
             return None
         res.moss_ms = (time.perf_counter() - t0) * 1000
         self.last_moss_ms = res.moss_ms
@@ -204,9 +206,11 @@ class Resolver:
         if strict:
             ids = exact or self.fuzzy(q, pool)
             return self._done(res, ids, "exact" if exact else "fuzzy") if ids else res
-        moss_ids = await self.moss(q, pool, res)
         if exact:
+            if self.index is not None:
+                res.moss_status = "skipped"
             return self._done(res, exact, "exact")
+        moss_ids = await self.moss(q, pool, res)
         if moss_ids:
             lex = self.lexical(q, pool)
             if len(moss_ids) == 1 and len(lex) > 1 and moss_ids[0] in lex:

@@ -2,13 +2,13 @@
 import asyncio
 import json
 
-import httpx2  # the openai SDK's HTTP client
+import httpx2  # the anthropic SDK's HTTP client
 import pytest
 
 from conftest import OBJECTS, Harness, snapshot
 from earmark_contracts import UnknownTag
 from earmark_concierge.intent import AnthropicChooser, IntentRouter
-from earmark_concierge.tools import InvalidToolCall, validate_llm_call
+from earmark_concierge.tools import InvalidToolCall, system_prompt, validate_llm_call
 from earmark_concierge.world import World
 
 
@@ -135,3 +135,36 @@ async def test_anthropic_chooser_request_shape():
         "locate_object", "guide_to_object", "chirp_fob", "label_object", "last_seen",
         "put_in_place", "place_history", "stop_guidance", "list_objects"]
     assert all("input_schema" in t for t in b["tools"])
+
+
+async def test_system_prompt_names_the_last_item_for_it():
+    w = world()
+    assert "Last item discussed" not in system_prompt(w)
+    w.last_object = "keys"
+    assert "Last item discussed: keys (keys)" in system_prompt(w)
+
+
+async def test_make_it_beep_with_claude_on_uses_the_last_item(h):
+    seen = []
+
+    class Ch(FakeChooser):
+        async def choose(self, text, world):
+            seen.append(system_prompt(world))
+            return [("chirp_fob", json.dumps({"object_id": world.last_object}))]
+
+    h.core.router.chooser = Ch()
+    await h.say("where are my keys")
+    out = await h.say("make it beep")
+    assert "Last item discussed: keys" in seen[-1]
+    assert h.of("chirp", out)[0]["fob_id"] == "fob_keys"
+
+
+async def test_put_in_place_takes_free_text_item_and_unknown_item_adds_it_here(h):
+    from earmark_contracts import ListenerPose
+    call = validate_llm_call("put_in_place", '{"name": "my glasses", "place": ""}', h.core.world)
+    assert (call.name, call.args) == ("put_in_place", {"query": "my glasses", "area": ""})
+    await h.feed(ListenerPose(position=[0.5, 0.5, 1.5], quality="ok", beacons_heard=5, source="beacons"))
+    h.core.router.chooser = FakeChooser([("put_in_place", '{"name": "my glasses", "place": ""}')])
+    out = await h.say("I'm leaving my glasses here")
+    assert h.of("label", out)[0]["name"] == "glasses"
+    assert h.of("place_item", out)[0]["object_id"] == "glasses"

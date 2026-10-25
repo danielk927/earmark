@@ -87,7 +87,6 @@ class Settings:
 
     phrases_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "phrases.json")
     phrases_dir: Path = field(default_factory=lambda: REPO_ROOT / "config" / "phrases")
-    space_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "space.json")
     registry_paths: tuple[Path, ...] = field(default_factory=lambda: (
         REPO_ROOT / "config" / "objects.cache.json",
         REPO_ROOT / "config" / "objects.seed.json",

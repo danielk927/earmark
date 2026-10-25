@@ -66,6 +66,7 @@ class World:
         self.head_yaw: tuple[float, float] | None = None  # (degrees, received at)
         self.unknown_tag: UnknownTag | None = None
         self.registry_version: float | None = None
+        self.last_object: str | None = None  # what the last turn was about (for "it")
 
     # ------------------------------------------------------------ updates
 
@@ -185,12 +186,6 @@ class World:
                 if r.receiver == receiver:
                     return r.label
         return "the " + receiver.replace("_", " ") + " receiver"
-
-    def object_on_spot(self, n: int) -> RegistryObject | None:
-        for oid, st in self.states.items():
-            if st.status == "on_spot" and st.location.spot == n and oid in self.objects:
-                return self.objects[oid]
-        return None
 
     def fresh_unknown_tag(self, now: float, window_s: float) -> UnknownTag | None:
         tag = self.unknown_tag

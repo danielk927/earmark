@@ -50,6 +50,8 @@ class Pending:
     object_ids: list[str]
     tool: str
     t: float
+    args: dict
+    text: str
 
 
 Emit = Callable[[object], Awaitable[None]]
@@ -75,7 +77,6 @@ class Concierge:
         self.chirping: dict[str, float] = {}
         self.pending: Pending | None = None
         self.silent_trial: str | None = None
-        self.last_object: str | None = None
         self.last_decision: Decision | None = None
         self._mac_seen: float | None = None
         self._last_behind = 0.0
@@ -177,7 +178,7 @@ class Concierge:
             await self._stop_all("reset")
             self.world.unknown_tag = None
             self.silent_trial = None
-            self.last_object = None
+            self.world.last_object = None
             self.router.cancel_prefetch()
 
     async def _sync_registry(self) -> None:
@@ -250,18 +251,19 @@ class Concierge:
                          ids=res.object_ids, clarification=True)
         if res.kind == "one":
             self.latency.log("intent", turn=turn["id"], path="clarification", llm_status="skipped", tool=p.tool)
-            return await self._execute(ToolCall(p.tool, {"object_id": res.object_ids[0]}), text, turn)
+            args = {k: v for k, v in p.args.items() if k != "query"}
+            return await self._execute(ToolCall(p.tool, {**args, "object_id": res.object_ids[0]}), p.text, turn)
         if res.kind == "ambiguous":
-            return policy.clarify(self.world, res.object_ids, p.tool)
+            return policy.clarify(self.world, res.object_ids, p.tool, p.args, p.text)
         return None
 
-    async def _target(self, call: ToolCall, turn: dict) -> RegistryObject | Plan:
+    async def _target(self, call: ToolCall, turn: dict, text: str = "") -> RegistryObject | Plan:
         if "object_id" in call.args:
             obj = self.world.objects.get(call.args["object_id"])
             return obj if obj is not None else policy.unknown_object()
         q = call.args.get("query", "")
-        if grammar.normalize(q) in PRONOUNS and self.last_object in self.world.objects:
-            return self.world.objects[self.last_object]
+        if grammar.normalize(q) in PRONOUNS and self.world.last_object in self.world.objects:
+            return self.world.objects[self.world.last_object]
         # "I'm leaving X here" may name a brand-new item, so only a name match counts, not a word in a description.
         here = call.name == "put_in_place" and not call.args.get("place") and not call.args.get("area")
         res = await self.resolver.resolve(q, strict=here)
@@ -271,7 +273,7 @@ class Concierge:
         if res.kind == "one":
             return self.world.objects[res.object_ids[0]]
         if res.kind == "ambiguous":
-            return policy.clarify(self.world, res.object_ids, call.name)
+            return policy.clarify(self.world, res.object_ids, call.name, call.args, text)
         return policy.unknown_object()
 
     def _maybe_new_item(self, call: ToolCall, plan: Plan) -> Plan:
@@ -301,7 +303,7 @@ class Concierge:
                 tag = fresh.tag
             spot = fresh.spot if fresh is not None and fresh.tag == tag else None
             return policy.label(tag, call.args["name"], call.args.get("aliases", []), spot)
-        target = await self._target(call, turn)
+        target = await self._target(call, turn, text)
         if isinstance(target, Plan):
             return self._maybe_new_item(call, target)
         if call.name == "chirp_fob":
@@ -333,9 +335,10 @@ class Concierge:
         if plan.stop:
             await self._stop_all("cancelled")
         if plan.clarify:
-            self.pending = Pending(plan.clarify, plan.clarify_tool or "locate_object", time.time())
+            self.pending = Pending(plan.clarify, plan.clarify_tool or "locate_object", time.time(),
+                                   plan.clarify_args, plan.clarify_text)
         if plan.object_id:
-            self.last_object = plan.object_id
+            self.world.last_object = plan.object_id
             if self.guiding and plan.guide is None and plan.object_id != self.guiding.object_id:
                 await self._stop_guidance("cancelled")
         if plan.guide:
@@ -357,6 +360,8 @@ class Concierge:
     # ------------------------------------------------------------ guidance
 
     async def _start_guidance(self, g: GuideTarget, uid: str) -> None:
+        if self.guiding is not None and self.guiding.object_id != g.object_id:
+            await self._stop_guidance("cancelled")
         if self._guide_timer is not None:
             self._guide_timer.cancel()
         guiding = Guiding(g.object_id, g.name, list(g.position), uid, time.time())

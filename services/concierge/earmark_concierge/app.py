@@ -75,6 +75,8 @@ async def run(settings: Settings, text: str | None = None, repl: bool = False) -
     main = asyncio.current_task()
     asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, main.cancel)  # clean shutdown
     tasks = [asyncio.create_task(bus.run_forever()), asyncio.create_task(core.status_loop())]
+    if core.speaker.tts is not None:
+        tasks.append(asyncio.create_task(core.speaker.tts.warm()))
     if text:
         tasks.append(asyncio.create_task(_inject_once(core, text)))
     if repl:
