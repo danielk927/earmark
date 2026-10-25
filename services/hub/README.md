@@ -76,8 +76,8 @@ On a terminal, keys act immediately; with piped stdin, each line is one command 
 cd services/hub && uv run pytest -q
 ```
 
-140 tests, about 17 s.
-None of them cover the UWB module yet (solver, freeze, NFC re-anchor, `uwb_sim`; `docs/UWB-PRD.md` 12.1); see `docs/STATUS.md`.
+219 tests, about 23 s.
+The `test_uwb_*.py` files cover the UWB module (`docs/UWB-PRD.md` 12.1): solver accuracy and outlier rejection, the freeze state machine, NFC re-anchor, lost to fixed, the token relay and bus secret, and `uwb_sim` pose rate.
 They include an end-to-end smoke test that starts the real `earmark-hub --adapters simulator --scenario scenarios/full_demo.jsonl --speed 10 --no-convex` process and asserts the pickup sequence salt(2), sugar(3), sugar(1) over the WebSocket.
 A second one runs `earmark-sim`, `earmark-send` and `earmark-tail` against a running hub.
 No test touches real Bluetooth, serial ports, Convex, `config/`, or `var/`.

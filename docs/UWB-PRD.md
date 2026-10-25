@@ -246,7 +246,7 @@ Constants (in `config/hub.json` under `uwb`):
 | `blend_s` | 0.4 | How long the Mac glides the listener between positions |
 
 Rules:
-- **Enter frozen** when inside `freeze_enter_m` AND still for `still_for_s` AND ≥ 2 fresh anchors. Frozen position = mean of the smoothed estimates over `average_window_s`, with the head offset applied facing the counter.
+- **Enter frozen** when inside `freeze_enter_m` AND still for `still_for_s` AND ≥ 2 fresh anchors. Frozen position = mean of the accepted (unsmoothed) solves over `average_window_s` (the smoothed estimate keeps the walking velocity and overshoots a stop), with the head offset applied facing the counter.
 - **Voice override:** "I'm here" (keyword grammar) freezes immediately at the current smoothed estimate, even outside the radius.
 - **While frozen:** publish the frozen position; keep solving only to check the exit conditions.
 - **Exit frozen** when (`moving` AND displaced > `unfreeze_move_m` from the frozen point) OR outside `freeze_exit_m`.

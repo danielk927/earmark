@@ -111,6 +111,11 @@ class Stack:
         try:
             ready = await recv_until(lambda m: m["type"] == "status" and m["component"] == "concierge", 30)
             assert ready, "concierge never reported status"
+            # The concierge only counts the Mac app as present once it has seen a status from it; a heartbeat
+            # sent before it connected is lost, and without it answers go to local speech, not the bus.
+            await ws.send(json.dumps({"type": "status", "component": "mac_app", "ok": True,
+                                      "detail": "e2e recorder", "t": time.time()}))
+            await recv_until(lambda m: False, 0.3)
             sim = self.spawn("sim", "--project", "services/hub", "earmark-sim", f"scenarios/{scenario}.jsonl",
                              "--speed", str(speed), "--url", self.url)
             while sim.poll() is None:

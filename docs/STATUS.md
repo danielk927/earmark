@@ -86,17 +86,16 @@ The Mac and iOS code was written without a Swift toolchain and has **not been co
 
 | Piece | Verified in software | Pending |
 |---|---|---|
-| contracts | Python suite passes (67 tests), including `config/space.json` with `anchors` and `tracking` | TS and Swift suites not re-run this session |
-| hub | The 140 existing tests pass. Manual run with the scripted `uwb_sim` (`EARMARK_ADAPTERS=simulator,uwb_sim`, `--no-convex`): about 10 `listener_pose` a second, tracked, then frozen at the counter, then tracked on the walk back | **No UWB unit tests yet** (PRD 12.1: solver, freeze, NFC re-anchor, lost to fixed, `uwb_sim` rate). NFC re-anchor and lost to fixed were not exercised |
-| scenarios, e2e | - | `scenarios/uwb_walk.jsonl` is not generated yet; no UWB e2e test |
+| contracts | Python suite passes (68 tests), including `config/space.json` with `anchors` and `tracking` and every `uwb_walk` line; TS check passes | Swift suite not run (no toolchain here) |
+| hub | 219 tests pass, 78 of them UWB unit tests (PRD 12.1): solver (exact, σ 0.07 m median < 0.10 m, +0.4 m block flagged, 2-anchor choice, speed gate, slant), freeze, voice freeze, NFC re-anchor, lost to fixed, token relay, bus secret, `uwb_sim` at 5 Hz or more. They found and fixed a speed gate that stalled fast walks, a mirror-point lock-on, freeze overshoot after a stop, and a repeating re-anchor. `make demo-uwb-sim` runs the scripted walk | Tuning on device. Near the counter the uwb_2-uwb_3 line passes 17 cm from the origin, so a block on uwb_1 there can go undetected; move uwb_3 off that line when placing anchors |
+| scenarios, e2e | `scenarios/uwb_walk.jsonl` (start mark, walk, freeze, wrong jar). `test_uwb_walk` runs it through the real hub and concierge: tracked to frozen, meters phrasing then "You're at the counter", wrong-jar correction, "Got it". The full e2e suite passes | Runs at 1x speed because the tracker timers use wall-clock time |
 | concierge | 232 tests pass, including the listener-aware phrasing tests | - |
-| convex, dashboard | Tests were added with the anchors and wearer-pose changes | Not re-run this session |
+| convex, dashboard | Convex 132 tests and typecheck pass (the seed now accepts `tracking`); dashboard 146 tests pass, including axe in both themes | - |
 | `scripts/calibrate.py` | Anchor and wearer prompts dry-run with piped input to a temp file; the output validates against `space.schema.json` and `earmark_contracts.Space`, and the hub's tracker loads it | - |
 | Mac app (listener position, map, Calibrate screen) | - | Not compiled; `make mac-test` not run |
 | iOS app `ios/EarmarkUWB` | - | Not compiled; needs Xcode; every gate below |
 
-Open: the hub logs each listener mode change and NFC re-anchor with the position to `logs/hub.jsonl`.
-`docs/RESPONSIBLE_DESIGN.md` 4.1 says no pose history exists "in any table, log, or export"; one of the two needs to change.
+The hub logs listener mode changes and NFC re-anchor correction sizes, but never positions, so `logs/hub.jsonl` holds no pose history (`docs/RESPONSIBLE_DESIGN.md` 4.1).
 
 ## On-device gates (UWB)
 

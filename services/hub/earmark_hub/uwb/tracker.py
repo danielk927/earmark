@@ -130,9 +130,8 @@ class Tracker:
         k = self.cfg.reach_max_m / d
         old = self.position
         self.position = (pos[0] + (old[0] - pos[0]) * k, pos[1] + (old[1] - pos[1]) * k)
-        log.info("nfc re-anchor", extra={"kind": kind, "spot": spot, "correction_m": round(d - self.cfg.reach_max_m, 3),
-                                         "from": [round(v, 3) for v in old],
-                                         "to": [round(v, 3) for v in self.position]})
+        # No positions in logs: pose is transient and never stored (RESPONSIBLE_DESIGN.md 4.1).
+        log.info("nfc re-anchor", extra={"kind": kind, "spot": spot, "correction_m": round(d - self.cfg.reach_max_m, 3)})
         return [self._emit(now)]
 
     # ------------------------------------------------------------ solver tick
@@ -167,8 +166,7 @@ class Tracker:
         elif self.mode == "fixed":
             self.position = self.counter_ref
         if self.mode != before:
-            log.info("listener mode", extra={"from": before, "to": self.mode,
-                                             "position": [round(v, 3) for v in self.position]})
+            log.info("listener mode", extra={"from": before, "to": self.mode})
         elif self.mode == "fixed":
             return []
         return [self._emit(now)]
@@ -183,7 +181,8 @@ class Tracker:
         # more than max_speed * dt, which would reject every good fix and stall the track.
         if self.last_fix and not speed_ok(sol.position, self.last_fix[0], now - self.last_fix[1],
                                           self.cfg.max_speed_mps):
-            log.debug("uwb solution rejected by the speed gate", extra={"position": sol.position})
+            log.debug("uwb solution rejected by the speed gate",
+                      extra={"jump_m": round(math.dist(sol.position, self.last_fix[0]), 3)})
             return False
         self.last_fix = (sol.position, now)
         alpha = self.cfg.alpha_still if self.motion == "still" else self.cfg.alpha
