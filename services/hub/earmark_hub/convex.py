@@ -156,7 +156,7 @@ class ConvexSync:
             req = LabelRequest.model_validate(items[0]["body"])
             try:
                 resp = await self.client.label(req)
-                log.info("label synced", extra={"object_id": resp.object_id, "created": resp.created})
+                log.info("label synced", extra={"object_id": resp.object_id, "was_created": resp.created})
             except ConvexHttpError as e:
                 if e.retryable:
                     raise

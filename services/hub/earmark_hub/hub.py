@@ -237,7 +237,7 @@ class Hub:
 
     def _label(self, msg: Label) -> None:
         object_id, created = self.registry.apply_label(msg)
-        log.info("label", extra={"object_id": object_id, "created": created, "tag": msg.tag, "name": msg.name})
+        log.info("label", extra={"object_id": object_id, "was_created": created, "tag": msg.tag, "item_name": msg.name})
         self._registry_changed()
         if self.sync is not None:
             self.sync.add_label(LabelRequest(tag=msg.tag, name=msg.name, aliases=msg.aliases, spot=msg.spot))

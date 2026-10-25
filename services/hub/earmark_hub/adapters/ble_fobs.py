@@ -145,7 +145,7 @@ class BleFobsAdapter(Adapter):
                 if not f.address and f.name and f.name == name and fob_id not in self._bound.values():
                     self._bound[address] = fob_id
                     log.info("fob bound by name; pin its address in config/hub.json",
-                             extra={"fob_id": fob_id, "address": address, "name": name})
+                             extra={"fob_id": fob_id, "address": address, "advert_name": name})
                     return fob_id
         return None
 
@@ -154,7 +154,7 @@ class BleFobsAdapter(Adapter):
         fob_id = self.match(address, adv.local_name)
         if address not in self._seen_addrs and len(self._seen_addrs) < 1000:
             self._seen_addrs.add(address)
-            log.info("ble advertiser", extra={"address": address, "name": adv.local_name, "rssi": adv.rssi,
+            log.info("ble advertiser", extra={"address": address, "advert_name": adv.local_name, "rssi": adv.rssi,
                                               "fob_id": fob_id})
         if fob_id is None:
             return

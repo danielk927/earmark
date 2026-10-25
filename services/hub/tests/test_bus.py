@@ -279,3 +279,32 @@ async def test_locator_messages_exactly_as_the_phone_app_sends_them(hub):
     assert types.count("listener_pose") == 2 and "mic_audio" in types and "ptt" in types
     assert not [m for m in got if m.type == "status" and not m.ok], "the hub must not reject locator messages"
     await listener.close()
+
+
+async def test_a_new_item_from_a_label_is_saved_with_logging_on(hub, caplog):
+    import logging
+
+    caplog.set_level(logging.INFO)  # the real hub logs at INFO; a reserved log key used to crash the label step
+    a = await connect_client(hub, "concierge")
+    listener = await connect_client(hub, "mac_app", subscribe=["registry_update", "state_update"])
+    await asyncio.sleep(0.1)
+    await a.send(Label(tag="VOICE-airpods", name="AirPods", aliases=[], spot=None))
+    update = await next_of(listener, "registry_update")
+    assert "airpods" in {o.object_id for o in update.objects}
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+    await a.close()
+    await listener.close()
+
+
+def test_log_extra_keys_do_not_use_names_the_logger_reserves():
+    import logging
+    import pathlib
+    import re
+
+    reserved = set(logging.LogRecord("x", 0, "x", 0, "x", (), None).__dict__) | {"message", "asctime"}
+    root = pathlib.Path(__file__).resolve().parents[1] / "earmark_hub"
+    bad = []
+    for f in root.rglob("*.py"):
+        for m in re.finditer(r"extra=\{([^}]*)\}", f.read_text()):
+            bad += [(f.name, k) for k in re.findall(r'"(\w+)"\s*:', m.group(1)) if k in reserved]
+    assert not bad, bad
