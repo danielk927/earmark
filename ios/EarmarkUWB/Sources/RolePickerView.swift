@@ -7,7 +7,7 @@ struct RolePickerView: View {
     @ObservedObject var model: AppModel
     @FocusState private var focusedField: Field?
 
-    private enum Field { case hub, secret }
+    private enum Field { case hub, ranging, secret }
 
     var body: some View {
         NavigationStack {
@@ -37,13 +37,37 @@ struct RolePickerView: View {
                             .textFieldStyle(.roundedBorder)
                             .submitLabel(.next)
                             .focused($focusedField, equals: .hub)
-                            .onSubmit { focusedField = .secret }
+                            .onSubmit { focusedField = model.selectedRole == .wearer ? .ranging : .secret }
                             .accessibilityLabel("Hub address")
                             .accessibilityHint("The Mac's bus address, for example ws://192.168.8.10:8765")
                         if model.hubURL == nil {
                             Text("Enter an address like ws://192.168.8.10:8765")
                                 .font(.footnote)
                                 .foregroundStyle(.red)
+                        }
+                    }
+
+                    if model.selectedRole == .wearer {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Ranging address (sound)")
+                                .font(.headline)
+                            TextField(model.derivedRangingAddress, text: $model.rangingAddress)
+                                .font(.title3.monospaced())
+                                .keyboardType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .textFieldStyle(.roundedBorder)
+                                .focused($focusedField, equals: .ranging)
+                                .accessibilityLabel("Ranging address")
+                                .accessibilityHint("Leave empty to use the hub's address on port 8766")
+                            Text("Empty uses \(model.derivedRangingAddress)")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                            if model.rangingURL == nil {
+                                Text("Enter an address like ws://192.168.8.10:8766")
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                            }
                         }
                     }
 
@@ -75,13 +99,13 @@ struct RolePickerView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Earmark UWB")
+            .navigationTitle("Earmark")
         }
     }
 
     private var connectHint: String {
         guard let role = model.selectedRole else { return "Choose this iPhone's job first" }
-        return "Starts \(role.label)"
+        return role.isAnchor ? "Starts \(role.label) with its sound beacon" : "Starts the wearer with sound positioning"
     }
 
     private func connect() {

@@ -35,8 +35,31 @@ export interface Guide {
   target: Vec3;
   started: number;
 }
+/** A fixed phone: both a UWB anchor and a sound beacon. */
+export interface Phone {
+  id: string;
+  label: string;
+  position: Vec3;
+}
+export type System = "uwb" | "sound";
+/** One system's latest pose as the hub reported it, with the time (unix s) the report arrived here. */
+export interface Fix {
+  position: Vec3;
+  quality: "ok" | "degraded" | "lost";
+  source: string;
+  mode: string | null;
+  age_s: number;
+  at: number;
+}
+export interface Positioning {
+  active: System;
+  uwb: Fix | null;
+  sound: Fix | null;
+}
 export interface RoomState {
   connected: boolean;
+  phones: Phone[];
+  positioning: Positioning | null;
   places: Place[];
   items: Record<string, Item>;
   user: Vec3;
@@ -78,7 +101,7 @@ const MAT: Vec3 = [0, 0, 1.55];
 
 export function initialState(): RoomState {
   return {
-    connected: false, places: [], items: {}, user: MAT, userLive: false, userSource: "mat", lastFixT: null,
+    connected: false, phones: [], positioning: null, places: [], items: {}, user: MAT, userLive: false, userSource: "mat", lastFixT: null,
     trail: [], headYaw: null, headT: null, guide: null, log: [], convo: [], status: {}, now: 0,
   };
 }
@@ -119,12 +142,16 @@ function applyState(s: RoomState, st: Msg): RoomState {
 export function reduce(s: RoomState, m: Msg, now: number): RoomState {
   switch (m.type) {
     case "snapshot": {
-      const space = (m.space ?? {}) as { areas?: Msg[]; spots?: Msg[] };
+      const space = (m.space ?? {}) as { areas?: Msg[]; spots?: Msg[]; anchors?: Msg[] };
+      const phones: Phone[] = (space.anchors ?? []).flatMap((a) => {
+        const position = vec(a.position);
+        return position ? [{ id: String(a.anchor), label: String(a.label ?? a.anchor), position }] : [];
+      });
       const places: Place[] = [
         ...(space.areas ?? []).map((a) => ({ id: String(a.area), label: String(a.label), position: vec(a.position)!, kind: "area" as const })),
         ...(space.spots ?? []).map((p) => ({ id: `spot${p.spot}`, label: `spot ${p.spot}`, position: vec(p.position)!, kind: "spot" as const })),
       ].filter((p) => p.position);
-      let next: RoomState = { ...s, connected: true, places, items: {} };
+      let next: RoomState = { ...s, connected: true, phones, places, items: {} };
       for (const o of (m.objects as Msg[] | undefined) ?? []) {
         const id = String(o.object_id);
         next.items[id] = { id, name: String(o.name), position: null, status: "missing", where: "not detected" };
@@ -152,6 +179,21 @@ export function reduce(s: RoomState, m: Msg, now: number): RoomState {
         ...s, user: p, userLive: true, userSource: String(m.source ?? "beacons"), lastFixT: now,
         trail: moved ? [...s.trail, p].slice(-MAX_TRAIL) : s.trail,
       };
+    }
+    case "positioning": {
+      if (m.active !== "uwb" && m.active !== "sound") return s;
+      const fix = (x: unknown): Fix | null => {
+        const f = x as Msg | null;
+        const position = f ? vec(f.position) : null;
+        if (!f || !position) return null;
+        const quality = f.quality === "ok" || f.quality === "degraded" ? f.quality : "lost";
+        return { position, quality, source: String(f.source ?? "none"), mode: typeof f.mode === "string" ? f.mode : null, age_s: num(f.age_s) ?? 0, at: now };
+      };
+      return { ...s, positioning: { active: m.active, uwb: fix(m.uwb), sound: fix(m.sound) } };
+    }
+    case "tap_position": {
+      const text = m.ok === true ? "Marked by tap (UWB)" : "Tap ignored: UWB isn't tracking";
+      return { ...s, log: addLog(s, { t: now, kind: "info", text }) };
     }
     case "head_pose": {
       const yaw = num(m.yaw);
@@ -210,6 +252,53 @@ export function tick(s: RoomState, now: number): RoomState {
 
 export function horizontalDistance(a: Vec3, b: Vec3): number {
   return Math.hypot(a[0] - b[0], a[1] - b[1]);
+}
+
+/** A fix older than this many seconds (hub age plus time since it arrived here) is stale. */
+export const STALE_S = 2;
+
+export function fixAge(f: Fix, now: number): number {
+  return f.age_s + Math.max(0, now - f.at);
+}
+export function fixLive(f: Fix | null, now: number): f is Fix {
+  return f !== null && f.quality !== "lost" && fixAge(f, now) <= STALE_S;
+}
+
+export const SYSTEM_NAME: Record<System, string> = { uwb: "UWB", sound: "Sound" };
+
+/** One line per system for the readout, plus the horizontal gap when both are live (meters). */
+export function compare(p: Positioning | null, now: number): { lines: Record<System, string>; gap: number | null } {
+  const line = (sys: System): string => {
+    const f = p?.[sys] ?? null;
+    const name = SYSTEM_NAME[sys];
+    if (!p) return `${name}: waiting for the hub`;
+    if (!f) return sys === "uwb" ? `${name}: not tracking` : `${name}: no position`;
+    const age = fixAge(f, now);
+    const how = f.quality === "lost" ? "lost" : f.mode && f.mode !== "tracked" ? `${f.quality}, ${f.mode}` : f.quality;
+    return `${name}: ${how}, ${age.toFixed(1)} s ago${fixLive(f, now) ? "" : " (stale)"}`;
+  };
+  const u = p?.uwb ?? null;
+  const so = p?.sound ?? null;
+  const gap = fixLive(u, now) && fixLive(so, now) ? horizontalDistance(u.position, so.position) : null;
+  return { lines: { uwb: line("uwb"), sound: line("sound") }, gap };
+}
+
+/** The walking simulator's poses are a sound-side input, so starting it switches the audio to Sound (null if it is already). */
+export function simulatorSelect(p: Positioning | null, now: number): Msg | null {
+  return p?.active === "sound" ? null : { type: "positioning_select", active: "sound", t: now };
+}
+
+/** When the simulator stops: put the audio back on the system it replaced, unless the operator has switched since (null if nothing to do). */
+export function simulatorRestore(was: System | undefined, p: Positioning | null, now: number): Msg | null {
+  return was && p?.active === "sound" ? { type: "positioning_select", active: was, t: now } : null;
+}
+
+/** Floor size in meters: wide enough for every phone and place with a margin, never smaller than the 3.5 m default. */
+export function roomSize(phones: Phone[], places: Place[]): { w: number; d: number } {
+  if (phones.length === 0) return { w: 3.5, d: 3.5 };
+  const pts = [...phones.map((p) => p.position), ...places.map((p) => p.position)];
+  const half = (i: 0 | 1) => Math.max(0, ...pts.map((p) => Math.abs(p[i])));
+  return { w: Math.max(3.5, 2 * (half(0) + 0.5)), d: Math.max(3.5, 2 * (half(1) + 0.5)) };
 }
 
 /** Direction from the user to the target as the user would feel it: clock hour, 12 = straight ahead. */

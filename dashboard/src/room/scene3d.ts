@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import type { RoomState, Vec3 } from "./model";
+import { fixLive, SYSTEM_NAME, type RoomState, type Vec3 } from "./model";
 export interface Beacon {
   id: string;
   label: string;
@@ -122,6 +122,13 @@ export class RoomModel {
   private yawTarget = 0;
   onFloorClick: ((x: number, y: number) => void) | null = null;
 
+  private layout = new THREE.Group();
+  private ghost = new THREE.Group();
+  private ghostTag: CSS2DObject;
+  private ghostShown = new THREE.Vector3();
+  private ghostTarget = new THREE.Vector3();
+  private layoutKey = "";
+
   constructor(private host: HTMLElement, private beacons: Beacon[], private room = { w: 3.5, d: 3.5 }) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -143,9 +150,24 @@ export class RoomModel {
     key.position.set(-3, 6, 4);
     this.scene.add(key);
 
+    this.scene.add(this.layout);
     this.buildPlane();
     this.buildBeacons();
     this.scene.add(this.itemsGroup);
+
+    // The other positioning system: a hollow ring on the floor, an open ring at head height, a dashed stem between, and a label.
+    const ghostMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false });
+    const gHead = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.01, 8, 36), ghostMat);
+    gHead.position.y = 1.55;
+    const gFoot = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.18, 36), ghostMat);
+    gFoot.rotation.x = -Math.PI / 2;
+    gFoot.position.y = 0.007;
+    const gStem = line([new THREE.Vector3(0, 0.01, 0), new THREE.Vector3(0, 1.55, 0)], 0x000000, 0.35, true);
+    this.ghostTag = tag("<i>Sound</i>", "m3-ghost");
+    this.ghostTag.position.set(0, 1.8, 0);
+    this.ghost.add(gHead, gFoot, gStem, this.ghostTag);
+    this.ghost.visible = false;
+    this.scene.add(this.ghost);
 
     this.figure.rotation.y = 0;
     this.personTag = tag("<i>You</i>", "m3-you");
@@ -185,18 +207,31 @@ export class RoomModel {
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.5, d + 0.5), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.002;
-    this.scene.add(floor);
+    this.layout.add(floor);
     const edge = line([
       new THREE.Vector3(-w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, d / 2),
       new THREE.Vector3(-w / 2, 0.004, d / 2), new THREE.Vector3(-w / 2, 0.004, -d / 2),
     ], BLUE, 0.7);
-    this.scene.add(edge);
+    this.layout.add(edge);
     const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08, side: THREE.DoubleSide }));
     mat.rotation.x = -Math.PI / 2;
     mat.position.y = 0.002;
-    this.scene.add(mat);
+    this.layout.add(mat);
     const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.006, 0.2), 0.5, BLUE, 0.12, 0.08);
-    this.scene.add(arrow);
+    this.layout.add(arrow);
+  }
+
+  /** Redraw the floor and the fixed phones when their layout changes (the hub's snapshot arrives after the scene exists). */
+  setLayout(beacons: Beacon[], room: { w: number; d: number }) {
+    const key = JSON.stringify([beacons, room]);
+    if (key === this.layoutKey) return;
+    this.layoutKey = key;
+    this.beacons = beacons;
+    this.room = room;
+    for (const child of [...this.layout.children]) child.traverse((o) => o instanceof CSS2DObject && o.element.remove());
+    this.layout.clear();
+    this.buildPlane();
+    this.buildBeacons();
   }
 
   private buildBeacons() {
@@ -207,15 +242,16 @@ export class RoomModel {
       const phone = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.15, 0.012), new THREE.MeshBasicMaterial({ color: GREEN }));
       phone.position.copy(top);
       phone.rotation.y = Math.atan2(-floor.x, -floor.z);
-      this.scene.add(phone);
-      this.scene.add(line([floor.clone().setY(0.005), top], GREEN, 0.5, true));
+      this.layout.add(phone);
+      this.layout.add(line([floor.clone().setY(0.005), top], GREEN, 0.5, true));
       const foot = new THREE.Mesh(new THREE.RingGeometry(0.05, 0.065, 24), new THREE.MeshBasicMaterial({ color: GREEN, side: THREE.DoubleSide }));
       foot.rotation.x = -Math.PI / 2;
       foot.position.copy(floor).setY(0.006);
-      this.scene.add(foot);
+      this.layout.add(foot);
       const t = tag(`<i>B</i><sub>${i + 1}</sub>`, "m3-beacon");
+      t.element.title = b.label;
       t.position.copy(top).add(new THREE.Vector3(0, 0.22, 0));
-      this.scene.add(t);
+      this.layout.add(t);
     });
   }
 
@@ -248,6 +284,13 @@ export class RoomModel {
   update(s: RoomState) {
     this.state = s;
     this.rebuildItems(s);
+    const other = s.positioning ? (s.positioning.active === "uwb" ? "sound" : "uwb") : null;
+    const og = other ? s.positioning![other] : null;
+    this.ghost.visible = fixLive(og, s.now);
+    if (other && og) {
+      this.ghostTarget.copy(P([og.position[0], og.position[1], 0]));
+      this.ghostTag.element.innerHTML = `<i>${SYSTEM_NAME[other]} (not driving audio)</i>`;
+    }
     this.shownTarget.copy(P([s.user[0], s.user[1], 0]));
     this.yawTarget = -((s.headYaw ?? 0) * Math.PI) / 180;
     this.gaze.visible = s.headYaw !== null;
@@ -261,6 +304,8 @@ export class RoomModel {
     const s = this.state;
     this.shown.lerp(this.shownTarget, 0.18);
     this.person.position.copy(this.shown);
+    this.ghostShown.lerp(this.ghostTarget, 0.18);
+    this.ghost.position.copy(this.ghostShown);
     this.yaw += (this.yawTarget - this.yaw) * 0.25;
     this.person.rotation.y = this.yaw;
     const chest = this.shown.clone().setY(1.3);

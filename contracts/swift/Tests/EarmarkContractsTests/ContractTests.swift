@@ -30,7 +30,8 @@ private func allTypes() throws -> [String] {
 
 /// Messages the Mac and iOS apps send must re-encode to exactly the example JSON.
 @Test(arguments: ["hello", "mic_audio", "transcript", "guide_feedback", "playback", "head_pose", "status", "reset",
-                      "uwb_token", "uwb_range", "motion_state", "listener_pose", "listener_command", "object_tap"])
+                      "uwb_token", "uwb_range", "motion_state", "listener_pose", "listener_command", "object_tap",
+                      "positioning_select", "positioning"])
 func sentMessagesRoundTrip(type: String) throws {
     for data in try examples(type) {
         let msg = try BusCoding.decode(data)

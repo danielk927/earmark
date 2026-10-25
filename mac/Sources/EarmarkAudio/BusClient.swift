@@ -34,7 +34,7 @@ public final class BusClient: NSObject, BusSink, URLSessionWebSocketDelegate {
         "speak", "speak_cached", "speak_text",
         "stt_mode", "transcript", "status", "reset",
         "pickup", "pickup_result",
-        "listener_pose", "listener_command",
+        "listener_pose", "listener_command", "positioning",
     ]
 
     public static var defaultURL: URL {

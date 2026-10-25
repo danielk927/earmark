@@ -36,6 +36,7 @@ final class AppModel: ObservableObject {
         static let role = "earmark.role"
         static let hub = "earmark.hubAddress"
         static let secret = "earmark.secret"
+        static let ranging = "earmark.rangingAddress"
     }
 
     @Published var selectedRole: DeviceRole? {
@@ -43,6 +44,10 @@ final class AppModel: ObservableObject {
     }
     @Published var hubAddress: String {
         didSet { UserDefaults.standard.set(hubAddress, forKey: Key.hub) }
+    }
+    /// Ranging service (sound positioning) for the wearer. Empty = the hub's host on port 8766.
+    @Published var rangingAddress: String {
+        didSet { UserDefaults.standard.set(rangingAddress, forKey: Key.ranging) }
     }
     // ponytail: the bus secret sits in UserDefaults; it only guards a private demo network. Keychain if that changes.
     @Published var secret: String {
@@ -55,9 +60,13 @@ final class AppModel: ObservableObject {
         selectedRole = defaults.string(forKey: Key.role).flatMap(DeviceRole.init(rawValue:))
         hubAddress = defaults.string(forKey: Key.hub) ?? Self.defaultHubAddress
         secret = defaults.string(forKey: Key.secret) ?? ""
+        rangingAddress = defaults.string(forKey: Key.ranging) ?? ""
     }
 
     var hubURL: URL? { HubAddress.parse(hubAddress) }
+    var rangingURL: URL? { RangingAddress.resolve(typed: rangingAddress, hubText: hubAddress) }
+    /// Shown as the field's placeholder.
+    var derivedRangingAddress: String { RangingAddress.derived(fromHub: hubAddress) ?? "ws://192.168.8.10:8766" }
     var canConnect: Bool { selectedRole != nil && hubURL != nil }
 
     func connect() {
@@ -72,7 +81,8 @@ final class AppModel: ObservableObject {
             controller.start()
             active = .anchor(controller)
         } else {
-            let controller = WearerController(hub: hub)
+            let ranging = rangingURL
+            let controller = WearerController(hub: hub, rangingURL: { ranging })
             controller.start()
             active = .wearer(controller)
         }

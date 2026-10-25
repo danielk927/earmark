@@ -32,11 +32,11 @@ Walking demo only. Each item is a yes/no check; don't start until all are yes.
 
 ## Positioning: UWB or beacons
 
-The demo runs with one locator at a time: the sound-beacon locator (`locator/`) or the UWB anchors. Never both. While UWB is tracking, the hub ignores beacon poses.
+Both systems run at once on the same 4 iPhones (`ios/EarmarkUWB`): each fixed phone is a UWB anchor and a sound beacon, and the wearer phone feeds both. The operator picks which one drives the audio with the **UWB / Sound** switch on `/room` or **P** in the Mac app; the other one stays visible as a ghost dot, with the distance between them. Tap-to-mark always uses UWB.
 
-- **Simulated UWB:** `make demo-uwb-sim` runs the full stack with a scripted UWB wearer walking to the counter (`KEYS=1` moves the wearer from the keyboard).
-- **Real UWB:** 3 anchor iPhones plus 1 wearer iPhone. Requirements and setup are in `docs/project/UWB-PRD.md`.
-- **Beacons:** the `locator/` sound-beacon path, described in `docs/project/ARCHITECTURE.md` ("Walking: the locator").
+- **No hardware:** `make demo-dual-sim` (a simulated UWB wearer and a virtual sound phone; they walk different paths, so expect the dots to disagree). `make demo-uwb-sim` is UWB only.
+- **Real phones:** `make demo-dual` (bus on the LAN; `EARMARK_BUS_SECRET` in `.env`), then `make sound-listen` in a second terminal. The wearer stands on the mat center holding the phone at chest height and the operator presses Enter there to calibrate the sound side (10 s still). Setup: `ios/README.md`.
+- **Start on sound:** `POSITIONING=sound make demo-dual`.
 
 ## Script
 

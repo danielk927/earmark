@@ -2,8 +2,12 @@
 
 UWB (docs/project/UWB-PRD.md 8): `uwb_token` is relayed only to its addressee; `uwb_range`, `motion_state`,
 `head_pose` and `listener_command` feed the tracker, whether they come from a bus client or an adapter;
-NFC `pickup`/`placed` re-anchor a frozen listener. The tracker's `listener_pose` goes to the bus at
-`uwb.solve_hz` (and at once on every mode change) and, throttled, to Convex.
+NFC `pickup`/`placed` re-anchor a frozen listener.
+
+Two positioning systems run at once on the same phones: the UWB tracker here, and sound (`listener_pose` from a bus
+client: the chirp ranging service, the beacon locator or a simulator). `positioning.active` (changed at run time by
+`positioning_select`) picks the one whose poses go out as `listener_pose`, to the bus and, throttled, to Convex;
+`positioning` reports both side by side. Taps (`object_tap`) are always placed with UWB.
 """
 from __future__ import annotations
 
@@ -27,6 +31,9 @@ from earmark_contracts import (
     Pickup,
     PickupResult,
     PlaceItem,
+    Positioning,
+    PositioningFix,
+    PositioningSelect,
     RegistryObject,
     RegistryUpdate,
     Reset,
@@ -71,9 +78,11 @@ class Hub:
         self.space = SpaceIndex.load(cfg.path("space", root))
         self.relay = TokenRelay()
         self.tracker = Tracker(cfg.uwb, self.space, self.clock.now())
+        self.active = cfg.positioning.active  # the system whose poses go out as listener_pose
         self.pose: ListenerPose = self.tracker.pose  # latest published listener_pose (fixed at the origin first)
-        self.client_pose: ListenerPose | None = None  # latest listener_pose from the beacon locator, if any
-        self.client_pose_rx = -math.inf  # hub clock time client_pose arrived (never the phone's own `t`)
+        self.uwb_pose, self.uwb_pose_t = self.tracker.pose, self.clock.now()  # the tracker's latest, published or not
+        self.sound_pose: ListenerPose | None = None  # latest listener_pose from a sound client, if any
+        self.sound_pose_rx = -math.inf  # hub clock time sound_pose arrived (never the phone's own `t`)
         self.registry = RegistryStore(cfg.path("cache", root), cfg.path("seed", root))
         self.engine = StateEngine(self.space, self.registry.objects, placement_reads=cfg.debounce.placement_reads,
                                   removal_s=cfg.debounce.removal_s)
@@ -109,7 +118,8 @@ class Hub:
             self._tasks.append(asyncio.create_task(self._run_adapter(a), name=f"adapter:{a.name}"))
         self._tasks.append(asyncio.create_task(self._tick_loop(), name="tick"))
         self._tasks.append(asyncio.create_task(self._health_loop(), name="health"))
-        self._publish_poses([self.pose])
+        self._publish(self.pose)
+        self._tasks.append(asyncio.create_task(self._positioning_loop(), name="positioning"))
         if self.cfg.uwb.enabled:
             self._tasks.append(asyncio.create_task(self._uwb_loop(), name="uwb"))
         if self.sync is not None:
@@ -170,11 +180,63 @@ class Hub:
                 self.sync.set_anchors(self.tracker.ingest_anchors(now))
 
     def _publish_poses(self, poses: list[ListenerPose]) -> None:
+        """The tracker's poses: kept for `positioning`, sent as listener_pose only while UWB is active."""
         for p in poses:
-            self.pose = p
-            self.bus.broadcast(p)
-            if self.sync is not None:
-                self.sync.set_pose(p)
+            self.uwb_pose, self.uwb_pose_t = p, self.clock.now()
+            if self.active == "uwb":
+                self._publish(p)
+
+    def _publish(self, p: ListenerPose, exclude: Client | None = None) -> None:
+        """The active system's pose: listener_pose on the bus and, throttled, to Convex."""
+        self.pose = p
+        self.bus.broadcast(p, exclude=exclude)
+        if self.sync is not None:
+            self.sync.set_pose(p)
+
+    async def _positioning_loop(self) -> None:
+        """`positioning` while either system has a pose, then once more when both have gone (quiet when idle)."""
+        period, live = 1.0 / self.cfg.positioning.broadcast_hz, False
+        while True:
+            await self.clock.sleep(period)
+            self._sound_watchdog()
+            p = self.positioning()
+            if p.uwb is not None or p.sound is not None or live:
+                self.bus.broadcast(p)
+            live = p.uwb is not None or p.sound is not None
+
+    def _sound_watchdog(self) -> None:
+        """A sound pose that stopped coming (ranging service stopped, phone gone) turns lost once, where it was."""
+        sp, now = self.sound_pose, self.clock.now()
+        if sp is None or sp.quality == "lost" or now - self.sound_pose_rx <= self.cfg.positioning.sound_fresh_s:
+            return
+        self.sound_pose = sp.model_copy(update={"quality": "lost", "t": now})
+        if self.active == "sound":
+            self._publish(self.sound_pose)
+
+    def positioning(self) -> Positioning:
+        now = self.clock.now()
+
+        def fix(p: ListenerPose, t: float) -> PositioningFix:
+            extra = {"mode": p.mode} if p.mode is not None else {}
+            return PositioningFix(position=p.position, quality=p.quality, source=p.source, age_s=max(0.0, now - t),
+                                  **extra)
+
+        uwb = fix(self.uwb_pose, self.uwb_pose_t) if self.cfg.uwb.enabled and self.tracker.mode != "fixed" else None
+        sound = fix(self.sound_pose, self.sound_pose_rx) if self.sound_pose is not None else None
+        return Positioning(active=self.active, uwb=uwb, sound=sound, t=now)
+
+    def _select(self, active: str) -> None:
+        """positioning_select: switch which system drives listener_pose, and send its latest pose at once."""
+        if active != self.active:
+            log.info("positioning", extra={"active": active})
+            self.active = active
+            if active == "uwb":
+                self._publish(self.uwb_pose)
+            else:
+                self._sound_watchdog()
+                self._publish(self.sound_pose or ListenerPose(position=self.pose.position, quality="lost",
+                                                              source="none", t=self.clock.now()))
+        self.bus.broadcast(self.positioning())
 
     # ------------------------------------------------------------ inbound
 
@@ -182,6 +244,8 @@ class Hub:
         self.bus.send_to(client, self.snapshot())
         if client.wants("listener_pose"):
             self.bus.send_to(client, self.pose)
+        if client.wants("positioning"):
+            self.bus.send_to(client, self.positioning())
         for token in self.relay.addressed_to(client.device_id) if client.device_id else []:
             self.bus.send_to(client, token)
 
@@ -198,10 +262,14 @@ class Hub:
             n = self.bus.send_to_device(msg.to, msg)
             log.debug("uwb_token relayed", extra={"from": msg.from_, "to": msg.to, "delivered": n})
             return
-        if isinstance(msg, ListenerPose):  # from the beacon locator
-            if self.cfg.uwb.enabled and self.tracker.mode != "fixed":
-                return  # ponytail: UWB owns the listener while it tracks; no blending of two trackers
-            self.client_pose, self.client_pose_rx = msg, self.clock.now()
+        if isinstance(msg, ListenerPose):  # sound: the chirp ranging service, the beacon locator or a simulator
+            self.sound_pose, self.sound_pose_rx = msg, self.clock.now()
+            if self.active == "sound":
+                self._publish(msg, exclude=client)
+            return
+        if isinstance(msg, PositioningSelect):
+            self._select(msg.active)
+            return
         self.bus.broadcast(msg, exclude=client)
         if isinstance(msg, ObjectTap):
             self._tap()
@@ -222,17 +290,15 @@ class Hub:
             self._forward(msg)
 
     def _tap(self) -> None:
-        """Tap-to-mark: the phone is next to the object, so the phone's position is the object's. Broadcast it."""
+        """Tap-to-mark: the phone is next to the object, so the phone's position is the object's. Broadcast it.
+        Always UWB, the more precise system, whichever one drives the audio; no UWB fix means no position."""
         now, uwb = self.clock.now(), self.cfg.uwb
         fix = None
         if uwb.enabled and self.tracker.mode in ("tracked", "frozen"):
             fix = self.tracker.mark_fix(now, uwb.mark_avg_s, uwb.mark_min_fixes)
-        cp = self.client_pose
         if fix is not None:
             out = TapPosition(ok=True, position=[fix[0], fix[1], mark_z(uwb, self.space)], source=self.tracker.source,
                               t=now)
-        elif cp is not None and cp.quality != "lost" and now - self.client_pose_rx <= uwb.beacon_fresh_s:
-            out = TapPosition(ok=True, position=cp.position, source=cp.source, t=now)
         else:
             out = TapPosition(ok=False, source="none", t=now)
         log.info("tap position", extra={"ok": out.ok, "source": out.source})  # no positions in logs
@@ -330,6 +396,7 @@ class Hub:
         for c in list(self.bus.clients):
             self.bus.send_to(c, snap)
         self._publish_poses(poses)  # after the snapshot: clients see reset, snapshot, then listener_pose
+        self.bus.broadcast(self.positioning())
         if self.sync is not None:
             self.sync.set_anchors(self.tracker.ingest_anchors(now))
 
@@ -379,6 +446,7 @@ class Hub:
             "queue_depth": depth,
             "clients": len(self.bus.clients),
             "registry_version": self.registry.version,
+            "positioning": self.active,
         }
         return StatusMsg(component="hub", ok=adapters_ok and convex != "offline", detail="; ".join(parts),
                          info=info, t=self.clock.now())

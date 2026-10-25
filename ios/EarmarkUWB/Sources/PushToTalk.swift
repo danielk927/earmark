@@ -9,9 +9,16 @@ import Foundation
 /// Bluetooth headset mic is never used), mode `.default` (keeps Apple's gain control; `.measurement` turns it
 /// off), preferred input = built-in mic.
 ///
-/// Threading: `start`/`stop` from the main actor; the tap block runs on an audio thread, converts with
-/// AVAudioConverter, chunks, and hops each chunk to the main actor.
-final class PushToTalk {
+/// Shared microphone: when the sound listener (`PhoneCore.PhoneClient`) is capturing, it already owns the
+/// microphone and the audio session (`.playAndRecord`, `.measurement`). Then `setShared(true)` makes Talk consume
+/// the listener's raw buffers (`feed`) through the same resample-to-16 kHz path, and `start`/`stop` neither open an
+/// engine nor touch the session (stopping the session would kill the listener). With the listener off, Talk keeps
+/// its own engine and session exactly as before.
+///
+/// Threading: `start`/`stop`/`setShared` from the main actor; the tap block (own engine) or the listener's tap
+/// (`feed`) runs on an audio thread, converts with AVAudioConverter, chunks, and hops each chunk to the main
+/// actor. State shared with the audio thread is behind `lock`.
+final class PushToTalk: @unchecked Sendable {
     enum MicError: LocalizedError {
         case noInput, converter
 
@@ -32,9 +39,14 @@ final class PushToTalk {
     private(set) var isRunning = false
 
     private let engine = AVAudioEngine()
+    private let lock = NSLock()
+    /// Guarded by `lock`: true while Talk is on (buffers are accepted), and whether they come from the listener.
+    private var accepting = false
+    private var shared = false
+    private var ownEngineRunning = false
     private let target = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: Double(PushToTalk.sampleRate),
                                        channels: 1, interleaved: true)!
-    // Set before the tap is installed, then touched only on the tap thread.
+    // Guarded by `lock`.
     private var converter: AVAudioConverter?
     private var pending: [Int16] = []
 
@@ -43,8 +55,31 @@ final class PushToTalk {
         await AVAudioApplication.requestRecordPermission()
     }
 
+    /// True while Talk reads the listener's buffers instead of running its own engine.
+    var isShared: Bool { lock.withLock { shared } }
+
+    /// Call (main actor) whenever the sound listener starts or stops capturing. Safe while Talk is running:
+    /// switching to shared closes this class's own engine without touching the audio session, because the
+    /// listener now owns it.
+    func setShared(_ on: Bool) {
+        let wasShared = lock.withLock { shared }
+        guard on != wasShared else { return }
+        if on, ownEngineRunning { stopOwnEngine() }
+        lock.withLock {
+            shared = on
+            converter = nil
+            pending.removeAll()
+        }
+    }
+
     func start() throws {
         guard !isRunning else { return }
+        if isShared {
+            lock.withLock { converter = nil; pending.removeAll(); accepting = true }
+            isRunning = true
+            Log.mic.info("talk: using the sound listener's microphone")
+            return
+        }
         let audio = AVAudioSession.sharedInstance()
         try audio.setCategory(.record, mode: .default, options: [])
         try audio.setActive(true)
@@ -57,36 +92,63 @@ final class PushToTalk {
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else { throw MicError.noInput }
         guard let conv = AVAudioConverter(from: format, to: target) else { throw MicError.converter }
-        converter = conv
-        pending.removeAll()
+        lock.withLock { converter = conv; pending.removeAll(); accepting = true }
 
         input.installTap(onBus: 0, bufferSize: 4_096, format: format) { [weak self] buffer, _ in
-            self?.process(buffer)
+            self?.process(buffer, fromOwnEngine: true)
         }
         engine.prepare()
         do {
             try engine.start()
         } catch {
             input.removeTap(onBus: 0)
+            lock.withLock { accepting = false }
             throw error
         }
+        ownEngineRunning = true
         isRunning = true
         Log.mic.info("talk: capturing \(format.sampleRate) Hz x\(format.channelCount) -> 16 kHz Int16")
     }
 
-    /// Stops capture. A partial (< 100 ms) last chunk is dropped, as on the Mac.
+    /// Stops capture. A partial (< 100 ms) last chunk is dropped, as on the Mac. In shared mode only stops
+    /// consuming; the session and the listener's engine are left alone.
     func stop() {
         guard isRunning else { return }
         isRunning = false
+        lock.withLock { accepting = false }
+        if ownEngineRunning {
+            stopOwnEngine()
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
+    }
+
+    private func stopOwnEngine() {
+        ownEngineRunning = false
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    /// Entry for the listener's microphone buffers (any thread, raw hardware format). Ignored unless Talk is on
+    /// and shared. Converts synchronously, so the buffer need not outlive the call.
+    func feed(_ buffer: AVAudioPCMBuffer) {
+        process(buffer, fromOwnEngine: false)
     }
 
     // MARK: Tap thread
 
-    private func process(_ buffer: AVAudioPCMBuffer) {
-        guard let converter, buffer.frameLength > 0 else { return }
+    private func process(_ buffer: AVAudioPCMBuffer, fromOwnEngine: Bool) {
+        guard buffer.frameLength > 0 else { return }
+        var chunks: [Data] = []
+        lock.lock()
+        defer {
+            lock.unlock()
+            if let cb = onChunk { for data in chunks { onMain { cb(data) } } }
+        }
+        guard accepting, shared != fromOwnEngine else { return }
+        if converter == nil || converter!.inputFormat != buffer.format {
+            converter = AVAudioConverter(from: buffer.format, to: target)   // shared source: first buffer or route change
+        }
+        guard let converter else { return }
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * target.sampleRate / buffer.format.sampleRate) + 512
         guard let out = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return }
         // Feed exactly one buffer per call, then .noDataNow, so the resampler keeps its state between taps
@@ -108,8 +170,7 @@ final class PushToTalk {
         while pending.count >= Self.chunkFrames {
             let chunk = pending.prefix(Self.chunkFrames).map { $0.littleEndian }
             pending.removeFirst(Self.chunkFrames)
-            let data = chunk.withUnsafeBufferPointer { Data(buffer: $0) }
-            if let cb = onChunk { onMain { cb(data) } }
+            chunks.append(chunk.withUnsafeBufferPointer { Data(buffer: $0) })
         }
     }
 }

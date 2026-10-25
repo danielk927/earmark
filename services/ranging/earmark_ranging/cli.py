@@ -158,6 +158,7 @@ async def _listen(args) -> None:
             print("fix the problem, put the phone back at the spot and press Enter to try again.")
 
     svc.on_heard, svc.on_range, svc.on_fix, svc.on_report = on_heard, on_range, on_fix, on_report
+    svc.on_notice = lambda msg: print(f"\n!!! {msg}\n")
     stop = asyncio.Event()
     tasks = []
     async with serve(svc.handler, "0.0.0.0", args.port, max_size=2**22):
@@ -238,14 +239,9 @@ def _replay(args) -> None:
 
 
 def _labels(path) -> dict[int, str]:
-    import json
-    import re
+    from .config import load_labels
 
-    try:
-        data = json.loads(open(path).read())
-        return {int(re.search(r"(\d+)$", str(b["id"])).group(1)): str(b.get("label", "")) for b in data["beacons"]}
-    except Exception:  # noqa: BLE001 - labels are decoration only
-        return {}
+    return load_labels(path)
 
 
 def main() -> None:
@@ -254,7 +250,7 @@ def main() -> None:
     for name in ("serve", "sim", "listen"):
         s = sub.add_parser(name)
         s.add_argument("--port", type=int, default=8766)
-        s.add_argument("--beacons", default=str(DEFAULT_BEACONS), help="where the fixed phones are (beacons.json or space.json)")
+        s.add_argument("--beacons", default=str(DEFAULT_BEACONS), help="space.json (default) or a beacons.json")
         s.add_argument("--band", type=float, nargs=2, default=(12000.0, 16000.0) if name == "listen" else (17000.0, 20000.0),
                        metavar=("LO", "HI"))
         if name != "listen":

@@ -433,12 +433,38 @@ class TapPosition(_Msg):
     source: PoseSource
 
 
+PositioningSystem = Literal["uwb", "sound"]
+
+
+class PositioningSelect(_Msg):
+    """Dashboard or Mac app -> hub: which positioning system drives listener_pose. Both keep running."""
+    type: Literal["positioning_select"] = "positioning_select"
+    active: PositioningSystem
+
+
+class PositioningFix(_Model):
+    position: Vec3
+    quality: Literal["ok", "degraded", "lost"]
+    source: PoseSource
+    mode: ListenerMode | None = None
+    age_s: float = Field(ge=0)
+
+
+class Positioning(_Msg):
+    """Hub -> bus: the active system and both systems' latest poses side by side (None = no pose yet)."""
+    type: Literal["positioning"] = "positioning"
+    active: PositioningSystem
+    uwb: PositioningFix | None
+    sound: PositioningFix | None
+
+
 BusMessage = Annotated[
     Union[
         Hello, Snapshot, RegistryUpdate, DetectionEvent, ObjectState, UnknownTag, Label, PlaceItem, Ptt, MicAudio,
         Transcript, SttMode, TrialStart, TrialEnd, GuideStart, GuideStop, GuideFeedback, Speak,
         SpeakCached, SpeakText, Playback, Chirp, Pickup, PickupResult, HeadPose, StatusMsg, Reset,
         UwbToken, UwbRange, MotionState, ListenerPose, ListenerCommand, ObjectTap, TapPosition,
+        PositioningSelect, Positioning,
     ],
     Field(discriminator="type"),
 ]

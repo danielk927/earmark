@@ -243,6 +243,10 @@ final class AppModel: ObservableObject {
             if down && !rep { self?.core.recenter() }
             return true
         }
+        keys.on(.character("p")) { [weak self] down, rep, _ in
+            if down && !rep { self?.togglePositioning() }
+            return true
+        }
         keys.on(.left) { [weak self] down, _, shift in self?.nudge(down, shift ? -5 : -15) ?? false }
         keys.on(.right) { [weak self] down, _, shift in self?.nudge(down, shift ? 5 : 15) ?? false }
         keys.start()
@@ -261,6 +265,11 @@ final class AppModel: ObservableObject {
     }
 
     func recenter() { core.recenter() }
+
+    /// Hub-confirmed active system; UWB until the hub says otherwise.
+    var activePositioning: PositioningSystem { core.positioning?.active ?? .uwb }
+    func selectPositioning(_ s: PositioningSystem) { core.selectPositioning(s) }
+    func togglePositioning() { core.selectPositioning(PositioningText.other(activePositioning)) }
 
     private func tick() {
         core.tick()

@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import beaconConfig from "../../../config/beacons.json";
-import { clockHour, horizontalDistance, type LogLine, type RoomState, type Turn, type Vec3 } from "./model";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { clockHour, compare, horizontalDistance, roomSize, simulatorRestore, simulatorSelect, SYSTEM_NAME, type LogLine, type RoomState, type System, type Turn, type Vec3 } from "./model";
 import { RoomModel, webglAvailable, type Beacon } from "./scene3d";
 import { useBus } from "./useBus";
 import "@fontsource/stix-two-text/latin-400.css";
@@ -9,12 +8,11 @@ import "@fontsource/stix-two-text/latin-600.css";
 import "@fontsource/stix-two-text/latin-600-italic.css";
 import "./room.css";
 
-const BEACONS: Beacon[] = beaconConfig.beacons.map((b) => ({ id: b.id, label: b.label, position: b.position as Vec3 }));
-const ROOM = { w: beaconConfig.room.width_m, d: beaconConfig.room.depth_m };
 const STEP_M = 0.06;
 
 const SOURCE_TEXT: Record<string, string> = {
-  beacons: "Live from the phones",
+  beacons: "Live from the sound beacons",
+  sound: "Live from the sound beacons",
   uwb: "Live from the UWB anchors",
   manual: "Simulated walking",
   mat: "On the mat (no position yet)",
@@ -30,22 +28,37 @@ export function RoomPage() {
   const [gl] = useState(webglAvailable);
   const [simulate, setSimulate] = useState(false);
   const simPos = useRef<Vec3>([0, 0, 1.55]);
-  const realFix = state.userLive && (state.userSource === "beacons" || state.userSource === "uwb");
+  const realFix = state.userLive && ["beacons", "sound", "uwb", "sim"].includes(state.userSource);
   const walking = simulate && !realFix; // real phone positions take over from the simulator
+  // Only the user turns the simulator on: once a real fix takes over, untick it so a later dropout cannot restart it.
+  if (realFix && simulate) setSimulate(false);
+  const positioningRef = useRef(state.positioning);
+  useEffect(() => {
+    positioningRef.current = state.positioning;
+  }, [state.positioning]);
+  const phones: Beacon[] = state.phones;
+  const room = useMemo(() => roomSize(state.phones, state.places), [state.phones, state.places]);
+  const roomRef = useRef(room);
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
 
   useEffect(() => {
     if (!gl || !host.current) return;
-    const s = new RoomModel(host.current, BEACONS, ROOM);
+    const s = new RoomModel(host.current, phones, roomRef.current);
     scene.current = s;
     return () => {
       s.dispose();
       scene.current = null;
     };
+    // the scene is built once; setLayout below follows later snapshots
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gl]);
 
   useEffect(() => {
+    scene.current?.setLayout(phones, room);
     scene.current?.update(state);
-  }, [state]);
+  }, [state, phones, room]);
 
   // Walking simulator: arrow keys or WASD move a pretend user, shift-click puts them on a spot.
   // It sends the same position message the phones do, so the ping and the voice follow it.
@@ -55,6 +68,9 @@ export function RoomPage() {
       return;
     }
     simPos.current = [state.user[0], state.user[1], 1.55];
+    const select = simulatorSelect(state.positioning, Date.now() / 1000);
+    if (select) send(select); // the hub only follows these poses while Sound drives the audio
+    const was = select ? state.positioning?.active : undefined; // what to give the audio back to
     const pub = () => {
       const msg = { type: "listener_pose", position: simPos.current.map((v) => Math.round(v * 1000) / 1000), quality: "ok", beacons_heard: 0, source: "manual" };
       send(msg);
@@ -78,12 +94,12 @@ export function RoomPage() {
       if (keys.has("arrowdown") || keys.has("s")) y -= STEP_M;
       if (keys.has("arrowleft") || keys.has("a")) x -= STEP_M;
       if (keys.has("arrowright") || keys.has("d")) x += STEP_M;
-      simPos.current = [clamp(x, ROOM.w / 2), clamp(y, ROOM.d / 2), 1.55];
+      simPos.current = [clamp(x, roomRef.current.w / 2), clamp(y, roomRef.current.d / 2), 1.55];
     }, 50);
     const beat = setInterval(pub, 300);
     if (scene.current) {
       scene.current.onFloorClick = (x, y) => {
-        simPos.current = [clamp(x, ROOM.w / 2), clamp(y, ROOM.d / 2), 1.55];
+        simPos.current = [clamp(x, roomRef.current.w / 2), clamp(y, roomRef.current.d / 2), 1.55];
         pub();
       };
     }
@@ -95,8 +111,10 @@ export function RoomPage() {
       clearInterval(beat);
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      const back = simulatorRestore(was, positioningRef.current, Date.now() / 1000);
+      if (back) send(back);
     };
-    // state.user is read once, when walking starts
+    // state.user and state.positioning are read once, when walking starts
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walking, send, local]);
 
@@ -122,6 +140,7 @@ export function RoomPage() {
             send({ type: "transcript", text, is_final: true, source: "typed" });
             echo(text);
           }} />
+        <PositioningCard state={state} onSelect={(active) => send({ type: "positioning_select", active })} />
         <WhereUser state={state} simulate={walking} setSimulate={setSimulate} realFix={realFix} />
         <Conversation turns={state.convo} />
         <Log title="Memory" lines={state.log.filter((l) => l.kind === "memory" || l.kind === "found" || l.kind === "info")} empty='Say "I put my keys in the drawer".' />
@@ -205,6 +224,33 @@ function Ask({ onAsk }: { onAsk: (text: string) => void }) {
   );
 }
 
+/** The UWB / Sound switch (native radios, so arrow keys and screen readers work) and the side-by-side readout. */
+export function PositioningCard({ state, onSelect }: { state: RoomState; onSelect: (s: System) => void }) {
+  const p = state.positioning;
+  const { lines, gap } = compare(p, state.now); // state.now is 0 only until the first tick, when ages read as the hub sent them
+  return (
+    <section className="room-card" aria-label="Positioning">
+      <h2>Positioning</h2>
+      <fieldset className="room-switch">
+        <legend>Which system drives the audio</legend>
+        <div className="room-seg">
+          {(["uwb", "sound"] as System[]).map((sys) => (
+            <label key={sys}>
+              <input type="radio" name="positioning" value={sys} checked={p?.active === sys} onChange={() => onSelect(sys)} />
+              <span>{SYSTEM_NAME[sys]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <p className="room-compare" aria-live="off">
+        <span>{lines.uwb}{p?.active === "uwb" ? " (active)" : ""}</span>
+        <span>{lines.sound}{p?.active === "sound" ? " (active)" : ""}</span>
+        <span>{gap === null ? "Apart: needs both live" : `Apart: ${gap.toFixed(2)} m`}</span>
+      </p>
+    </section>
+  );
+}
+
 function WhereUser({ state, simulate, setSimulate, realFix }: { state: RoomState; simulate: boolean; setSimulate: (v: boolean) => void; realFix: boolean }) {
   const [x, y] = state.user;
   return (
@@ -217,7 +263,7 @@ function WhereUser({ state, simulate, setSimulate, realFix }: { state: RoomState
       </p>
       <label className="room-toggle">
         <input type="checkbox" checked={simulate} disabled={realFix} onChange={(e) => setSimulate(e.target.checked)} />
-        <span>{realFix ? "Phones are tracking you" : "Simulate walking (arrow keys, or click the floor)"}</span>
+        <span>{realFix ? "Phones are tracking you" : "Simulate walking (arrow keys, or click the floor). Switches the audio to Sound while on."}</span>
       </label>
     </section>
   );

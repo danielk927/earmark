@@ -91,7 +91,7 @@ export const poseWords: Record<ListenerMode, string> = {
 
 export const poseSourceWords: Record<WearerPoseRow["source"], string> = {
   uwb: "Position from the UWB anchors",
-  sound: "Position from sound only",
+  sound: "Live from the sound beacons",
   sim: "Simulated position",
   none: "No position source",
 };

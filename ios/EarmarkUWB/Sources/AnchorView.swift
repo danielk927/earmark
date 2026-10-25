@@ -6,6 +6,7 @@ import SwiftUI
 struct AnchorView: View {
     @ObservedObject var controller: AnchorController
     @ObservedObject var hub: HubConnection
+    @ObservedObject var beacon: SoundBeaconModel
     let onStop: @MainActor () -> Void
 
     @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 52
@@ -29,6 +30,19 @@ struct AnchorView: View {
                     InfoRow(title: "Session", value: controller.phase.label)
                     InfoRow(title: "Distance to wearer", value: distanceText)
                     InfoRow(title: "Battery", value: controller.batteryText)
+                }
+
+                if beacon.beaconNumber != nil {
+                    Card {
+                        Toggle(isOn: $beacon.enabled) {
+                            Text("Sound beacon")
+                                .font(.headline)
+                        }
+                        .accessibilityHint("Chirps a quiet high sound every half second so the sound positioning system can locate this anchor")
+                        Text(beacon.statusLine)
+                            .font(.title3)
+                            .foregroundStyle(beacon.error == nil ? Color.primary : Color.red)
+                    }
                 }
 
                 Text("Keep this iPhone plugged in, screen on, and this app open. Don't move it after its position is measured.")

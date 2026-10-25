@@ -1,3 +1,4 @@
+{"type":"positioning_select","active":"sound","t":0.5}
 {"type":"listener_pose","position":[0.8,-0.4,1.5],"quality":"ok","beacons_heard":5,"source":"beacons","t":1.0}
 {"type":"listener_pose","position":[0.8,-0.4,1.5],"quality":"ok","beacons_heard":5,"source":"beacons","t":1.3333333333333333}
 {"type":"listener_pose","position":[0.8,-0.4,1.5],"quality":"ok","beacons_heard":5,"source":"beacons","t":1.6666666666666667}

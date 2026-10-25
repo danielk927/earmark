@@ -36,6 +36,8 @@ def main_hub(argv: list[str] | None = None) -> int:
     p.add_argument("--step", action="store_true", help="pause (Enter) before each line that changes a reading")
     p.add_argument("--interactive", action="store_true", help="Wizard-of-Oz keyboard simulator")
     p.add_argument("--no-convex", action="store_true", help="never talk to Convex")
+    p.add_argument("--positioning", choices=("uwb", "sound"), help="which system drives the audio at start "
+                   "(default positioning.active in hub.json); the dashboard or Mac app switches it at run time")
     p.add_argument("--config", type=Path, help="hub config (default HUB_CONFIG or config/hub.json)")
     p.add_argument("-v", "--verbose", action="store_true", help="debug logging on the console")
     args = p.parse_args(argv)
@@ -51,6 +53,8 @@ def main_hub(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     if args.adapters:
         cfg.adapters = parse_adapters(args.adapters)
+    if args.positioning:
+        cfg.positioning.active = args.positioning
     if (args.scenario or args.interactive) and "simulator" not in cfg.adapters:
         cfg.adapters.append("simulator")
     console = logging.DEBUG if args.verbose else logging.WARNING if (args.interactive or args.step) else logging.INFO

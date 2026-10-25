@@ -165,6 +165,20 @@ async def test_lost_message_once_per_guidance(h):
     assert h.spoken(h.out) == [LOST_MESSAGE]
 
 
+async def test_a_lost_sound_position_is_announced_once(h):
+    def sound(quality):  # the beacon locator / hub's sound pose: no walking mode, only a quality
+        return ListenerPose(position=[0, -2, 0], quality=quality, source="beacons", beacons_heard=3)
+
+    await h.say("Where's the sugar?")
+    h.clear()
+    await h.feed(sound("ok"), sound("degraded"))
+    assert h.spoken(h.out) == []
+    await h.feed(sound("lost"), sound("lost"))
+    assert h.spoken(h.out) == [LOST_MESSAGE]
+    await h.feed(sound("ok"), sound("lost"))  # recovered and lost again in the same guidance: already said
+    assert h.spoken(h.out) == [LOST_MESSAGE]
+
+
 async def test_lost_without_guidance_is_silent(h):
     await h.feed(pose(0, -2, "lost"))
     assert h.spoken(h.out) == []

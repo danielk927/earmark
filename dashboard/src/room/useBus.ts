@@ -4,7 +4,7 @@ import { ask, initialState, reduce, tick, type RoomState } from "./model";
 /** Message types the room view shows. `speak` is listed so spoken Cartesia text arrives (its audio is ignored). */
 const SUBSCRIBE = [
   "snapshot", "registry_update", "state_update", "listener_pose", "head_pose", "guide_start", "guide_stop",
-  "guide_feedback", "transcript", "speak", "speak_text", "speak_cached", "place_item", "pickup", "status", "reset",
+  "guide_feedback", "positioning", "tap_position", "transcript", "speak", "speak_text", "speak_cached", "place_item", "pickup", "status", "reset",
 ];
 
 export function busUrl(): string {

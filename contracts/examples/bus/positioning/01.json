@@ -1,0 +1,7 @@
+{
+  "type": "positioning",
+  "active": "uwb",
+  "uwb": { "position": [0.12, -0.84, 1.55], "quality": "ok", "source": "uwb", "mode": "tracked", "age_s": 0.04 },
+  "sound": { "position": [0.18, -0.79, 1.21], "quality": "ok", "source": "beacons", "age_s": 0.31 },
+  "t": 1761350422.1
+}
