@@ -11,6 +11,14 @@ public enum PositioningText {
 
     public static func fix(_ p: Positioning, _ s: PositioningSystem) -> PositioningFix? { s == .uwb ? p.uwb : p.sound }
 
+    /// `p` as it is `s` seconds after it arrived: both fixes are that much older than the hub reported.
+    public static func aged(_ p: Positioning, by s: Double) -> Positioning {
+        var q = p
+        q.uwb?.ageS += max(0, s)
+        q.sound?.ageS += max(0, s)
+        return q
+    }
+
     /// Stale = older than `staleAfterS` or quality lost.
     public static func isStale(_ f: PositioningFix) -> Bool { f.ageS > staleAfterS || f.quality == .lost }
 

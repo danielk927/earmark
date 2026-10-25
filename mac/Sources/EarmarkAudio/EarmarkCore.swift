@@ -92,6 +92,11 @@ public final class EarmarkCore {
     public private(set) var listenerPose: ListenerPose?
     /// Latest `positioning` from the hub (active system plus both systems' fixes); nil until one arrives.
     public private(set) var positioning: Positioning?
+    /// `positioning` as of now: its fix ages grow with the time since it arrived. The hub stops broadcasting when idle or
+    /// dead, so the raw `ageS` alone would stay small forever. Use this for anything shown or compared against staleness.
+    public var agedPositioning: Positioning? { positioning.map { PositioningText.aged($0, by: clock() - positioningAt) } }
+    private var positioningAt = 0.0           // clock() when `positioning` arrived
+    private var positioningSecond = 0         // whole seconds since then, as of the last redraw (see `tick`)
     public var distanceAttenuation = DistanceAttenuation() { didSet { renderer?.setDistanceAttenuation(distanceAttenuation) } }
     /// Every listener_pose as it arrives (main thread); the calibration screen averages them.
     public var onListenerPose: ((ListenerPose) -> Void)?
@@ -294,6 +299,8 @@ public final class EarmarkCore {
             applyListenerPose(p)
         case .positioning(let p):
             positioning = p
+            positioningAt = clock()
+            positioningSecond = 0
         case .reset:
             reset()
         case .listenerCommand(let c):
@@ -530,6 +537,10 @@ public final class EarmarkCore {
         if listenerPose != nil, now - lastListenerPoseAt > Self.fixTimeout {
             listenerPose = nil
             changed()
+        }
+        if positioning != nil, Int(max(0, now - positioningAt)) != positioningSecond {
+            positioningSecond = Int(max(0, now - positioningAt))
+            changed()  // no message arrives when the hub is idle; redraw once a second so the ghost ages out
         }
         if let at = lastFixAt, now - at > Self.fixTimeout {
             lastFixAt = nil

@@ -397,7 +397,7 @@ private struct PositioningPicker: View {
             .accessibilityLabel("Positioning system")
             .accessibilityValue(PositioningText.name(m.activePositioning))
             .accessibilityHint("Chooses whether UWB or sound chirps drive the audio. Keyboard shortcut P.")
-            if let p = m.core.positioning {
+            if let p = m.core.agedPositioning {
                 Text(PositioningText.inactiveLine(p))
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.textSecondary)

@@ -32,6 +32,8 @@ public final class PhoneClient: @unchecked Sendable {
     private var played = 0
     private var running = false
     private var sentSamples = 0
+    private var retrying = false
+    private var interrupted = false  // an audio interruption (call, Siri, alarm) is in progress
     private let queue = DispatchQueue(label: "earmark.phone.client")
     public var onEvent: (@Sendable (PhoneEvent) -> Void)?
     /// Every raw microphone buffer the listener captures (audio thread, hardware format; valid only during the
@@ -43,12 +45,14 @@ public final class PhoneClient: @unchecked Sendable {
 
     public init(url: URL, slot: Int, name: String) {
         self.url = url; self.slot = slot; self.name = name
+        audio.onDisturbed = { [weak self] d in self?.queue.async { self?.audioDisturbed(d) } }
     }
 
     public func start() {
         queue.async { [self] in
             guard !running else { return }
             running = true
+            interrupted = false
             connect()
         }
     }
@@ -56,9 +60,12 @@ public final class PhoneClient: @unchecked Sendable {
     public func stop() {
         queue.async { [self] in
             running = false
+            interrupted = false
             audio.stop()
             task?.cancel(with: .goingAway, reason: nil)
             task = nil
+            session?.invalidateAndCancel()
+            session = nil
             onEvent?(.disconnected)
         }
     }
@@ -68,6 +75,9 @@ public final class PhoneClient: @unchecked Sendable {
 
     private func connect() {
         onEvent?(.connecting)
+        // Every retry makes a new session; invalidate the old one or each retry (every 2 s) leaks it.
+        task?.cancel(with: .goingAway, reason: nil)
+        session?.invalidateAndCancel()
         let s = URLSession(configuration: .default)
         session = s
         let t = s.webSocketTask(with: url)
@@ -97,10 +107,40 @@ public final class PhoneClient: @unchecked Sendable {
     }
 
     private func retry() {
+        guard !retrying else { return }  // an engine reset and a media services reset arrive together: one reconnect
+        retrying = true
         queue.asyncAfter(deadline: .now() + 2) { [self] in
+            retrying = false
             guard running else { return }
             connect()
         }
+    }
+
+    private static let interruptedMessage = "Audio was interrupted; reconnecting. Recalibrate on the Mac."
+
+    /// The system took the audio away (see `AudioDisturbance`). The phone's sample counter would carry on across an
+    /// engine restart, so the service must see a fresh join: drop the socket and reconnect through `retry`.
+    private func audioDisturbed(_ d: AudioDisturbance) {
+        guard running else { return }
+        switch d {
+        case .began:
+            interrupted = true
+            onEvent?(.error(Self.interruptedMessage))  // reconnect when it ends; audio cannot start during a call
+        case .ended:
+            interrupted = false
+            reconnect()
+        case .reset:
+            guard !interrupted else { return }  // the engine stops itself when an interruption begins; `.ended` handles it
+            onEvent?(.error(Self.interruptedMessage))
+            reconnect()
+        }
+    }
+
+    private func reconnect() {
+        audio.stop()
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil  // the cancelled task's receive failure then fails the `task === t` check instead of retrying twice
+        retry()
     }
 
     private func handle(_ text: String) {

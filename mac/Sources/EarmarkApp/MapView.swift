@@ -65,7 +65,7 @@ struct MapScene {
         listenerPose = core.listenerPose
         anchors = UWBText.anchors(space: core.space, pose: core.listenerPose, listener: core.listenerPosition)
         wearerLine = UWBText.wearerLine(pose: core.listenerPose, listener: core.listenerPosition)
-        if let p = core.positioning {
+        if let p = core.agedPositioning {
             ghost = PositioningText.ghost(p).flatMap { Geometry.point($0.position) }
             ghostName = PositioningText.name(PositioningText.other(p.active))
             positioningLine = PositioningText.inactiveLine(p)
