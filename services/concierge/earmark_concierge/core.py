@@ -474,12 +474,18 @@ class Concierge:
                                        precision="exact", utterance_id=g.utterance_id))
 
     async def _on_listener_pose(self, msg: ListenerPose) -> None:
-        prev = self.world.listener.mode if self.world.listener else None
+        def mode_of(p: ListenerPose | None) -> str | None:
+            # The beacon locator has no walking modes; when sound drives the audio and goes lost, it is
+            # only quality "lost". Count that as mode "lost" here (transition logic only).
+            return None if p is None else p.mode or ("lost" if p.quality == "lost" else None)
+
+        prev = mode_of(self.world.listener)
         self.world.apply_listener(msg)
         g = self.guiding
-        if g is None or self.silent_trial is not None or msg.mode == prev:
+        mode = mode_of(msg)
+        if g is None or self.silent_trial is not None or mode == prev:
             return
-        if msg.mode == "lost" and not g.lost_said:
+        if mode == "lost" and not g.lost_said:
             g.lost_said = True
             text = LOST_MESSAGE
         elif msg.mode == "frozen":
