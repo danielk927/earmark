@@ -29,6 +29,15 @@ def build_adapters(names: list[str], cfg: HubConfig, clock: Clock, *, scenario: 
             from .camera_stub import CameraStubAdapter
 
             adapters.append(CameraStubAdapter())
+        elif name == "uwb_sim":
+            from ..uwb.sim import UwbSimAdapter
+
+            adapters.append(UwbSimAdapter(clock, cfg.uwb_sim, cfg.uwb, interactive=interactive))
         else:
             raise ValueError(f"unknown adapter {name!r}")
+    if interactive:  # one keyboard: the simulator hands the keys it does not use to uwb_sim
+        sim = next((a for a in adapters if a.name == "simulator"), None)
+        uwb = next((a for a in adapters if a.name == "uwb_sim"), None)
+        if sim is not None and uwb is not None:
+            sim.opts["extra_keys"] = uwb.key
     return adapters

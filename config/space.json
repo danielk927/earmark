@@ -7,5 +7,11 @@
     { "spot": 4, "label": "far right",    "position": [ 0.42, 0.42, 0.0] }
   ],
   "areas": [ { "area": "kitchen_counter", "label": "the counter", "position": [0, 0.6, 0] } ],
-  "receivers": [ { "receiver": "hub", "label": "the counter", "position": [0, 0.6, 0] } ]
+  "receivers": [ { "receiver": "hub", "label": "the counter", "position": [0, 0.6, 0] } ],
+  "anchors": [
+    { "anchor": "uwb_1", "label": "UWB Reader/Emitter 1", "position": [-0.9,  0.75, -0.25] },
+    { "anchor": "uwb_2", "label": "UWB Reader/Emitter 2", "position": [ 0.9,  0.75, -0.25] },
+    { "anchor": "uwb_3", "label": "UWB Reader/Emitter 3", "position": [-1.4, -1.8,  -0.25] }
+  ],
+  "tracking": { "phone_z": -0.35, "head_offset_m": 0.2 }
 }

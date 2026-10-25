@@ -42,8 +42,8 @@ async def connect_client(h, component="cli", subscribe=None):
     return await BusClient.connect(component, subscribe=subscribe, url=url(h))
 
 
-async def drain(client, seconds=0.3, skip=("status",)):
-    """Every message received within `seconds`, minus hub status heartbeats."""
+async def drain(client, seconds=0.3, skip=("status", "listener_pose")):
+    """Every message received within `seconds`, minus hub status heartbeats and listener poses."""
     got = []
     try:
         async with asyncio.timeout(seconds):
