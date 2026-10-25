@@ -75,6 +75,7 @@ class Settings:
     tts_first_chunk_timeout_s: float = 1.0
     guide_timeout_s: float = 60.0
     behind_cooldown_s: float = 4.0
+    behind_wait_s: float = 10.0
     status_interval_s: float = 5.0
     mac_app_ttl_s: float = 15.0
     label_window_s: float = 300.0
@@ -141,6 +142,7 @@ def load_settings(*, dotenv: bool = True) -> Settings:
         tts_first_chunk_timeout_s=_float("CONCIERGE_TTS_FIRST_CHUNK_TIMEOUT_S", d.tts_first_chunk_timeout_s),
         guide_timeout_s=_float("CONCIERGE_GUIDE_TIMEOUT_S", d.guide_timeout_s),
         behind_cooldown_s=_float("CONCIERGE_BEHIND_COOLDOWN_S", d.behind_cooldown_s),
+        behind_wait_s=_float("CONCIERGE_BEHIND_WAIT_S", d.behind_wait_s),
         status_interval_s=_float("CONCIERGE_STATUS_INTERVAL_S", d.status_interval_s),
         mac_app_ttl_s=_float("CONCIERGE_MAC_APP_TTL_S", d.mac_app_ttl_s),
         label_window_s=_float("CONCIERGE_LABEL_WINDOW_S", d.label_window_s),

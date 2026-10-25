@@ -52,6 +52,10 @@ class Speaker:
         self.on_mode_change: Callable[[], object] | None = None
         self._tts_down_until = 0.0
         self._lock = asyncio.Lock()
+        # The utterance the Mac app is still playing; cleared by its playback finished/interrupted.
+        self._audible: str | None = None
+        self._quiet = asyncio.Event()
+        self._quiet.set()
 
     def _set_mode(self, mode: str) -> None:
         if mode != self.mode:
@@ -69,7 +73,11 @@ class Speaker:
         pid = phrase_id if phrase_id in self.phrases else self.by_text.get(text)
         async with self._lock:
             t0 = time.perf_counter()
-            if not self.mac_app_present():
+            on_mac = self.mac_app_present()
+            if on_mac:
+                self._audible = utterance_id
+                self._quiet.clear()
+            if not on_mac:
                 kind = await self._say_local(text)
                 # Nothing on the bus speaks this, but the live room page shows it as a caption.
                 await self.emit(SpeakText(utterance_id=utterance_id, text=text))
@@ -85,6 +93,19 @@ class Speaker:
                              ms=round((time.perf_counter() - t0) * 1000, 1),
                              since_final_ms=_since(turn), text=text)
             return kind
+
+    def on_playback(self, utterance_id: str, event: str) -> None:
+        if event in ("finished", "interrupted") and utterance_id == self._audible:
+            self._audible = None
+            self._quiet.set()
+
+    async def wait_quiet(self, timeout_s: float) -> None:
+        """Until the Mac app finishes the utterance it is playing (bus streaming ends seconds earlier).
+        Gives up after `timeout_s` so a lost playback message cannot silence what follows."""
+        try:
+            await asyncio.wait_for(self._quiet.wait(), timeout_s)
+        except asyncio.TimeoutError:
+            log.warning("no playback finished for %s after %.0f s; speaking anyway", self._audible, timeout_s)
 
     async def _stream(self, uid: str, text: str, turn: dict | None) -> str:
         assert self.tts is not None

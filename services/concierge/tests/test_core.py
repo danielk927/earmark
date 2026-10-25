@@ -1,5 +1,6 @@
 """Core flows: ambiguity, labels, pickups while guiding, stop, reset, trials, feedback, timeout."""
 import asyncio
+import re
 import time
 
 from conftest import Harness, make_settings, snapshot, state
@@ -158,12 +159,50 @@ async def test_baseline_trial_is_silent_until_trial_end(h):
     assert h.of("guide_start", out)
 
 
-async def test_behind_feedback_is_rate_limited(h):
+async def _answer_finished(h, out) -> None:
+    """The Mac reports the answer to `out` finished playing."""
+    uid = next(m["utterance_id"] for m in out if m["type"] in ("speak", "speak_text", "speak_cached"))
+    await h.feed(Playback(utterance_id=uid, event="finished"))
+
+
+async def test_behind_hint_waits_for_the_answer_to_finish_playing(h):
+    # Live bug: the hint went out as soon as the answer finished streaming and cut it off on the Mac.
+    out = await h.say("Where's the sugar?")
+    h.clear()
+    await h.core.handle(GuideFeedback(object_id="sugar", event="behind", turn="left", error_deg=170.0))
+    await asyncio.sleep(0.05)
+    assert not h.of("speak_cached")
+    await h.core.handle(GuideFeedback(object_id="sugar", event="behind", turn="right", error_deg=-175.0))
+    await _answer_finished(h, out)
+    assert [m["phrase_id"] for m in h.of("speak_cached")] == ["behind_turn_right"]
+
+
+async def test_behind_hint_is_dropped_if_the_user_turned_around_during_the_answer(h):
+    out = await h.say("Where's the sugar?")
+    h.clear()
+    await h.core.handle(GuideFeedback(object_id="sugar", event="behind", turn="left", error_deg=170.0))
+    await h.core.handle(GuideFeedback(object_id="sugar", event="front", turn=None, error_deg=40.0))
+    await _answer_finished(h, out)
+    assert not h.of("speak_cached")
+
+
+async def test_behind_hint_plays_after_a_timeout_if_playback_is_never_reported(tmp_path):
+    h = Harness(make_settings(tmp_path, behind_wait_s=0.05))
+    await h.feed(snapshot())
     await h.say("Where's the sugar?")
     h.clear()
-    fb = dict(object_id="sugar", event="behind", error_deg=150.0)
-    await h.feed(GuideFeedback(turn="left", **fb), GuideFeedback(turn="right", **fb))
+    await h.feed(GuideFeedback(object_id="sugar", event="behind", turn="left", error_deg=170.0))
     assert [m["phrase_id"] for m in h.of("speak_cached")] == ["behind_turn_left"]
+
+
+async def test_behind_feedback_is_rate_limited(h):
+    await _answer_finished(h, await h.say("Where's the sugar?"))
+    h.clear()
+    fb = dict(object_id="sugar", event="behind", error_deg=150.0)
+    await h.feed(GuideFeedback(turn="left", **fb))
+    await h.feed(GuideFeedback(turn="right", **fb))
+    assert [m["phrase_id"] for m in h.of("speak_cached")] == ["behind_turn_left"]
+    await _answer_finished(h, h.out)
     h.core._last_behind -= h.settings.behind_cooldown_s
     await h.feed(GuideFeedback(turn="right", **fb), GuideFeedback(object_id="salt", event="behind",
                                                                  turn="left", error_deg=120.0))
@@ -268,8 +307,9 @@ async def test_where_did_i_put_it_before_gives_both_places_with_times(h):
                  state("keys", area="bag", position=[-1.5, 0, 0.3], last_seen_t=now - 60))
     out = await h.say("Where did I put my keys before?")
     [text] = h.spoken(out)
-    assert text.startswith("The keys are near the bag, noted at ")
-    assert "Before that, they were near the drawer, noted at " in text
+    # "noted yesterday at" when the sightings straddle midnight in the household's time zone.
+    assert re.match(r"The keys are near the bag, noted (yesterday )?at ", text)
+    assert re.search(r"Before that, they were near the drawer, noted (yesterday )?at ", text)
 
 
 async def test_history_with_one_place_says_so(h):

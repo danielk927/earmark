@@ -79,6 +79,8 @@ class Concierge:
         self.last_decision: Decision | None = None
         self._mac_seen: float | None = None
         self._last_behind = 0.0
+        self._behind_turn: str | None = None   # latest behind/front feedback: the turn, or None when in front
+        self._behind_pending: Guiding | None = None   # the guidance whose behind hint is waiting
         self._guide_timer: asyncio.Task | None = None
         self._tasks: set[asyncio.Task] = set()
         self._turn_lock = asyncio.Lock()
@@ -148,6 +150,7 @@ class Concierge:
             await self._on_feedback(msg)
         elif isinstance(msg, Playback):
             self._saw_mac_app()
+            self.speaker.on_playback(msg.utterance_id, msg.event)
             turn = self._turns.get(msg.utterance_id)
             if msg.event == "started" and turn:
                 self.latency.log("playback", turn=turn["id"], utterance_id=msg.utterance_id,
@@ -412,14 +415,31 @@ class Concierge:
                 if self.silent_trial is None:
                     self.spawn(self.speaker.say(self._id("u"), policy.arrived(self.world, target, g.position)))
             return
-        if (g is None or msg.object_id != g.object_id or msg.event != "behind" or msg.turn is None
-                or self.silent_trial is not None):
+        if g is None or msg.object_id != g.object_id or self.silent_trial is not None:
             return
+        if msg.event == "front":
+            self._behind_turn = None
+        if msg.event != "behind" or msg.turn is None:
+            return
+        self._behind_turn = msg.turn
         now = time.time()
-        if now - self._last_behind < self.s.behind_cooldown_s:
+        if self._behind_pending is g or now - self._last_behind < self.s.behind_cooldown_s:
             return
         self._last_behind = now
-        self.spawn(self.speaker.say(self._id("u"), phrase_id=f"behind_turn_{msg.turn}"))
+        self._behind_pending = g
+        self.spawn(self._say_behind(g))
+
+    async def _say_behind(self, g: Guiding) -> None:
+        """The Mac app reports "behind" the moment guidance starts, while the answer is still playing;
+        a new utterance would cut the answer off, so the hint waits for it, then speaks only if the
+        listener is still facing away, with the latest turn."""
+        try:
+            await self.speaker.wait_quiet(self.s.behind_wait_s)
+        finally:
+            if self._behind_pending is g:
+                self._behind_pending = None
+        if self.guiding is g and self._behind_turn is not None and self.silent_trial is None:
+            await self.speaker.say(self._id("u"), phrase_id=f"behind_turn_{self._behind_turn}")
 
     # ------------------------------------------------------------ status
 
