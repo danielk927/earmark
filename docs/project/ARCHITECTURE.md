@@ -95,7 +95,7 @@ The Mac app sends `ptt start/stop` while the user speaks, so the phone can strea
 
 ## The live room page
 
-`make dashboard`, then open http://localhost:5173/room. It shows the room from above in 2D: the mat, the three beacon phones, the saved places, the items, and you, moving as the phones report your position (a trail shows where you have been). A side panel shows the current guidance (distance and direction), the conversation, what Earmark remembered, and where each item is. You can type a question into the page, and tick "Simulate walking" to move around with the arrow keys when no phones are running. It reads the Earmark bus directly (`ws://127.0.0.1:8765`) and needs no Convex.
+`make dashboard`, then open http://localhost:5173/room. It shows the room as a black-on-white 3D model (drag to turn it; "Angle" and "Top" buttons reset the view): the mat, the three beacon phones, the items, and you as a solid rounded 3D figure (from the front it matches a sign-style person: round head, arms parted from the body, two legs), standing in place and moving as the phones report your position. It does not turn with the camera. A side panel shows the current guidance (distance and direction), the conversation, what Earmark remembered, and where each item is. You can type a question into the page, and tick "Simulate walking" to move around with the arrow keys when no phones are running. It reads the Earmark bus directly (`ws://127.0.0.1:8765`) and needs no Convex.
 
 ## Coordinate system
 

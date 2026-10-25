@@ -6,7 +6,20 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import type { RoomState, Vec3 } from "./model";
-import type { Beacon } from "./scene";
+export interface Beacon {
+  id: string;
+  label: string;
+  position: Vec3;
+}
+
+export function webglAvailable(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
 
 // Black on white. Things are told apart by shape and label, not by color.
 const BG = 0xffffff;
@@ -33,44 +46,53 @@ function line(points: THREE.Vector3[], color: number, opacity = 1, dashed = fals
   return l;
 }
 
-/** A rounded rectangle from (x0, y0) to (x1, y1) with its top and bottom corners rounded separately. */
-function roundedBlock(x0: number, y0: number, x1: number, y1: number, top: number, bottom: number): THREE.Shape {
+/** A rounded rectangle from (x0, y0) to (x1, y1), all four corners rounded by r. */
+function roundedRect(x0: number, y0: number, x1: number, y1: number, r: number): THREE.Shape {
   const s = new THREE.Shape();
-  s.moveTo(x0 + bottom, y0);
-  s.lineTo(x1 - bottom, y0);
-  s.quadraticCurveTo(x1, y0, x1, y0 + bottom);
-  s.lineTo(x1, y1 - top);
-  s.quadraticCurveTo(x1, y1, x1 - top, y1);
-  s.lineTo(x0 + top, y1);
-  s.quadraticCurveTo(x0, y1, x0, y1 - top);
-  s.lineTo(x0, y0 + bottom);
-  s.quadraticCurveTo(x0, y0, x0 + bottom, y0);
+  s.moveTo(x0 + r, y0);
+  s.lineTo(x1 - r, y0);
+  s.quadraticCurveTo(x1, y0, x1, y0 + r);
+  s.lineTo(x1, y1 - r);
+  s.quadraticCurveTo(x1, y1, x1 - r, y1);
+  s.lineTo(x0 + r, y1);
+  s.quadraticCurveTo(x0, y1, x0, y1 - r);
+  s.lineTo(x0, y0 + r);
+  s.quadraticCurveTo(x0, y0, x0 + r, y0);
   return s;
 }
 
 /**
- * A person drawn like the figure on a sign: a round head floating above one solid body, with thin gaps between the
- * arms and the torso and between the legs. Flat black, with a little depth so it reads when you orbit the view.
+ * A person standing in the room, built from rounded 3D parts. From the front it matches a sign-style figure (measured from
+ * a reference, 1.8 m tall): a round head floating above one body, arms parted from the torso by a thin gap, and two
+ * legs with a thin gap between them. From the side you see a round head and a rounded body, arms and legs.
  */
 function buildHuman(): THREE.Group {
   const g = new THREE.Group();
-  const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
-  const depth = 0.12;
-  const extrude = (shape: THREE.Shape) => {
-    const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 12 });
-    geo.translate(0, 0, -depth / 2);
-    g.add(new THREE.Mesh(geo, black));
+  const mat = new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.55 });
+  const add = (geo: THREE.BufferGeometry, x: number, y: number, z: number, scaleZ = 1, rotZ = 0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.scale.z = scaleZ;
+    m.rotation.z = rotZ;
+    g.add(m);
   };
-  const head = new THREE.Shape();
-  head.absarc(0, 1.68, 0.115, 0, Math.PI * 2, false);
-  extrude(head);
-  extrude(roundedBlock(-0.3, 1.15, 0.3, 1.47, 0.13, 0)); // shoulders and upper chest
-  extrude(roundedBlock(-0.21, 0.84, 0.21, 1.2, 0, 0)); // torso down to the hips
+  // Head: a sphere, 0.04 m above the shoulders.
+  add(new THREE.SphereGeometry(0.1335, 32, 24), 0, 1.664, 0);
+  // Torso: a rounded block as wide as the two legs together. The bevel rounds every edge, and the outline is drawn
+  // slightly inside so the finished width is exact.
+  const bevel = 0.04;
+  const torso = new THREE.ExtrudeGeometry(roundedRect(-0.181 + bevel, 0.7 + bevel, 0.181 - bevel, 1.49 - bevel, 0.05), {
+    depth: 0.06, bevelEnabled: true, bevelThickness: 0.07, bevelSize: bevel, bevelSegments: 8, curveSegments: 16,
+  });
+  torso.translate(0, 0, -0.03);
+  add(torso, 0, 0, 0);
+  // Shoulders: a rounded bar across the top, joining the two arms to the torso above the point where they part.
+  add(new THREE.CapsuleGeometry(0.11, 0.448, 8, 20), 0, 1.38, 0, 0.8, Math.PI / 2);
   for (const s of [-1, 1]) {
-    const [x0, x1] = s < 0 ? [-0.3, -0.225] : [0.225, 0.3];
-    extrude(roundedBlock(x0, 0.76, x1, 1.2, 0, 0.037)); // arm, parted from the torso by a thin gap
-    const [l0, l1] = s < 0 ? [-0.165, -0.03] : [0.03, 0.165];
-    extrude(roundedBlock(l0, 0, l1, 0.9, 0, 0.05)); // leg, a little narrower than the torso
+    // Arm: hangs free of the torso below the shoulder, ending in a round tip.
+    add(new THREE.CapsuleGeometry(0.0645, 0.55, 8, 16), s * 0.2695, 1.15, 0, 1.1);
+    // Leg: a rounded column; the gap between the legs runs from the feet to 42% of the height.
+    add(new THREE.CapsuleGeometry(0.0845, 0.63, 8, 18), s * 0.0965, 0.4, 0, 0.95);
   }
   return g;
 }
@@ -89,7 +111,6 @@ export class RoomModel {
   private itemsKey = "";
   private person = new THREE.Group();
   private figure = buildHuman();
-  private marker: THREE.Mesh;
   private gaze: THREE.Line;
   private personTag: CSS2DObject;
   private trail: THREE.Line;
@@ -116,6 +137,12 @@ export class RoomModel {
     this.controls.maxDistance = 12;
     this.view("angle");
 
+    // Only the person is lit (everything else is drawn flat), so the rounded body reads from every side.
+    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 1.6));
+    const key = new THREE.DirectionalLight(0xffffff, 1.4);
+    key.position.set(-3, 6, 4);
+    this.scene.add(key);
+
     this.buildPlane();
     this.buildBeacons();
     this.scene.add(this.itemsGroup);
@@ -124,11 +151,7 @@ export class RoomModel {
     this.personTag = tag("<i>You</i>", "m3-you");
     this.personTag.position.set(0, 1.95, 0);
     this.gaze = line([new THREE.Vector3(0, 0.01, 0), new THREE.Vector3(0, 0.01, -0.9)], YELLOW, 0.9);
-    this.marker = new THREE.Mesh(new THREE.CircleGeometry(0.17, 32), new THREE.MeshBasicMaterial({ color: 0x000000 }));
-    this.marker.rotation.x = -Math.PI / 2;
-    this.marker.position.y = 0.012;
-    this.marker.visible = false;
-    this.person.add(this.figure, this.marker, this.personTag, this.gaze);
+    this.person.add(this.figure, this.personTag, this.gaze);
     this.scene.add(this.person);
 
     this.trail = line([], BLUE, 0.7);
@@ -240,17 +263,6 @@ export class RoomModel {
     this.person.position.copy(this.shown);
     this.yaw += (this.yawTarget - this.yaw) * 0.25;
     this.person.rotation.y = this.yaw;
-    // The flat figure stays upright and turns toward the camera so it never shows its thin edge. From high above it
-    // would be edge-on and vanish, so there it becomes a plain black dot.
-    const cam = this.camera.position;
-    const dx = cam.x - this.person.position.x;
-    const dz = cam.z - this.person.position.z;
-    const elevation = Math.atan2(cam.y - 1, Math.hypot(dx, dz));
-    const fromAbove = elevation > 1.0;
-    this.figure.visible = !fromAbove;
-    this.marker.visible = fromAbove;
-    this.figure.rotation.y = Math.atan2(dx, dz) - this.person.rotation.y;
-    this.personTag.element.style.transform = ""; // the tag stays upright (CSS2D), only the figure turns
     const chest = this.shown.clone().setY(1.3);
     const g = s?.guide;
     if (g && s) {
