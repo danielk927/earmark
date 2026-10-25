@@ -156,6 +156,10 @@ public struct GuideStart: Codable, Sendable, Equatable {
     public var precision: Precision
     public var utteranceId: String
     public var t: Double
+    public init(objectId: String, name: String, targetPosition: Vec3, precision: Precision, utteranceId: String, t: Double = BusCoding.now) {
+        self.objectId = objectId; self.name = name; self.targetPosition = targetPosition
+        self.precision = precision; self.utteranceId = utteranceId; self.t = t
+    }
 }
 
 public struct GuideStop: Codable, Sendable, Equatable {
@@ -163,6 +167,9 @@ public struct GuideStop: Codable, Sendable, Equatable {
     public var reason: Reason
     public var objectId: String?
     public var t: Double
+    public init(reason: Reason, objectId: String?, t: Double = BusCoding.now) {
+        self.reason = reason; self.objectId = objectId; self.t = t
+    }
 }
 
 public struct Speak: Codable, Sendable {

@@ -74,6 +74,16 @@ public final class EarmarkCore {
     public private(set) var guidanceState: GuidanceState?
     /// Where the locator says the user stands (room frame); the mat origin until a fix arrives.
     public private(set) var listenerPosition = EarmarkPoint(0, 0, 0)
+    /// Operator fallback: where the operator has placed the judge by hand (room frame), or nil when off.
+    /// While set, locator positions are ignored, and this one is applied here and published (source "manual")
+    /// so the voice gives directions from the same place.
+    public private(set) var manualListener: EarmarkPoint?
+    /// The current ping was started from this app (not by the voice), so this app ends it.
+    public private(set) var ownGuide = false
+    private var lastManualSent = -Double.infinity
+    private var lastManualKey = ""
+    /// Ear height used for a hand-placed judge, as the other position sources use.
+    public static let manualEarHeight = 1.55
     /// Distance in meters (horizontal) to the guide target while a locator fix is fresh; nil otherwise.
     public private(set) var targetDistanceM: Double?
     public private(set) var lastFeedback: GuideFeedback?
@@ -258,8 +268,10 @@ public final class EarmarkCore {
         case .stateUpdate(let st):
             states[st.objectId] = st
         case .guideStart(let g):
+            ownGuide = false
             startGuidance(g)
         case .guideStop(let g):
+            ownGuide = false
             stopGuidance(reason: g.reason.rawValue)
         case .speak(let s):
             if s.seq == 0, let text = s.text { addCaption(.earmark, text, source: "cartesia") }
@@ -277,7 +289,7 @@ public final class EarmarkCore {
         case .status(let st):
             if st.component != .macApp { componentStatus[st.component.rawValue] = st }
         case .listenerPose(let p):
-            applyListenerPose(p)
+            if manualListener == nil { applyListenerPose(p) }
         case .reset:
             reset()
         case .pickup, .pickupResult, .hello, .guideFeedback, .micAudio, .playback, .headPose, .ptt, .other:
@@ -465,11 +477,63 @@ public final class EarmarkCore {
         changed()
     }
 
+    // MARK: Manual judge position (operator fallback)
+
+    /// Places the judge by hand (nil hands positioning back to the locator).
+    public func setManualListener(_ p: EarmarkPoint?) {
+        manualListener = p
+        if let p {
+            listenerPosition = p
+            lastFixAt = clock()
+            retarget()
+        }
+        changed()
+    }
+
+    /// Pings `name` at `p` without the voice (the voice says nothing for it; arrival ends it here).
+    public func startManualPing(objectId: String, name: String, at p: EarmarkPoint) {
+        let g = GuideStart(objectId: objectId, name: name, targetPosition: [p.x, p.y, p.z], precision: .exact,
+                           utteranceId: "operator_\(Int(clock() * 1000))")
+        startGuidance(g)
+        ownGuide = true
+        send(.guideStart(g))
+        changed()
+    }
+
+    /// Stops the ping: one started here stops here; one the voice started is stopped through the voice,
+    /// so its own timer ends too (it then sends guide_stop).
+    public func stopPing() {
+        guard let g = guide else { return }
+        if ownGuide {
+            ownGuide = false
+            stopGuidance(reason: "cancelled")
+            send(.guideStop(GuideStop(reason: .cancelled, objectId: g.objectId)))
+        } else {
+            send(.transcript(Transcript(text: "stop", isFinal: true, source: .typed)))
+        }
+        changed()
+    }
+
+    /// Keeps a hand-placed position fresh and published: on change (at most 10 per second) and every 300 ms.
+    private func publishManual(now: Double) {
+        guard let p = manualListener else { return }
+        lastFixAt = now
+        guard busConnected else { return }
+        let key = String(format: "%.3f,%.3f,%.3f", p.x, p.y, p.z)
+        let due = (key != lastManualKey && now - lastManualSent >= 0.1) || now - lastManualSent >= 0.3
+        guard due else { return }
+        lastManualKey = key
+        lastManualSent = now
+        send(.listenerPose(ListenerPose(position: [p.x, p.y, p.z].map { ($0 * 1000).rounded() / 1000 }, quality: .ok,
+                                        beaconsHeard: 0, source: "manual")), log: false)
+    }
+
     // MARK: Tick (main thread, ~50 Hz)
 
     public func tick() {
         let now = clock()
         let (yaw, pitch) = listenerAngles()
+        publishManual(now: now)
 
         if let at = lastFixAt, now - at > Self.fixTimeout {
             lastFixAt = nil
@@ -517,6 +581,11 @@ public final class EarmarkCore {
         lastFeedback = msg
         Log.app("guide_feedback arrived at \(objectId)")
         send(.guideFeedback(msg))
+        if ownGuide {
+            // The voice ignores arrival at a ping it did not start, so tell everyone it ended.
+            ownGuide = false
+            send(.guideStop(GuideStop(reason: .found, objectId: objectId)))
+        }
         stopGuidance(reason: "arrived")
     }
 

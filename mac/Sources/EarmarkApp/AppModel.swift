@@ -88,6 +88,14 @@ final class AppModel: ObservableObject {
         didSet { if rendererChoice != oldValue { core.applyRenderer(rendererChoice); UserDefaults.standard.set(rendererChoice.rawValue, forKey: "renderer") } }
     }
     @Published var timbre: PingTimbre { didSet { core.timbre = timbre; UserDefaults.standard.set(timbre.rawValue, forKey: "timbre") } }
+    /// Operator fallback: the judge is placed by dragging in the room view instead of by the phones.
+    @Published var manualJudge: Bool {
+        didSet {
+            UserDefaults.standard.set(manualJudge, forKey: "manualJudge")
+            let p = core.listenerPosition
+            core.setManualListener(manualJudge ? EarmarkPoint(p.x, p.y, EarmarkCore.manualEarHeight) : nil)
+        }
+    }
 
     init() {
         let d = UserDefaults.standard
@@ -99,6 +107,7 @@ final class AppModel: ObservableObject {
         enforceBuiltInMic = d.object(forKey: "enforceBuiltInMic") as? Bool ?? true
         mockHead = flags.mockHead
         showDebug = flags.debug
+        manualJudge = d.object(forKey: "manualJudge") as? Bool ?? true
 
         busClient = BusClient(url: flags.busURL ?? BusClient.defaultURL)
         speechPlayer = SpeechPlayer(phrases: PhraseLibrary.standard(repoRoot: RepoLocator.root()))
@@ -153,6 +162,7 @@ final class AppModel: ObservableObject {
         busClient.start()
 
         installKeys()
+        if manualJudge { core.setManualListener(EarmarkPoint(0, 0, EarmarkCore.manualEarHeight)) }
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 50, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -219,13 +229,28 @@ final class AppModel: ObservableObject {
             if down && !rep { self?.core.recenter() }
             return true
         }
-        keys.on(.left) { [weak self] down, _, shift in self?.nudge(down, shift ? -5 : -15) ?? false }
-        keys.on(.right) { [weak self] down, _, shift in self?.nudge(down, shift ? 5 : 15) ?? false }
+        keys.on(.left) { [weak self] down, _, shift in self?.nudge(down, shift ? -5 : -15) ?? self?.step(down, -0.1, 0) ?? false }
+        keys.on(.right) { [weak self] down, _, shift in self?.nudge(down, shift ? 5 : 15) ?? self?.step(down, 0.1, 0) ?? false }
+        keys.on(.up) { [weak self] down, _, _ in self?.step(down, 0, 0.1) ?? false }
+        keys.on(.down) { [weak self] down, _, _ in self?.step(down, 0, -0.1) ?? false }
         keys.start()
     }
 
-    private func nudge(_ down: Bool, _ d: Double) -> Bool {
-        guard let mock = mockTracker else { return false }
+    /// Arrow keys move a hand-placed judge 10 cm (when no virtual head is using them).
+    private func step(_ down: Bool, _ dx: Double, _ dy: Double) -> Bool {
+        guard manualJudge, let p = core.manualListener else { return false }
+        if down { moveJudge(to: EarmarkPoint(p.x + dx, p.y + dy, p.z)) }
+        return true
+    }
+
+    func moveJudge(to p: EarmarkPoint) {
+        guard manualJudge else { return }
+        let r = RoomCircle.radiusM
+        core.setManualListener(EarmarkPoint(max(-r, min(r, p.x)), max(-r, min(r, p.y)), p.z))
+    }
+
+    private func nudge(_ down: Bool, _ d: Double) -> Bool? {
+        guard let mock = mockTracker else { return nil }
         if down { mock.turn(byDeg: d) }
         return true
     }

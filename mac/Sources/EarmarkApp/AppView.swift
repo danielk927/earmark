@@ -15,12 +15,11 @@ struct AppView: View {
             BannerStack(m: m)
             HStack(alignment: .top, spacing: 16) {
                 Card("Room", fillHeight: true) {
-                    let scene = MapScene(core: core)
-                    MapView(scene: scene, pose: m.pose)
+                    RoomCircle(core: core, pose: m.pose, manual: m.manualJudge) { m.moveJudge(to: $0) }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .frame(minHeight: 300)
                     Divider().overlay(Theme.border)
-                    MapList(scene: scene)
+                    RoomControls(m: m)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if m.showDebug {

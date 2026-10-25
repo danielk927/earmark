@@ -60,6 +60,18 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 | Phones or beacons cannot place the judge | Open the operator page (below), stop the locator, drag the ping | Same experience; the ping is placed by hand |
 | Everything on fire | Play the backup demo video | - |
 
+## Manual judge position: the Mac app
+
+If the phones cannot place the judge, the operator moves the judge by hand in the Mac app; everything else stays live.
+
+1. In the Earmark app, turn on "Move the judge by hand" (under the room; on by default, remembered).
+   The app then ignores phone positions and publishes its own (`listener_pose`, source `manual`), so the voice gives directions from the same place.
+2. Items stay where they are (from saved places or the spot readers); the room view shows them on a 360-degree circle around the mat.
+3. As the real judge walks, drag the judge in the room view (or use the arrow keys, 10 cm per press) to mirror them.
+   Head direction stays live from the AirPods; the ping comes from the item relative to where the judge is.
+4. Bring the judge within the dashed 0.5 m ring around the target to arrive: the tone plays and Earmark says where to reach.
+5. "Ping an item" starts a ping without the voice; "Stop ping" stops any ping (one Earmark started is stopped through Earmark).
+
 ## Manual ping: the operator page
 
 If positioning does not work, the operator places the ping by hand while everything else stays live: the judge's voice, Earmark's answers, AirPods head tracking, arrival, and memory.
