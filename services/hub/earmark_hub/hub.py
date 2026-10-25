@@ -157,8 +157,13 @@ class Hub:
 
     async def _uwb_loop(self) -> None:
         period = 1.0 / self.cfg.uwb.solve_hz
+        next_t = self.clock.now()
         while True:
-            await self.clock.sleep(period)
+            next_t += period  # deadlines, not a sleep after the work: the rate is solve_hz, not slightly under
+            now = self.clock.now()
+            if next_t - now < -period:  # more than a period behind: resync instead of bursting
+                next_t = now
+            await self.clock.sleep(next_t - now)
             now = self.clock.now()
             self._publish_poses(self.tracker.tick(now))
             if self.sync is not None:
@@ -221,7 +226,7 @@ class Hub:
         now, uwb = self.clock.now(), self.cfg.uwb
         fix = None
         if uwb.enabled and self.tracker.mode in ("tracked", "frozen"):
-            fix = self.tracker.mean_fix(now - uwb.mark_avg_s, uwb.mark_min_fixes)
+            fix = self.tracker.mark_fix(now, uwb.mark_avg_s, uwb.mark_min_fixes)
         cp = self.client_pose
         if fix is not None:
             out = TapPosition(ok=True, position=[fix[0], fix[1], mark_z(uwb, self.space)], source=self.tracker.source,

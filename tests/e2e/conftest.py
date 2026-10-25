@@ -22,6 +22,7 @@ import pytest
 import websockets
 
 ROOT = Path(__file__).resolve().parents[2]
+PINNED_SPACE = ROOT / "services" / "hub" / "tests" / "fixtures" / "space.json"  # config/space.json gets re-measured
 BLANK = [
     "CARTESIA_API_KEY", "CARTESIA_VOICE_ID", "MOSS_PROJECT_ID", "MOSS_PROJECT_KEY", "ANTHROPIC_API_KEY",
     "CONVEX_SITE_URL", "EARMARK_HUB_SECRET",
@@ -45,8 +46,11 @@ class Stack:
         cfg["adapters"] = ["camera_stub"]
         cfg["bus"]["port"] = self.port
         cfg.setdefault("paths", {})["cache"] = str(tmp / "objects.cache.json")
+        cfg["paths"]["space"] = str(PINNED_SPACE)  # absolute paths are used as they are (HubConfig.path)
+        # The recorded uwb_walk scenario expects the counter freeze and the 3 s lost hold, not the table-demo config.
+        cfg.setdefault("uwb", {}).update(auto_freeze=True, lost_hold_s=3.0)
         if uwb is not None:
-            cfg.setdefault("uwb", {})["enabled"] = uwb
+            cfg["uwb"]["enabled"] = uwb
         self.cfg = cfg
         (tmp / "hub.json").write_text(json.dumps(cfg))
         self.env = dict(os.environ, EARMARK_BUS_PORT=str(self.port), EARMARK_BUS_URL=self.url,

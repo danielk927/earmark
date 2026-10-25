@@ -100,7 +100,9 @@ class Tracker:
     # ------------------------------------------------------------ inputs
 
     def on_range(self, msg: UwbRange, now: float, source: str) -> None:
-        self.ranges[msg.anchor] = (msg.distance_m, now)
+        # Per-anchor bias correction (tape-measured against the true distance); never below zero.
+        offset = self.cfg.range_offset_m.get(msg.anchor, 0.0)
+        self.ranges[msg.anchor] = (max(msg.distance_m - offset, 0.0), now)
         self.source = source
         self.ever_ranged = True
 
@@ -231,7 +233,7 @@ class Tracker:
     # ------------------------------------------------------------ freeze
 
     def _should_freeze(self, now: float) -> bool:
-        return (self.motion == "still" and self.still_since is not None
+        return (self.cfg.auto_freeze and self.motion == "still" and self.still_since is not None
                 and now - self.still_since >= self.cfg.still_for_s
                 and math.dist(self.estimate, self.counter_ref) <= self.cfg.freeze_enter_m)
 
@@ -252,6 +254,21 @@ class Tracker:
         pts = [p for t, p in self.history if t >= start - 1e-9]
         if len(pts) < max(min_fixes, 1):
             return None
+        return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+
+    def mark_fix(self, now: float, avg_s: float, min_fixes: int) -> Point | None:
+        """Phone position for tap-to-mark. Standing still: the mean of the fixes of the still period (same start
+        rule as `_landing_point`); with fewer than `min_fixes` of those, the last `min_fixes` fixes of the window
+        (closest to the stop). Not still: the mean over the last `avg_s`. None with < `min_fixes` in the window."""
+        min_fixes = max(min_fixes, 1)
+        window = [p for t, p in self.history if t >= now - avg_s - 1e-9]
+        if len(window) < min_fixes:
+            return None
+        pts = window
+        if self.motion == "still" and self.still_since is not None:
+            start = max(now - avg_s, self.still_since)
+            still = [p for t, p in self.history if t >= start - 1e-9]
+            pts = still if len(still) >= min_fixes else window[-min_fixes:]
         return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
 
     def _freeze(self, point: Point, now: float, *, override: bool) -> None:

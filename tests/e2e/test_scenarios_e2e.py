@@ -15,7 +15,8 @@ import pytest
 from conftest import of, spoken
 
 ROOT = Path(__file__).resolve().parents[2]
-SPOTS = {s["spot"]: s["position"] for s in json.loads((ROOT / "config" / "space.json").read_text())["spots"]}
+PINNED_SPACE = ROOT / "services" / "hub" / "tests" / "fixtures" / "space.json"  # not config/space.json: re-measured
+SPOTS = {s["spot"]: s["position"] for s in json.loads(PINNED_SPACE.read_text())["spots"]}
 
 
 def run(stack, scenario, speed=3.0):

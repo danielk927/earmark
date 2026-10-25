@@ -89,6 +89,8 @@ class UwbCfg(_Cfg):
     freshness_s: float = Field(default=0.5, gt=0)  # a range older than this (hub receive time) is ignored
     lost_after_s: float = Field(default=2.0, ge=0)  # < 2 fresh anchors this long while tracked -> lost
     lost_hold_s: float = Field(default=3.0, ge=0)  # lost holds the last good position this long -> fixed
+    auto_freeze: bool = True  # false: never freeze by standing still near the counter (voice freeze still works)
+    range_offset_m: dict[str, float] = Field(default_factory=dict)  # per anchor: subtracted from each range
     max_speed_mps: float = Field(default=2.5, gt=0)  # speed gate
     outlier_rms_m: float = Field(default=0.25, gt=0)  # leave-one-out threshold
     alpha: float = Field(default=0.5, gt=0, le=1)
