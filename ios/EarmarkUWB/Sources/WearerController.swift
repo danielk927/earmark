@@ -1,11 +1,13 @@
 import EarmarkContracts
 import Foundation
 import NearbyInteraction
+import UIKit
 
 /// The handheld phone (UWB-PRD 7.4): three NISessions, one per anchor, each with its own token
 /// (`uwb_token {from: "wearer", to: "uwb_N"}`). Every non-nil distance becomes `uwb_range` (per-anchor seq,
 /// at most 20 Hz per anchor). Also sends `motion_state` (on change + 1 s heartbeat), push-to-talk `mic_audio`,
-/// and `status` every 5 s.
+/// and `status` every 5 s. Tap-to-mark: a knock on the table (or the Mark here button) sends `object_tap`;
+/// the hub answers with `tap_position`, which becomes a haptic and a short status line.
 ///
 /// Round-robin fallback (UWB-PRD 7.6 open risk): if the phone can't sustain three sessions, range to two at a
 /// time and rotate the resting one every 2 s. Turned on by the toggle, or automatically when a session is
@@ -36,6 +38,8 @@ final class WearerController: ObservableObject {
     static let staleAfter = 2.0
     /// Anchors report status every 5 s; allow two missed reports.
     static let anchorStatusTimeout = 12.0
+    /// How long "Saved" / "No position" stays on screen.
+    static let markStatusSeconds = 4.0
     private static let roundRobinKey = "earmark.roundRobin"
 
     let role = DeviceRole.wearer
@@ -49,6 +53,8 @@ final class WearerController: ObservableObject {
     @Published private(set) var poseSummary: String?
     @Published private(set) var batteryText = "Unknown"
     @Published private(set) var roundRobinNote: String?
+    /// Result of the last Mark here ("Saved", "No position", ...), cleared after a few seconds.
+    @Published private(set) var markStatus: String?
     @Published var roundRobin: Bool {
         didSet {
             guard roundRobin != oldValue else { return }
@@ -68,6 +74,7 @@ final class WearerController: ObservableObject {
     private var micSeq = 0
     private var loops: [Task<Void, Never>] = []
     private var roundRobinLoop: Task<Void, Never>?
+    private var markClear: Task<Void, Never>?
     private var roundRobinTick = 0
     private var running = false
 
@@ -97,6 +104,7 @@ final class WearerController: ObservableObject {
         hub.start()
 
         motionDetector.onChange = { [weak self] state in self?.motionChanged(state) }
+        motionDetector.onKnock = { [weak self] in self?.markHere() }
         motionDetector.start()
         mic.onChunk = { [weak self] data in self?.sendMic(data) }
 
@@ -115,6 +123,7 @@ final class WearerController: ObservableObject {
         loops.forEach { $0.cancel() }
         loops = []
         roundRobinLoop?.cancel(); roundRobinLoop = nil
+        markClear?.cancel(); markClear = nil
         setTalking(false)
         motionDetector.stop()
         slots.values.forEach { $0.stop() }
@@ -163,6 +172,36 @@ final class WearerController: ObservableObject {
         guard talking else { return }
         hub.send(.micAudio(MicAudio(seq: micSeq, sampleRate: PushToTalk.sampleRate, chunkB64: data.base64EncodedString())))
         micSeq += 1
+    }
+
+    // MARK: Tap-to-mark
+
+    /// Save the object next to the phone. Called by a detected knock and by the Mark here button: the hub
+    /// answers with `tap_position` (see `tapResult`). Dropped with an error haptic while the hub is unreachable.
+    func markHere() {
+        guard hub.isConnected else {
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            showMark("Not connected")
+            return
+        }
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        hub.send(.objectTap(ObjectTap()))
+    }
+
+    private func tapResult(_ tap: TapPosition) {
+        UINotificationFeedbackGenerator().notificationOccurred(tap.ok ? .success : .error)
+        showMark(tap.ok ? "Saved" : "No position")
+    }
+
+    private func showMark(_ text: String) {
+        markStatus = text
+        UIAccessibility.post(notification: .announcement, argument: text)
+        markClear?.cancel()
+        markClear = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.markStatusSeconds))
+            guard !Task.isCancelled else { return }
+            self?.markStatus = nil
+        }
     }
 
     // MARK: Ranging
@@ -230,6 +269,8 @@ final class WearerController: ObservableObject {
             slot.receivePeerToken(token.tokenB64)
         case .listenerPose(let pose):
             poseSummary = Self.describe(pose)
+        case .tapPosition(let tap):
+            tapResult(tap)
         case .status(let status):
             guard status.component == .iosAnchor, case .string(let id)? = status.info?["device_id"] else { return }
             anchorStatusSeen[id] = uptime()

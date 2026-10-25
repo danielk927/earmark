@@ -2,7 +2,8 @@ import EarmarkContracts
 import SwiftUI
 
 /// Wearer screen (UWB-PRD 7.4): "UWB Reader/Emitter 1: 2.41 m" rows with per-anchor rates, motion state, hub
-/// connection, the hub's pose, the round-robin toggle, and a big hold-to-talk button.
+/// connection, the hub's pose, the round-robin toggle, and a big hold-to-talk button and a Mark here button
+/// (tap-to-mark also fires on a knock; see `MotionDetector`).
 @MainActor
 struct WearerView: View {
     @ObservedObject var controller: WearerController
@@ -59,6 +60,13 @@ struct WearerView: View {
                     Text(message)
                         .font(.callout)
                         .foregroundStyle(.red)
+                }
+
+                MarkButton { controller.markHere() }
+                if let status = controller.markStatus {
+                    Text(status)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
 
                 StopRoleButton(action: onStop)
@@ -130,5 +138,28 @@ private struct TalkButton: View {
             .accessibilityHint(talking ? "Double-tap to stop and send." : "Double-tap to start talking, then double-tap again to stop.")
             .accessibilityAddTraits(.isButton)
             .accessibilityAction { setTalking(!talking) }
+    }
+}
+
+/// Saves the object next to the phone (same as knocking the phone on the table). A plain button, so VoiceOver's
+/// double-tap just works.
+@MainActor
+private struct MarkButton: View {
+    let mark: @MainActor () -> Void
+
+    var body: some View {
+        Button { mark() } label: {
+            Text("Mark here")
+                .font(.title.bold())
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding()
+                .frame(maxWidth: .infinity, minHeight: 120)
+                .background(RoundedRectangle(cornerRadius: 24).fill(Color.indigo))
+                .contentShape(RoundedRectangle(cornerRadius: 24))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Mark here")
+        .accessibilityHint("Saves the object next to your phone")
     }
 }

@@ -6,6 +6,7 @@ Spec: `docs/project/UWB-PRD.md` section 7. API notes: `docs/sponsors/vendor-note
 
 This code was written on Windows without a Swift toolchain, so **it has never been compiled**.
 Expect a few small fixes on the first build (see "If it doesn't compile" below).
+On a Mac, run `scripts/mac_check.sh` (or `/mac-bringup` in Claude Code) to build and test everything.
 
 ## Files
 
@@ -21,10 +22,19 @@ Expect a few small fixes on the first build (see "If it doesn't compile" below).
 | `Sources/AnchorController.swift` | Anchor role: one session to the wearer, status every 5 s, never sends ranges. |
 | `Sources/WearerController.swift` | Wearer role: three sessions, `uwb_range` (per-anchor seq, max 20 Hz), rate meters, round-robin fallback, `motion_state`, push-to-talk, status. |
 | `Sources/MotionDetector.swift` | CoreMotion device motion at 50 Hz into `MotionClassifier`. |
+| `Sources/Logic/KnockDetector.swift` | Tap-to-mark: a spike after a still period, with a refractory period (fed by `MotionDetector`). |
 | `Sources/PushToTalk.swift` | Built-in mic, 16 kHz mono Int16, 100 ms chunks, as `mic_audio` (same format as the Mac app). |
 | `Sources/*View.swift` | Role picker, anchor screen, wearer screen, shared rows. |
 | `Sources/Logic/` | Pure, unit-tested: motion RMS + hysteresis, 20 Hz decimator, rate meter, backoff, hub address parsing. |
 | `Tests/LogicTests.swift` | XCTest for `Sources/Logic` (no host app; runs on any simulator). |
+
+## Mark an object
+
+Set the object down, then knock the wearer iPhone on the table next to it, or tap the big **Mark here** button (the VoiceOver fallback; it says "Mark here, saves the object next to your phone").
+Either way the phone plays a firm tap haptic and sends `object_tap`; the hub answers with `tap_position`: a success buzz and "Saved" on screen if it knew where the phone was, an error buzz and "No position" if not (also "Not connected" with an error buzz when the hub is unreachable).
+If neither works, say "here" to the concierge for the same result.
+A knock only counts after the phone was still for 0.4 s and spikes above 1.5 g, so bumps while walking are ignored; one knock fires once (1 s refractory).
+Tuning, in `KnockDetector` (defaults in its `init`; `MotionDetector` creates it): lower `spikeG` if real knocks are missed, raise it if walking or putting the phone down marks by mistake.
 
 ## Mac build checklist
 

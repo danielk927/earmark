@@ -38,6 +38,44 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(first, .moving)
     }
 
+    // KnockDetector defaults: 50 Hz, spike > 1.5 g, 0.4 s (20 samples) of RMS < 0.05 g first, 1 s (50 samples) refractory.
+    private func knocks(_ detector: inout KnockDetector, _ g: Double, _ count: Int) -> Int {
+        var fired = 0
+        for _ in 0..<count {
+            if detector.push(g) { fired += 1 }
+        }
+        return fired
+    }
+
+    func testKnockAfterStillFiresOnce() {
+        var detector = KnockDetector()
+        XCTAssertEqual(knocks(&detector, 0.01, 50), 0)
+        XCTAssertEqual(knocks(&detector, 2.5, 1), 1)
+        XCTAssertEqual(knocks(&detector, 1.8, 2), 0, "the ringing right after the knock must not fire again")
+    }
+
+    func testKnockWhileMovingDoesNotFire() {
+        var detector = KnockDetector()
+        XCTAssertEqual(knocks(&detector, 0.2, 60), 0)   // walking: RMS well above 0.05 g
+        XCTAssertEqual(knocks(&detector, 2.5, 1), 0)
+    }
+
+    func testKnockBeforeStillPeriodDoesNotFire() {
+        var detector = KnockDetector()
+        XCTAssertEqual(knocks(&detector, 0.01, 25), 0)  // window full at 10 samples, only 16 still samples so far
+        XCTAssertEqual(knocks(&detector, 2.5, 1), 0)
+    }
+
+    func testKnockRefractory() {
+        var detector = KnockDetector()
+        XCTAssertEqual(knocks(&detector, 0.01, 50), 0)
+        XCTAssertEqual(knocks(&detector, 2.5, 1), 1)
+        XCTAssertEqual(knocks(&detector, 0.01, 40), 0)  // still again (0.8 s), well past the 0.4 s still gate
+        XCTAssertEqual(knocks(&detector, 2.5, 1), 0, "second spike inside 1 s is suppressed")
+        XCTAssertEqual(knocks(&detector, 0.01, 60), 0)
+        XCTAssertEqual(knocks(&detector, 2.5, 1), 1, "a spike after the refractory period fires")
+    }
+
     func testDecimatorCapsAt20Hz() {
         for inputHz in [30.0, 60.0, 100.0] {
             var decimator = RangeDecimator(maxHz: 20)

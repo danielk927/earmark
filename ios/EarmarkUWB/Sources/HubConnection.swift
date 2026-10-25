@@ -27,7 +27,8 @@ final class HubConnection: NSObject, ObservableObject, URLSessionWebSocketDelega
     }
 
     /// `snapshot` always arrives after hello; `uwb_token` is delivered only when `to` equals our device id.
-    static let subscribeTypes = ["uwb_token", "reset", "snapshot", "listener_pose", "status"]
+    /// `tap_position` is the hub's answer to the wearer's `object_tap`.
+    static let subscribeTypes = ["uwb_token", "reset", "snapshot", "listener_pose", "status", "tap_position"]
     static let pingInterval = 5.0
 
     let url: URL
