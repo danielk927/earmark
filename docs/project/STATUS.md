@@ -1,9 +1,19 @@
 # Earmark status
 
-Last updated: 2026-10-24 (memory by named places added; the LLM moved from Bitdeer to Claude; docs and sponsor tracks refreshed).
+Last updated: 2026-10-24 night (positioning fixed for the real-phone test, two-beacon positions, bug sweep across every service).
 Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
+
+- **Why calibration failed on real phones (found by analysing `services/ranging/runs/*.wav`):** the beacon phone was set to Beacon 2 (a down chirp, 125 ms into the cycle) while the Mac was told B1 (an up chirp), and the detector also reported weak opposite-sweep "ghost" chirps 32 ms after each real one. The Mac calibrated on the ghosts ("ragged", "phase off by +88 ms") and then gave random distances. Fed the right beacon, the same recordings calibrate to 0.028 ms (about 1 cm) and hold 1.00 m ±2 cm for 100 s.
+  Fixed: ghost suppression in the detector; a plain-words warning when chirps arrive from a beacon number nobody configured (and no calibration start while a configured beacon is silent); replay now uses the recording's own temperature and calibration length.
+- **Two beacons now give a position** (circle intersection at chest height, user stays on one side of the line; reported as "degraded"). Room setup works with two beacons. Use `make room-setup ONLY="B1 B2"` and `make room-recalibrate ONLY="B1 B2"`. Distances creep about 20 cm per 10 minutes (clock drift): the status line asks for a recalibration after 5 minutes. Simulated with two beacons: setup places both within centimeters and positions follow a walk. **Not yet run live with two real beacons.**
+- **Bug sweep, by area** (each with tests): Mac app (head recenter no longer jumps when a device changes mid-guidance, relative target after renderer change, UI uses the locator, push-to-talk cap and release on focus loss, Apple Speech permission order, transcripts queued while the bus is down, PHASE lock); concierge (follow-up answers keep the place, Claude knows "it", free-text items in place_item, Moss timeout and background retry, TTS socket warmed at start, Ink watchdog ignores held-silence, height wording no longer says "down low" for counter spots, no double speech without the Mac app); hub (bus clients can no longer forge pickups into Convex, poller survives a bad reply, spoken place vs spot read and BLE ordering, reset reloads `space.json`); Convex (reset clears "stored" events, schedule edits no longer invent missed doses, photo action rate limit, registry `version` contract fixed); dashboard (`/room` item names can no longer inject HTML, wss on https, status text instead of colour only, medication form no longer overwrites others' edits); locator app default now speaks the current hub protocol.
+- **Environment fixes:** macOS hides the venv `.pth` files, so Python skipped them. The Makefile and `scripts/run_stack.sh` now put the packages on `PYTHONPATH`, so every target works; `make fix-venvs` un-hides them. `make mac-test` had a shell syntax error and is fixed. 10 cached phrase WAVs were generated into `config/phrases/` (rebuild the Mac app with `make mac` so it bundles them). `services/ranging/runs/` and `out.csv` are now gitignored.
+- **Tests now:** contracts 67 (Python) + TS + Swift, hub 158, concierge 202, ranging 43, Convex 114 + typecheck, memory agent 97, dashboard 151 + typecheck/lint/build, Mac Swift 80 (the Swift tests do run on this Mac), end-to-end 8.
+- **Still open for the session:** item positions in `config/space.json` must be re-measured in the locator frame (z from the floor; the placeholder spots are at z = 0); the dashboard's Convex functions still have no login; the Mac app was not run against real AirPods after these changes; the spoken-place-versus-spot-read rule means an item still on its spot flips back to the spot on the next read.
+
+## Earlier pass (kept for history)
 
 - **AirPods test passed (reported by the team, 2026-10-24):** with real AirPods Pro the 3D ping works and follows head turns, head tracking runs at about 54 per second, output stays at 48 kHz, and the app correctly switches the mic to the Mac. The detailed pointing scores in the table below were not filled in.
 
@@ -22,7 +32,7 @@ Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What
 - **Stale test fixed:** the wrong-jar end-to-end test expected "one o'clock", but the concierge intentionally says "one spot to your right".
 - **Test results this pass:** contracts (Python 62, TypeScript check), hub 145, concierge 179, Convex 109 plus typecheck, memory agent 97, dashboard 134 plus typecheck, lint and build, end-to-end 6 passed and 1 skipped (needs a local Convex).
 - **Test results after the locator work:** contracts (Python 65, TypeScript check), hub 149, concierge 184, ranging 17, Convex 110, dashboard 139, memory agent 97, end-to-end 8 passed.
-- **Not verifiable on this Mac:** the Swift tests (`swift test` fails here: the `Testing` module is missing from the Command Line Tools, so the earlier "70 Swift tests" claim could not be reproduced). Also, macOS keeps marking the `.pth` files in the Python virtual environments as hidden, which makes Python skip them; if a service says `No module named earmark_...`, run `chflags nohidden` on the `.pth` files in `services/*/.venv/lib/*/site-packages/`.
+- *(Superseded: the Swift tests do run on this Mac, 80 pass, and the hidden `.pth` problem is worked around by the Makefile; see the latest pass above.)*
 
 ## Toolchain (demo Mac)
 

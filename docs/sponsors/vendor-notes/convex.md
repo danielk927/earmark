@@ -233,12 +233,12 @@ APIs (https://docs.convex.dev/file-storage/upload-files, `serve-files`, `delete-
 Suggested flow for 5.F (a sketch; it has not been run):
 1. Dashboard: `useMutation(api.photos.generateUploadUrl)`, then POST the file and get `storageId`.
 2. Dashboard: `useMutation(api.photos.requestSuggestion)({ storageId })`; the mutation inserts a pending suggestion row and calls `ctx.scheduler.runAfter(0, internal.photos.suggest, { suggestionId, storageId })`.
-3. `internal.photos.suggest` (internalAction, default runtime) reads the bytes with `ctx.storage.get`, base64-encodes them into a `data:` URL, and calls the Bitdeer multimodal model with `fetch`.
+3. `internal.photos.suggest` (internalAction, default runtime) reads the bytes with `ctx.storage.get`, base64-encodes them into a `data:` URL, and calls Claude Haiku 5.5 (Anthropic Messages API) with `fetch`.
    `btoa` and `Blob` exist in the default runtime (https://docs.convex.dev/functions/runtimes); encode in chunks because spreading a large `Uint8Array` into `String.fromCharCode` can overflow the stack.
 4. It writes only the text suggestion through an internal mutation and calls `ctx.storage.delete(storageId)` in a `finally` block, so the photo is deleted on success and on failure.
 5. The dashboard shows the suggestion through `useQuery` and saves only after the human confirms.
 
-Send bytes, not `getUrl()`: on a local deployment the URL is `127.0.0.1` and unreachable from Bitdeer, and on cloud it is a bearer link to the photo.
+Send bytes, not `getUrl()`: on a local deployment the URL is `127.0.0.1` and unreachable from Anthropic, and on cloud it is a bearer link to the photo.
 Add a small cron that deletes any `_storage` file older than a few minutes that is not tied to a pending suggestion, for abandoned uploads (my recommendation).
 
 ## 7. Environment variables
@@ -252,7 +252,7 @@ Add a small cron that deletes any `_storage` file older than a few minutes that 
   // convex/convex.config.ts
   import { defineApp } from "convex/server";
   import { v } from "convex/values";
-  const app = defineApp({ env: { EARMARK_HUB_SECRET: v.string(), BITDEER_API_KEY: v.optional(v.string()) } });
+  const app = defineApp({ env: { EARMARK_HUB_SECRET: v.string(), ANTHROPIC_API_KEY: v.optional(v.string()) } });
   export default app;
   ```
 
@@ -276,7 +276,7 @@ convex-test setup (https://docs.convex.dev/testing/convex-test; guidelines "Test
 - Scheduled functions: `vi.useFakeTimers()`, then `t.finishInProgressScheduledFunctions()` or `t.finishAllScheduledFunctions(vi.runAllTimers)`.
 - convex-test does not run cron jobs; call the cron's target function directly.
   It also does not enforce limits, and its runtime is an Edge Runtime mock, not the real Convex runtime.
-- Mock `fetch` for the Bitdeer action with `vi.stubGlobal("fetch", vi.fn(...))` as in the docs' example.
+- Mock `fetch` for the Claude action with `vi.stubGlobal("fetch", vi.fn(...))` as in the docs' example.
   The same page warns that `vi.stubGlobal` redefines globals and should be avoided while functions run; the docs' fetch example still uses it, so follow the example and unstub afterwards.
 - Observed: convex-test 0.0.65 with vitest 5.0.5 and @edge-runtime/vm 5.0.0 passed a mutation/query test and an HTTP 401 test in about 115 ms.
   The docs only mention Vitest 3 and 4.
@@ -355,7 +355,7 @@ Coupons are "sometimes" provided; there is no fixed credit amount.
 - The brief offers "Convex's Python client (or plain HTTPS to Convex HTTP actions if simpler)".
   Plain HTTPS is the better fit: the client can't call internal functions without the admin key, and its `subscribe` blocks other threads (section 9).
 - The brief's 5.F photo flow implies the model sees the uploaded photo.
-  On a local deployment, Bitdeer cannot fetch a Convex file URL, so the action must send the bytes inline (section 6).
+  On a local deployment, Anthropic cannot fetch a Convex file URL, so the action must send the bytes inline (section 6).
 - The brief's 2.5 says to "install whatever rules or guideline files they provide".
   The official mechanism (`npx convex ai-files install`) also writes `CLAUDE.md`, `AGENTS.md`, and 66 skill directories into the repo.
   The home-page prompt additionally installs a user-scope plugin, which the human should approve.

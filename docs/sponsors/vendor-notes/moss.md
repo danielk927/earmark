@@ -321,9 +321,9 @@ Tune T and D on the seeded registry.
    See `docs/sponsors/sponsor-packs/moss.md`.
 5. **Moss Inference.**
    The hack pack gives a full section to Moss Inference, an OpenAI-compatible chat API with retrieval on the same host and <200 ms TTFT (https://docs.moss.dev/docs/reference/python/inference).
-   The brief routes all LLM calls to Bitdeer.
+   The concierge routes its LLM calls to Claude (Anthropic).
    This is not a conflict, but judges of "Best Use of Moss" may weigh depth of use - UNVERIFIED.
-   Do not switch without the human's approval, because Bitdeer tool calling is a separate sponsor deliverable.
+   Do not switch without the human's approval.
 6. **Platform.**
    The brief assumes a Mac demo machine.
    The Moss native core ships macOS arm64 wheels only, so the demo Mac must be Apple Silicon (https://pypi.org/project/inferedge-moss-core/#files).

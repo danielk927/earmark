@@ -42,14 +42,14 @@ Built in `convex/labeling.ts` (`convex/README.md`, "Photo-assisted labeling"):
 5. A cron deletes any stored file older than 10 minutes, so an upload that is never sent for a suggestion does not persist.
 
 Tested: `convex/labeling.test.ts` checks photo deletion on every path, the timeout, and the sweeper, with a mocked model.
-Not yet tested: the live Claude model (no key yet).
+Tested with the real Claude key: tool choice and family questions.
 Planned: the dashboard states, before upload, that the photo is deleted after the suggestion (HAX G16).
 Residual exposure: the photo is processed by Anthropic, whose retention terms we have not reviewed yet (`docs/project/PRODUCTION.md` 6.1).
 
 ## 4. Data minimization
 
 What Earmark stores: item names, aliases, family-written notes and descriptions, NFC tag IDs, home spot numbers, which saved place (drawer, bag, box) the user said an item is in, and timestamps of placements, removals, pickups, labels, chirps, and those spoken placements.
-What it does not store: images, audio, video, the person's location, or any health data beyond the medication item's schedule and its pickup times.
+What it does not store: images, audio, video, or any health data beyond the medication item's schedule and its pickup times. It does keep two location facts: where an item was last put (including a position when the user says "I'm leaving it here", which is the user's position at that moment), and, only on the local bus, the user's current position while they walk. Debug recordings made with `listen --record` contain microphone audio, stay on the Mac, and should be deleted after tests.
 Family members choose item names, so a medication can be called "evening pills" instead of a drug name.
 
 Two gaps we know about:

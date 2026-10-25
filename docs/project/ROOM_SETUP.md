@@ -1,6 +1,6 @@
 # Room setup
 
-**Status:** built. Proven end to end in the simulator (virtual phones, with the timing wobble real phones show): beacons placed within about 5 to 15 cm, and the room page draws them where they were found. With real phones, only one beacon and one listening phone have been tried so far (live distance, about ±10 cm). The full walk with three real beacons has not been tried.
+**Status:** built. Proven end to end in the simulator (virtual phones, with the timing wobble real phones show): beacons placed within about 5 to 15 cm, and the room page draws them where they were found. With real phones, only one beacon and one listening phone have been tried so far. The recordings of that test (`services/ranging/runs/`) show the distance is steady to about ±2 cm once the beacon is identified correctly; the earlier failures were a beacon phone set to the wrong number (see below). The full walk with real beacons has not been tried.
 
 There is no tape measure on the beacons. You tape four marks on the floor once, and the phone stands on each of them in turn; the Mac works out where the beacons are from what it hears at each mark.
 
@@ -32,6 +32,23 @@ If your room needs other spots, change the numbers there. Keep them spread out (
 6. **Recenter the AirPods.** Back on the mat, facing forward, press R in the Mac app, so "forward" for the AirPods matches "forward" in the room.
 7. **Place the objects.** The teammate walks to where an item will go and says "I'm leaving my keys here". The spot is saved and the item appears on the map. An item Earmark has never heard of ("I'm leaving my glasses here") is added on the spot.
 8. **The judge comes.** They take the phone, stand on the mat facing forward and ask "Where are my keys?". The ping leads them there, getting louder and faster as they walk, and says "You're here" at half a meter.
+
+## With only two beacons
+
+Two beacons are enough for a position. Use beacons 1 and 2, and start the Mac side with the beacons you really have:
+
+```
+make room-setup ONLY="B1 B2"          # walk the marks
+make room-recalibrate ONLY="B1 B2"    # later, on the mat, if nothing moved
+```
+
+Place them about 2 m apart, side by side along a wall or the far side of the area, and keep the user on one side of the line between them (the mat side). The Mac assumes the phone is at chest height and picks the mirror-image point on the user's side; if the user walks across the line, the position flips to the wrong side. A position from two beacons is reported as "degraded" because nothing cross-checks it.
+
+## Before every session: check the beacon numbers
+
+Each beacon phone **remembers its number** from the last time. Open each one and confirm it matches what the Mac was told (`B1` is Beacon 1, which sweeps up; `B2` is Beacon 2, which sweeps down). If they differ the Mac now says `clear chirps from Beacon 2 are arriving, but only B1 is configured`, and refuses to start calibrating while a configured beacon has not been heard. (In the first real test the phone was on Beacon 2 while the Mac was told B1, which made calibration look like an echo problem.)
+
+Distances can creep by about 20 cm over 10 minutes because two phone clocks run slightly differently; the Mac's status line says when to stand on the mat and press Enter to recalibrate (after 5 minutes).
 
 ## If something goes wrong
 

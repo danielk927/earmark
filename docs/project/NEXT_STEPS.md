@@ -12,7 +12,7 @@ Plain list of what is left, who can do it, and in what order. Updated 2026-10-24
 | Moss | Works (warm it up once before any demo: the first start takes minutes) |
 | Cartesia (voice) | Key set; speech works |
 | AirPods 3D sound and head tracking | Tested on real AirPods and works |
-| Beacons, phone position | Phones-as-beacons app and Mac service built. Real test: two iPhones measured their distance to a few centimeters at about 1 m in the 12 to 16 kHz band. Calibrate-then-listen mode added 2026-10-24 evening; not yet run on real phones |
+| Beacons, phone position | Phones-as-beacons app and Mac service built. Real test: two iPhones measured their distance to a few centimeters at about 1 m in the 12 to 16 kHz band. Calibrate-then-listen mode run on real phones with one beacon: the first calibration failed because the beacon phone was set to Beacon 2 while the Mac was told B1 (and the detector reported weak ghost chirps); after the fixes of 2026-10-24 night the recordings calibrate to about 1 cm and hold 1.00 m ±2 cm. Two beacons now give a position (user stays on one side of their line). Not yet run live with two beacons |
 
 ## A real test you can do today (no hardware)
 

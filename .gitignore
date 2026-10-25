@@ -46,3 +46,7 @@ api keys.md
 .env.local
 .playwright-mcp/
 .playwright-mcp/
+
+# recorded listen sessions and range logs (large, local)
+services/ranging/runs/
+services/ranging/out.csv

@@ -1,5 +1,7 @@
 # Fetch.ai vendor notes (uAgents, Chat Protocol, Agentverse, ASI:One)
 
+> **Update 2026-10-24:** the memory agent now reasons with Claude (`claude-sonnet-5-5`, see `services/memory_agent/README.md`). Every Bitdeer mention below is from the first research pass and is out of date.
+
 Verified 2026-10-24 for `services/memory_agent/`.
 Sources: the PyPI JSON API, the uAgents GitHub source at tag `v0.26.1`, the released `uagents-core 0.4.12` wheel (I listed its files and diffed them against GitHub, without installing it), and the official docs pages linked below.
 This was read-only research.

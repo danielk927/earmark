@@ -9,10 +9,10 @@ Longer per-sponsor notes are in `docs/sponsors/sponsor-packs/`.
 
 | Track | Prize | Entering | Status |
 |---|---|---|---|
-| Anthropic: Claude for Public Benefit | $5,000 Claude credits, 1 year of Claude Max 20x for the team, Applied AI office hours, HQ visit | Yes | Claude is wired in, tests are mocked; needs a key and a real user conversation |
-| Cartesia: Best use of Cartesia | Meta glasses | Yes | Built against fake servers; needs a key and a voice |
-| Moss: Best use of Moss | AirPods Pro or Max, interviews | Yes | Built with a fallback; needs a key |
-| Convex: Best use of Convex | $5,000 cash | Yes | Running locally; needs `npx convex login` for a cloud deployment |
+| Anthropic: Claude for Public Benefit | $5,000 Claude credits, 1 year of Claude Max 20x for the team, Applied AI office hours, HQ visit | Yes | Claude is wired in and works with the real key (tool choice and family questions verified); needs a real user conversation |
+| Cartesia: Best use of Cartesia | Meta glasses | Yes | Key and voice set; real speech verified; listening (speech to text) not yet tried live |
+| Moss: Best use of Moss | AirPods Pro or Max, interviews | Yes | Key set and working (warm it up once before a demo); thresholds not yet tuned |
+| Convex: Best use of Convex | $5,000 cash | Yes | Live on the cloud dev deployment with demo data |
 | Microsoft: Built for the Real World / Customer Impact | Surface laptops (grand); tech talk and mentorship | Yes | Docs written; needs real customer research |
 | Fetch.ai: ASI:One Agent Challenge | $1,250 / $750 / $500 plus internship interviews | Optional | Agent works offline; needs Agentverse registration |
 | Bitdeer, Creao, Hyphenate, finance tracks | - | No | Dropped. They do not fit without forcing it |
@@ -26,7 +26,7 @@ Longer per-sponsor notes are in `docs/sponsors/sponsor-packs/`.
   - Code decides positions, times and directions. Claude only picks the action and phrases answers from facts the code fetched.
   - Impact measure: time to find an item, with and without Earmark. The Trials page in the dashboard records this.
 - **Still to do:**
-  - Put `ANTHROPIC_API_KEY` in `.env` and on the Convex deployment, then run each path once for real (all tests mock the API).
+  - The Anthropic key is in `.env` and on the Convex deployment; photo labeling has not been run on a real photo yet.
   - Talk to at least one blind or low-vision person before judging and get one quote for the pitch (`docs/project/CUSTOMER.md` never invents interviews).
   - Redeem the $50 Claude credit link in `#cohost-anthropic`.
   - The track was not on Devpost yet; organizers said it will be added.
@@ -35,13 +35,13 @@ Longer per-sponsor notes are in `docs/sponsors/sponsor-packs/`.
 
 - **They judge (25% each):** problem and originality, use of Cartesia, execution, impact and responsibility. Teams up to 4. Voice must be core.
 - **What we do:** Cartesia Ink transcribes push-to-talk speech and Sonic speaks every reply ("Top shelf, front left"). Voice is the only interface.
-- **Still to do:** key `CARTESIA_API_KEY` and `CARTESIA_VOICE_ID` (credit code `CARTESIACALHACKS`), generate cached phrases with `synth-phrases`, and test on the real AirPods.
+- **Still to do:** generate cached phrases with `synth-phrases` (none exist yet, so cached phrases use the system voice), try live listening, and run a full session on the real AirPods.
 
 ## Moss: Best use of Moss
 
 - **They judge:** strong use of fast retrieval for agents.
 - **What we do:** Moss matches vague requests to the right item ("something for my eggs" finds salt and pepper, then asks which one). If Moss is down, a local fuzzy matcher takes over.
-- **Still to do:** key `MOSS_PROJECT_ID` and `MOSS_PROJECT_KEY` (redeem code `CALHACKS` on the Moss billing page), tune the match thresholds on real queries. Moss also suggests storing the memory log; ours lives in Convex today.
+- **Still to do:** tune the match thresholds on real queries. Moss also suggests storing the memory log; ours lives in Convex today.
 - A separate prize exists for best social media engagement.
 
 ## Convex: Best use of Convex
@@ -70,8 +70,8 @@ Bitdeer (low prize value; the project now uses Claude instead), Creao (needs a C
 
 - [ ] Join the Cal Hacks 13.0 Devpost.
 - [ ] Opt in to Anthropic, Cartesia, Moss, Convex, Microsoft (and Fetch.ai if the agent is registered).
-- [ ] Keys in `.env`: Anthropic, Cartesia, Moss, Fetch.ai seed.
-- [ ] Convex cloud deployment.
-- [ ] AirPods spatial test run (see `docs/project/STATUS.md`).
+- [ ] Keys in `.env`: Fetch.ai seed (Anthropic, Cartesia, Moss, Convex are set).
+- [x] Convex cloud deployment (dev deployment `diligent-ptarmigan-12`).
+- [x] AirPods spatial test run (passed, reported by the team; scores not recorded: see `docs/project/STATUS.md`).
 - [ ] One conversation with a blind or low-vision person, plus a quote.
 - [ ] Demo video (Fetch.ai needs 3 to 5 minutes).

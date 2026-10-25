@@ -1,11 +1,10 @@
 # Hardware bring-up
 
-Each path below ends the same way: the hub prints placed/removed events, and the dashboard map at `http://localhost:8765` updates. Bring up **one** reader, fob, or marker first, then scale.
+Each path below ends the same way: the hub (`make hub`, or the whole stack with `make demo-live`) logs placed/removed events, and the dashboard room page (`make dashboard`, then `http://localhost:5173/room`) updates. Port 8765 is the hub's WebSocket bus, not a web page. Hub details are in [`services/hub/README.md`](../../services/hub/README.md). Bring up **one** reader or fob first, then scale.
 
 - [Path A: NFC readers on ESP32](#path-a-nfc-readers-on-esp32-pn532-or-rc522)
 - [Path A2: ESP-NOW satellites (room-scale NFC)](#path-a2-esp-now-satellites-room-scale-nfc-without-long-wires)
-- [Path B: USB NFC readers](#path-b-usb-nfc-readers-pcsc)
-- [Path C: iPhone camera + markers](#path-c-iphone-camera--printed-markers)
+- [Not in this repo: USB NFC readers and camera markers](#not-in-this-repo-usb-nfc-readers-and-camera-markers)
 - [Path D: BLE key-finder fobs](#path-d-ble-key-finder-fobs-itag)
 - [AirPods setup (all paths)](#airpods-all-paths)
 
@@ -24,7 +23,7 @@ firmware/build.sh            # host tests + compiles all 11 variants
 
 ## Path A: NFC readers on ESP32 (PN532 or RC522)
 
-Up to 5 readers share one SPI bus. Each gets its own chip-select (CS) pin. Pins and spot numbers live in [`firmware/earmark_reader/config.h`](../../firmware/earmark_reader/config.h).
+Up to 5 readers share one SPI bus. Each gets its own chip-select (CS) pin. Pins and spot numbers live in [`firmware/earmark_reader/config.h`](../../firmware/earmark_reader/config.h). The spot numbers must match `spots` in `config/space.json`.
 
 ### PN532 (red "PN532 NFC RFID Module V3", Elechouse style)
 
@@ -81,7 +80,7 @@ Build with `-DREADER_TYPE=2`.
    firmware/build.sh flash reader /dev/cu.usbserial-0001 esp32 '-DREADERS={{16,1}}'
    ```
    Find the port with `ls /dev/cu.*`. If nothing appears, the cable is charge-only.
-2. **Watch it** with `cd hub && .venv/bin/earmark serial-monitor`. Expect:
+2. **Watch it** with `screen /dev/cu.usbserial-0001 115200` (quit with Ctrl-A then K). Close it before starting the hub, because only one program can hold the port. Expect:
    ```
    HELLO earmark-reader v1 node=reader chip=PN532 readers=1 espnow=0
    READER 1 OK cs=16 fw=1.6
@@ -96,9 +95,10 @@ Build with `-DREADER_TYPE=2`.
 4. **Add readers one at a time.** Put the full CS list back in `config.h` (`READERS`).
    - **MISO check for a shared bus:** put two 100 kΩ resistors from MISO, one to 3V3 and one to GND. With every reader deselected, MISO should sit near 1.65 V. A reading of 0 V or 3.3 V means some board is driving the line and needs a 74HC125 buffer.
 5. **Range test** through your actual tabletop or tablecloth with the real stickers. Use on-metal stickers for cans and metal lids.
-6. **Run the hub:** `earmark run --serial auto` (add `--serial auto` once per board).
+6. **Run the hub:** `make demo-live` (or `make hub` with `nfc_serial` in `adapters` in `config/hub.json`). The `nfc_serial` adapter finds the board by itself (`/dev/cu.usbserial*`, `/dev/cu.usbmodem*`, and so on, or set `NFC_SERIAL_PORT`) and reopens it if it is unplugged. Raw lines are kept in `logs/serial.log`.
+7. **Name the tag.** An unregistered tag shows up as an `unknown_tag`. Label it with `uv run --project services/hub earmark-send label --tag <uid> --name honey --spot 1`, or set `tag` for the object in `config/objects.seed.json`.
 
-Each line is a full state report, so a dropped line or an ESP32 reset never causes a false "removed". `SPOT n ERROR` freezes that spot's state until it recovers.
+The hub reads only lines of the form `SPOT n TAG <uid>`, `SPOT n EMPTY` and `SPOT n ERROR <reason>`; everything else (`HELLO`, `READER`, `#` lines) is ignored. Each line is a full state report, so a dropped line or an ESP32 reset never causes a false "removed". `SPOT n ERROR` is shown as a hub status and the spot is left as it was until it recovers.
 
 ---
 
@@ -111,7 +111,7 @@ Readers scattered around a room can't share an SPI bus; SPI over meters of jumpe
 firmware/build.sh flash reader /dev/cu.usbserial-A esp32 -DTRANSPORT_ESPNOW=1 '-DREADERS={{16,2}}' '-DNODE_NAME="bookshelf"'
 # the gateway, plugged into the Mac
 firmware/build.sh flash gateway /dev/cu.usbserial-B esp32
-cd hub && .venv/bin/earmark run --serial auto
+make demo-live        # the gateway prints the same SPOT lines on its USB serial
 ```
 
 - Broadcast frames aren't acknowledged, so satellites resend their full state every 300 ms as well as on every change.
@@ -120,54 +120,9 @@ cd hub && .venv/bin/earmark run --serial auto
 
 ---
 
-## Path B: USB NFC readers (PC/SC)
+## Not in this repo: USB NFC readers and camera markers
 
-There's no firmware or wiring. Each USB reader is one spot.
-
-**Buy:** ACR1552U-M2 or ACR1252U-A2. The no-SAM versions show up as a single reader.
-- ACR122U works, but it is end-of-life, counterfeits are common, and upstream libccid lists it as "unsupported". Buy it only from a seller you can return to.
-- Use a **powered** USB hub, plus USB extension cables to place readers around the room. Use active cables beyond 5 m.
-
-```bash
-cd hub && .venv/bin/earmark usb-readers     # live view: place/lift tags on each reader
-.venv/bin/earmark usb-assign                # tap a tag on spot 1's reader, then spot 2's, ... -> config/usb_readers.json
-.venv/bin/earmark run --usb
-```
-
-- **macOS driver.** Tahoe's built-in class driver handles these readers, and pyscard 2.3.1 has arm64 wheels for Python 3.9–3.13. If a reader misbehaves:
-  ```bash
-  sudo defaults write /Library/Preferences/com.apple.security.smartcard useIFDCCID -bool yes
-  ```
-  then replug the readers. Apple's libccid doesn't list the ACR1552U, so this fallback helps only the ACR122U and ACR1252U.
-- **Re-run `usb-assign` after any replug.** macOS names identical readers `Name` and `Name 01`, with no serial number, and the order can swap.
-- **Beeps.** The ACR122U's beep on every tag is switched off automatically after its first read. The ACR1252U/1552U beep is configured with escape commands, which are unreliable through macOS drivers. If it bothers you, put tape over the buzzer.
-- The source re-lists readers every 2 s, because macOS has no plug-and-play notification. It reads a UID only when a reader's state changes.
-
----
-
-## Path C: iPhone camera + printed markers
-
-This is the strongest **room-scale** option. The phone on the judge's chest tracks where they walk (ARKit) as well as where objects are (camera). No other path knows the listener's position.
-
-1. **Print markers.**
-   ```bash
-   cd hub && .venv/bin/earmark markers --cm 15 --out markers.html
-   ```
-   Open the file, print at **100% / Actual size** on matte paper, and check one code with a ruler. Stick each code flat on its object, facing out. Codes are Micro QR (`EM01`…). Their 13×13 modules stay readable from farther away than a full QR code of the same size. Map marker → object in `hub/config/registry.json` (`"marker": "EM01"`) and in [`apple/EarmarkAR/Resources/markers.json`](../../apple/EarmarkAR/Resources/markers.json) for standalone mode.
-   - *Measured on this Mac with Apple Vision* (renders, not camera photos): all codes decode down to about 45 px wide, even with 1 px blur and a 45° tilt, and decoding degrades below about 34 px. A 15 cm code is 45 px at about 5 m on the iPhone's 1920-px camera frame. **Plan on 3–4 m for 15 cm codes** and about 2.5 m for 10 cm.
-2. **Install the app.** Open `apple/EarmarkAR/EarmarkAR.xcodeproj` (or run `xcodegen` in that folder first).
-   - Under Signing & Capabilities, pick your team. A free Apple ID works, with a 7-day profile.
-   - If the bundle ID is taken, change it.
-   - Run on an iPhone XS or newer. LiDAR models (Pro) get better depth; other phones estimate distance from the printed code's size.
-3. **In the app, Setup tab:**
-   1. Stand on the judge's spot facing "forward" and tap **Set origin here**.
-   2. Set the phone height and the printed marker size.
-   3. Walk around and point the camera at each code until it shows in the list.
-   4. *Then* hide the objects. Positions persist while the session runs.
-4. **Hub (optional).** Type `ws://<mac-ip>:8765/ws` from the dashboard header. Without a hub the phone guides on its own from what it has seen.
-5. **Mount** the phone on the judge's chest, camera facing out, with a phone lanyard pouch with a clear window or a chest harness. Switch to the **Guide** tab. The judge holds anywhere on the screen to talk.
-
-**Combining with NFC.** If you set the origin at the same spot, and face the same way you measured `room.json` from, NFC spot positions and camera positions line up. The phone then renders NFC targets while tracking where the judge walks.
+The hub has no USB (PC/SC) NFC reader support and no camera or marker adapter (`camera_stub` is only an interface). NFC spots come from the ESP32 firmware above. The listener's position comes from the phone beacons: see [`ROOM_SETUP.md`](ROOM_SETUP.md) and `make ranging`.
 
 ---
 
@@ -178,24 +133,22 @@ Use these for things that wander. Expect **coarse** position plus a **real** bee
 1. **Grant Bluetooth permission** to your terminal or VS Code: System Settings › Privacy & Security › Bluetooth. Until you do, bleak **waits forever** for the permission prompt.
 2. Close the iSearching app on any phone. A fob accepts one connection at a time, and stops advertising while connected.
 3. Wake the fob with a long press if needed. Some switch off after about 15 minutes idle.
-4. Scan, pair, and test:
-   ```bash
-   cd hub
-   .venv/bin/earmark ble-scan                     # nearby iTags with RSSI and address
-   .venv/bin/earmark ble-pair keys                # hold ONE fob against the Mac; saves it to registry.json
-   .venv/bin/earmark ble-chirp <address>          # should beep for 5 s
-   .venv/bin/earmark run --ble
+4. **Find the fob and name it.** The hub scans from the Mac's own Bluetooth. Start it with `make demo-live` and turn the fob on. It is matched by CoreBluetooth address or by advertised name, both set under `ble_fobs.fobs` in `config/hub.json`:
+   ```json
+   "fobs": { "fob_keys": { "address": null, "name": "<advertised name>" } }
    ```
-   - Pairing uses the fob's real MAC address through bleak's `use_bdaddr` option, which is undocumented on macOS. That makes the Mac and the ESP32 anchors agree on IDs. If scans come back empty, add `--ble-uuid` everywhere.
-   - Chirping writes `0x01` to Immediate Alert (0x1802/0x2A06) in 2 s bursts, and stops on `0x00`.
-   - Before beeping it disables the disconnect alarm: Link Loss (0x1803) set to 0, plus vendor characteristic 0xFFE2 on clones that ignore 0x1803.
-   - Pressing the fob's button while it chirps counts as "found it".
-5. **Anchors (for a position estimate).** These are ESP32s at measured spots, ideally the 4 room corners about 1 m high, listed under `anchors` in `room.json`:
-   ```bash
-   firmware/build.sh flash ble_anchor /dev/cu.usbserial-C esp32 '-DANCHOR_ID="A1"'
-   ```
-   Prefer USB to the Mac. Over ESP-NOW (`-DTRANSPORT_ESPNOW=1`), Wi-Fi shares the radio and you'll get fewer RSSI samples. Anchor builds use the `huge_app` partition, because BLE plus Wi-Fi doesn't fit the default 1.2 MB app slot. `build.sh` handles that.
-   - *In simulation* (Gaussian noise 4–8 dB), 4 corner anchors gave a 0.6–0.7 m median error and 0.9–1.3 m at the 90th percentile. Real rooms are worse because of multipath, and a person in the line of sight costs about 10 dB, so the estimator reports a conservative ±1.6 m.
+   A fob matched by name is bound to its address for the session, and the hub logs `fob bound by name; pin its address in config/hub.json`. Copy that address into the config. The fob id (`fob_keys`) must be the `fob_id` of an object in `config/objects.seed.json`. On macOS the address is a CoreBluetooth UUID, not the fob's MAC.
+5. **Test the beep.** With the hub running: `uv run --project services/hub earmark-send chirp --fob_id fob_keys --action start`, and `--action stop` to end it.
+   - The hub connects to the fob and writes the Immediate Alert level (service 0x1802, characteristic 0x2A06, level `alert_level`, default 1). The beep lasts until `stop` or `chirp_timeout_s` (10 s), then the hub writes `0x00` and disconnects. It does not send bursts.
+   - If the fob sounds its disconnect alarm afterwards, set `link_loss_value` (for example 0) in `config/hub.json`. The hub then also writes it to Link Loss (0x1803/0x2A06) after the beep.
+   - The hub does not read the fob's button.
+6. **Distance.** The hub smooths the fob's signal strength and calls it `near`, `mid` or `far` (`near_dbm`, `mid_dbm` in `config/hub.json`). It reports `lost` after `stale_s` (10 s) of silence. This is coarse (about 1 to 2 m inside a room), so the beep does the final step.
+
+**BLE anchors (experimental).** [`firmware/earmark_ble_anchor`](../../firmware/earmark_ble_anchor/) can be flashed onto ESP32s and prints a `BLE <anchor-id> <mac> <rssi> <name>` line for every fob advertisement:
+```bash
+firmware/build.sh flash ble_anchor /dev/cu.usbserial-C esp32 '-DANCHOR_ID="A1"'
+```
+The hub does not read these lines, and nothing in this repo turns them into a position estimate. They are only useful for looking at signal strengths yourself. Anchor builds use the `huge_app` partition because BLE plus Wi-Fi doesn't fit the default app slot; `build.sh` handles that.
 
 ---
 

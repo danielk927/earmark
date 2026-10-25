@@ -12,7 +12,7 @@ Anything marked **estimate** or **proposal** is our planning number, not a measu
 | Detection | Simulator plus `nfc_serial` and `ble_fobs` adapters, tested against fake serial ports and fake Bluetooth; no real reader or fob has run yet | Reader boards installed in the home, fobs on roaming items |
 | Hub | Python on the demo Mac: debounce, state engine, local WebSocket bus, durable offline queue to Convex (`services/hub/README.md`) | Same code on a small always-on box in the home (section 2) |
 | Voice concierge | Python on the demo Mac: Cartesia speech, Claude tool choice with a keyword fallback, spoken memory of where items were put, Moss retrieval with fuzzy fallback (`services/concierge/README.md`) | Same, on the home box |
-| Spatial audio app | macOS app with AirPods head tracking (in progress) | iPhone app (section 3) |
+| Spatial audio app | macOS app with AirPods head tracking (works on real AirPods) | iPhone app (section 3) |
 | Backend | Convex: tables, HTTP actions with shared secrets, adherence rules with tests, crons, photo labeling (`convex/README.md`) | Convex with user auth, household scoping, and roles (section 5) |
 | Caregiver dashboard and memory agent | In progress | Azure Static Web Apps and Azure Container Apps (section 4) |
 | Users | None yet; see `docs/project/CUSTOMER.md` | Pilot households through a blindness organization (section 10) |
@@ -58,7 +58,7 @@ At volume, one reader chip switching between several spot antennas would cut rea
   Put the tag on the bottom of the jar so nothing metal sits between it and the reader under the spot; test on-metal tags for metal tins.
 - Read range is short (a few centimeters for RC522-class modules), which is what we want: a jar on the next spot must not be read.
   Pilot test: 1,000 scripted lifts and placements with zero cross-spot reads.
-- Firmware for the reader boards is not written yet (`BUILD_BRIEF.md` 5.B); the line protocol (`SPOT <n> TAG <uid>`, `SPOT <n> EMPTY`) is already parsed and tested in the hub.
+- Firmware for the reader boards exists in `firmware/` (compiled, not yet run on real boards); the line protocol (`SPOT <n> TAG <uid>`, `SPOT <n> EMPTY`) is already parsed and tested in the hub.
 
 ## 2. The home hub
 
@@ -163,7 +163,7 @@ Caregiver access needs the user's consent and can be withdrawn by the user at an
 | Dose results and daily summaries | Convex | Kept | 12 months, or shorter if the user chooses |
 | Trial results (pseudonymous tester names) | Convex | Kept; never edited or deleted by `reset` | Until the study ends; deleted on a tester's request |
 | Labeling photos | Convex file storage | Deleted in a `finally` block right after the model's suggestion, on success and on every failure; a cron deletes any file older than 10 minutes | Same |
-| Microphone audio | Not stored | Streamed to Cartesia only while push-to-talk is held or the voice detector fires; the socket closes after 5 s without audio | Same |
+| Microphone audio | Not stored by the product; the Mac-side `listen --record` option writes the user phone's microphone to a local WAV for debugging (`services/ranging/runs/`, not committed, delete after tests) | Streamed to Cartesia only while push-to-talk is held or the voice detector fires; the socket closes after 5 s without audio | Same |
 | Transcripts | Not sent to Convex; written with timings to `logs/latency.jsonl` on the hub machine | Kept locally | Timings only, no text; local logs rotated after 7 days |
 | Unsent events | `var/hub/queue.jsonl` on the hub | Until Convex accepts them | Same, encrypted at rest on the hub |
 
@@ -184,6 +184,8 @@ Signing data processing agreements with every vendor, or replacing a vendor, is 
 - **Tester:** trial rows are found by pseudonym and deleted on request.
 
 ### 6.3 Secrets and keys
+
+- Prototype exposure: the dashboard's Convex functions have no login, so anyone with the deployment URL can read or edit household data. The photo suggestion call is limited to 20 per hour to cap Anthropic spend (`convex/README.md`, Known limits). Production needs per-person authentication.
 
 - Today: secrets live in a gitignored `.env` and in Convex environment variables, are sent only as headers, and are never logged (`services/concierge/README.md`, `services/hub/README.md`).
 - Production: no shared secrets.

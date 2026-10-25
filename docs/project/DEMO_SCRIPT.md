@@ -46,7 +46,7 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 - **What if the internet is down?** The local loop keeps working; speech falls back to cached phrases, then the system voice; intent falls back to a keyword grammar (`docs/project/ARCHITECTURE.md`, failure table).
 - **Cost per home?** About $147-$559 in parts, an estimate (`docs/project/PRODUCTION.md`).
 - **Privacy?** `docs/project/RESPONSIBLE_DESIGN.md`.
-- **Can it save "leaving my keys here"?** Not yet: the app does not know where the user is standing, so it asks for a named place (cupboard, drawer, bag, box). Tracking the user is the next step (`docs/project/PRODUCTION.md`).
+- **Can it save "leaving my keys here"?** Yes when the locator has a position for the user (it saves that spot). Without a fresh position it asks for a named place (cupboard, drawer, bag, box).
 
 ## If something fails (Operator)
 
