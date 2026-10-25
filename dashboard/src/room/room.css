@@ -1,4 +1,4 @@
-/* The live room view: a dark, full-screen presentation page (not themed like the family dashboard). */
+/* The live room view: a full-screen presentation page (not themed like the family dashboard). */
 .room {
   --r-bg: #081014;
   --r-panel: #0f1b20;
@@ -100,56 +100,55 @@
  * things being talked about, and a math-textbook serif. The side panel follows: plain text on thin rules, no boxes.
  */
 .room.is-3d {
-  --r-bg: #050505;
-  --r-panel: #0a0a0a;
-  --r-card: #141414;
-  --r-line: #2e2e2e;
-  --r-ink: #ffffff;
-  --r-soft: #a0a0a0;
-  --r-accent: #ffffff;
-  --r-item: #ffffff;
-  --r-guide: #ffffff;
-  --r-bad: #ffffff;
+  --r-bg: #ffffff;
+  --r-panel: #ffffff;
+  --r-card: #f4f4f4;
+  --r-line: #d6d6d6;
+  --r-ink: #000000;
+  --r-soft: #5f5f5f;
+  --r-accent: #000000;
+  --r-item: #000000;
+  --r-guide: #000000;
+  --r-bad: #000000;
   font-family: "STIX Two Text", "Times New Roman", serif;
-  color-scheme: dark;
+  color-scheme: light;
 }
 .room.is-3d button, .room.is-3d input { font-family: inherit; }
 .room.is-3d .room-panel { gap: 0; padding: 22px 26px; }
 .room.is-3d .room-head h1 { font-size: 1.9rem; font-weight: 600; font-style: italic; }
-.room.is-3d .room-head h1 span { font-weight: 400; font-style: normal; color: var(--r-soft); }
 .room.is-3d .room-pill { background: transparent; border: none; padding: 0 12px 0 0; color: var(--r-soft); font-size: 0.95rem; }
-.room.is-3d .room-pill .dot { background: #5a5a5a; }
-.room.is-3d .room-pill.ok .dot { background: #ffffff; }
-.room.is-3d .room-pill.bad .dot { background: #ffffff; box-shadow: 0 0 0 2px #050505, 0 0 0 3px #ffffff; }
+.room.is-3d .room-pill .dot { background: #b5b5b5; }
+.room.is-3d .room-pill.ok .dot { background: #000000; }
+.room.is-3d .room-pill.bad .dot { background: #000000; box-shadow: 0 0 0 2px #ffffff, 0 0 0 3px #000000; }
 .room.is-3d .room-card { background: transparent; border: none; border-top: 1px solid var(--r-line); border-radius: 0; padding: 14px 0; }
 .room.is-3d .room-card h2 { font-size: 1.1rem; letter-spacing: 0; text-transform: none; color: var(--r-ink); font-weight: 600; font-style: italic; }
-.room.is-3d .room-guide { border-top-color: #ffffff; }
-.room.is-3d .room-guide-name { color: #ffffff; font-size: 2.2rem; font-style: italic; font-weight: 600; text-transform: none; }
+.room.is-3d .room-guide { border-top-color: #000000; }
+.room.is-3d .room-guide-name { color: #000000; font-size: 2.2rem; font-style: italic; font-weight: 600; text-transform: none; }
 .room.is-3d .room-guide-facts dt { font-size: 0.85rem; font-style: italic; }
 .room.is-3d .room-meter { background: var(--r-line); height: 3px; }
-.room.is-3d .room-meter span { background: #ffffff; }
+.room.is-3d .room-meter span { background: #000000; }
 .room.is-3d .room-ask { border-top: 1px solid var(--r-line); padding: 14px 0; }
 .room.is-3d .room-ask label { text-transform: none; letter-spacing: 0; font-size: 1.1rem; color: var(--r-ink); font-weight: 600; font-style: italic; }
-.room.is-3d .room-ask input { background: #000000; border-color: var(--r-line); border-radius: 4px; font-size: 1rem; }
-.room.is-3d .room-ask input:focus { outline: 2px solid #ffffff; }
-.room.is-3d .room-ask button { background: #ffffff; color: #000000; border-color: #ffffff; border-radius: 4px; }
+.room.is-3d .room-ask input { background: #ffffff; color: #000000; border-color: #9a9a9a; border-radius: 4px; font-size: 1rem; }
+.room.is-3d .room-ask input:focus { outline: 2px solid #000000; }
+.room.is-3d .room-ask button { background: #000000; color: #ffffff; border-color: #000000; border-radius: 4px; }
 .room.is-3d .room-log .who { color: var(--r-soft); }
 .room.is-3d .room-items .name { text-transform: none; font-style: italic; }
-.room.is-3d .room-items .dist { color: #ffffff; }
-.room.is-3d .room-viewbar button { border-radius: 4px; background: var(--r-card); }
-.room.is-3d .room-viewbar button[aria-pressed="true"] { background: #ffffff; color: #000000; border-color: #ffffff; }
-.room.is-3d .room-toggle input { accent-color: #ffffff; }
+.room.is-3d .room-items .dist { color: #000000; }
+.room.is-3d .room-viewbar button { border-radius: 4px; background: #ffffff; color: #000000; border-color: #9a9a9a; }
+.room.is-3d .room-viewbar button[aria-pressed="true"] { background: #000000; color: #ffffff; border-color: #000000; }
+.room.is-3d .room-toggle input { accent-color: #000000; }
 
 .room-caption { position: absolute; left: 28px; right: 28px; bottom: 24px; margin: 0; max-width: 36ch; z-index: 2; pointer-events: none;
-  font-size: clamp(1.5rem, 2.6vw, 2.4rem); line-height: 1.2; font-weight: 400; font-style: italic; color: var(--r-ink); text-shadow: 0 0 12px #050505; }
+  font-size: clamp(1.5rem, 2.6vw, 2.4rem); line-height: 1.2; font-weight: 400; font-style: italic; color: var(--r-ink); text-shadow: 0 0 12px #ffffff; }
 
 .m3-labels { position: absolute; inset: 0; }
 .m3-tag { pointer-events: none; font-family: "STIX Two Text", "Times New Roman", serif; font-size: 17px; line-height: 1; white-space: nowrap;
-  text-shadow: 0 0 6px #050505, 0 0 6px #050505, 0 0 3px #050505; color: #ffffff; }
+  text-shadow: 0 0 6px #ffffff, 0 0 6px #ffffff, 0 0 3px #ffffff; color: #000000; }
 .m3-tag sub { font-size: 0.65em; }
-.m3-you { color: #ffffff; font-size: 19px; }
-.m3-item { color: #ffffff; font-size: 19px; }
-.m3-beacon { color: #ffffff; font-size: 20px; }
+.m3-you { color: #000000; font-size: 19px; }
+.m3-item { color: #000000; font-size: 19px; }
+.m3-beacon { color: #000000; font-size: 20px; }
 @media (max-width: 900px) { .room-caption { bottom: 14px; } }
 
 /* The conversation: plain white on black, one question then its answer, in order. */
@@ -163,3 +162,6 @@
 .convo-earmark span { color: #a8a8a8; }
 .room.is-3d .room-convo .convo-you, .room.is-3d .room-convo .convo-you span { color: #ffffff; }
 .room.is-3d .room-convo .convo-earmark, .room.is-3d .room-convo .convo-earmark span { color: #a8a8a8; }
+
+.room.is-3d .room-convo .convo-you, .room.is-3d .room-convo .convo-you span { color: #000000; }
+.room.is-3d .room-convo .convo-earmark, .room.is-3d .room-convo .convo-earmark span { color: #5f5f5f; }

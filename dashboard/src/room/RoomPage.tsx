@@ -152,7 +152,7 @@ export function RoomPage() {
       </section>
       <aside className="room-panel">
         <header className="room-head">
-          <h1>Earmark <span>live room</span></h1>
+          <h1>Earmark</h1>
           <StatusRow state={state} />
         </header>
         <GuideCard state={state} />

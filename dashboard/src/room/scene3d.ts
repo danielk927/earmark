@@ -8,12 +8,12 @@ import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRe
 import type { RoomState, Vec3 } from "./model";
 import type { Beacon } from "./scene";
 
-// Black and white: white and greys on black. Things are told apart by shape, brightness and label, not by color.
-const BG = 0x050505;
-const BLUE = 0xcfcfcf; // the figure and the mat: light grey
-const GREEN = 0xffffff; // the beacon phones: white
-const YELLOW = 0xffffff; // the item: a bright white dot
-const RED = 0xffffff; // the arrow to the item
+// Black on white. Things are told apart by shape and label, not by color.
+const BG = 0xffffff;
+const BLUE = 0x000000; // the room outline and the mat arrow
+const GREEN = 0x000000; // the beacon phones
+const YELLOW = 0x000000; // the item
+const RED = 0x000000; // the arrow to the item
 
 const P = (p: Vec3, lift = 0) => new THREE.Vector3(p[0], p[2] + lift, -p[1]);
 
@@ -33,33 +33,22 @@ function line(points: THREE.Vector3[], color: number, opacity = 1, dashed = fals
   return l;
 }
 
-/** A person you would recognise: head, neck, torso, two arms, two legs, drawn as flat blue shapes with bright edges. */
+/** A person as a plain black silhouette: head, torso, two arms, two legs. No outlines. */
 function buildHuman(): THREE.Group {
   const g = new THREE.Group();
-  const fill = new THREE.MeshBasicMaterial({ color: 0x161616 });
-  const edge = new THREE.LineBasicMaterial({ color: BLUE });
-  const part = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0, angle = 25) => {
-    const m = new THREE.Mesh(geo, fill);
+  const black = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  const part = (geo: THREE.BufferGeometry, x: number, y: number, z: number, rz = 0) => {
+    const m = new THREE.Mesh(geo, black);
     m.position.set(x, y, z);
-    m.rotation.set(rx, 0, rz);
-    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, angle), edge));
+    m.rotation.z = rz;
     g.add(m);
-    return m;
   };
-  part(new THREE.SphereGeometry(0.115, 12, 8), 0, 1.62, 0, 0, 0, 1); // head: a few facets so its outline shows
-  part(new THREE.CylinderGeometry(0.04, 0.045, 0.1, 10), 0, 1.47, 0); // neck
-  part(new THREE.CylinderGeometry(0.2, 0.15, 0.58, 14), 0, 1.15, 0); // torso, broad at the shoulders
-  part(new THREE.CylinderGeometry(0.15, 0.17, 0.14, 14), 0, 0.82, 0); // hips
+  part(new THREE.SphereGeometry(0.12, 24, 16), 0, 1.62, 0); // head
+  part(new THREE.CapsuleGeometry(0.17, 0.5, 6, 16), 0, 1.15, 0); // torso
   for (const s of [-1, 1]) {
-    part(new THREE.CapsuleGeometry(0.045, 0.52, 4, 10), s * 0.265, 1.18, -0.07, -0.25, s * 0.07); // arm, hanging a little forward
-    part(new THREE.CapsuleGeometry(0.06, 0.66, 4, 10), s * 0.085, 0.4, 0); // leg
-    part(new THREE.BoxGeometry(0.1, 0.05, 0.2), s * 0.085, 0.025, -0.05); // foot
+    part(new THREE.CapsuleGeometry(0.045, 0.55, 6, 12), s * 0.27, 1.12, 0, s * 0.06); // arm, a little away from the body
+    part(new THREE.CapsuleGeometry(0.065, 0.62, 6, 12), s * 0.09, 0.4, 0); // leg
   }
-  // A small wedge on the face shows which way the head points.
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 10), new THREE.MeshBasicMaterial({ color: YELLOW }));
-  nose.rotation.x = -Math.PI / 2;
-  nose.position.set(0, 1.62, -0.14);
-  g.add(nose);
   return g;
 }
 
@@ -114,7 +103,7 @@ export class RoomModel {
     this.person.add(this.figure, this.personTag, this.gaze);
     this.scene.add(this.person);
 
-    this.trail = line([], BLUE, 0.5);
+    this.trail = line([], BLUE, 0.7);
     this.scene.add(this.trail);
     this.arrow.visible = false;
     this.scene.add(this.arrow);
@@ -142,16 +131,16 @@ export class RoomModel {
   /** The floor: a plain dark slab with a thin outline, and the mat with its arrow. */
   private buildPlane() {
     const { w, d } = this.room;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.5, d + 0.5), new THREE.MeshBasicMaterial({ color: 0x0e0e0e }));
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.5, d + 0.5), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }));
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.002;
     this.scene.add(floor);
     const edge = line([
       new THREE.Vector3(-w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, d / 2),
       new THREE.Vector3(-w / 2, 0.004, d / 2), new THREE.Vector3(-w / 2, 0.004, -d / 2),
-    ], BLUE, 0.5);
+    ], BLUE, 0.7);
     this.scene.add(edge);
-    const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: BLUE, transparent: true, opacity: 0.14, side: THREE.DoubleSide }));
+    const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08, side: THREE.DoubleSide }));
     mat.rotation.x = -Math.PI / 2;
     mat.position.y = 0.002;
     this.scene.add(mat);
