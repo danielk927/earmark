@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clockHour, initialState, reduce, tick, type RoomState } from "../src/room/model";
+import { beaconsFromStatus, clockHour, initialState, reduce, tick, type RoomState } from "../src/room/model";
 
 const snapshot = {
   type: "snapshot",
@@ -21,6 +21,19 @@ function run(...msgs: Record<string, unknown>[]): RoomState {
 }
 
 describe("room model", () => {
+  it("takes the beacon positions the room setup found from the phone service", () => {
+    expect(beaconsFromStatus(run({ type: "status", component: "locator", ok: false, detail: "not set up" }))).toBeNull();
+    const s = run({
+      type: "status", component: "locator", ok: true, detail: "calibrated",
+      info: { B1_x: 0.02, B1_y: 1.31, B1_z: 0.75, B2_x: 1.25, B2_y: 0.04, B2_z: 0.75 },
+    });
+    expect(beaconsFromStatus(s)).toEqual([
+      { id: "B1", position: [0.02, 1.31, 0.75] },
+      { id: "B2", position: [1.25, 0.04, 0.75] },
+    ]);
+  });
+
+
   it("builds places and items from the snapshot", () => {
     const s = run(snapshot);
     expect(s.connected).toBe(true);

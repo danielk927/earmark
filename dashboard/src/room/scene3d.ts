@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import type { RoomState, Vec3 } from "./model";
+import { beaconsFromStatus, type RoomState, type Vec3 } from "./model";
 export interface Beacon {
   id: string;
   label: string;
@@ -110,6 +110,7 @@ export class RoomModel {
   private itemsGroup = new THREE.Group();
   private beaconGroup = new THREE.Group(); // hidden until the phones are set up (calibrated)
   private beaconsShown = false;
+  private beaconsKey = "";
   private itemsKey = "";
   private person = new THREE.Group();
   private figure = buildHuman();
@@ -209,6 +210,8 @@ export class RoomModel {
   }
 
   private buildBeacons() {
+    for (const child of [...this.beaconGroup.children]) child.traverse((o) => o instanceof CSS2DObject && o.element.remove());
+    this.beaconGroup.clear();
     this.beacons.forEach((b, i) => {
       const top = P(b.position);
       const floor = P([b.position[0], b.position[1], 0]);
@@ -222,7 +225,7 @@ export class RoomModel {
       foot.rotation.x = -Math.PI / 2;
       foot.position.copy(floor).setY(0.006);
       this.beaconGroup.add(foot);
-      const t = tag(`<i>B</i><sub>${i + 1}</sub>`, "m3-beacon");
+      const t = tag(`<i>B</i><sub>${b.id.replace(/\D/g, "") || i + 1}</sub>`, "m3-beacon");
       t.position.copy(top).add(new THREE.Vector3(0, 0.22, 0));
       this.beaconGroup.add(t);
     });
@@ -257,7 +260,17 @@ export class RoomModel {
   update(s: RoomState) {
     this.state = s;
     this.rebuildItems(s);
-    // The map starts empty: the beacons appear once the phones are calibrated, and stay.
+    // The map starts empty: the beacons appear once the phones are set up, where the setup found them, and stay.
+    const placed = beaconsFromStatus(s);
+    if (placed) {
+      const key = JSON.stringify(placed);
+      if (key !== this.beaconsKey) {
+        this.beaconsKey = key;
+        this.beacons = placed.map((p) => ({ ...p, label: this.beacons.find((b) => b.id === p.id)?.label ?? p.id }));
+        this.buildBeacons();
+        this.beaconsShown = false;
+      }
+    }
     if (!this.beaconsShown && s.status.locator?.ok) {
       this.beaconsShown = true;
       this.setBeaconsVisible(true);

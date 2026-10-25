@@ -49,7 +49,7 @@ export interface RoomState {
   guide: Guide | null;
   log: LogLine[];
   convo: Turn[];
-  status: Record<string, { ok: boolean; detail: string; t: number }>;
+  status: Record<string, { ok: boolean; detail: string; t: number; info?: Record<string, unknown> }>;
   now: number; // when the state last changed or ticked, unix seconds
 }
 
@@ -188,7 +188,16 @@ export function reduce(s: RoomState, m: Msg, now: number): RoomState {
       return { ...s, log: addLog(s, { t: now, kind: "info", text: `The ${name} was picked up` }) };
     }
     case "status":
-      return { ...s, status: { ...s.status, [String(m.component)]: { ok: Boolean(m.ok), detail: String(m.detail ?? ""), t: now } } };
+      return {
+        ...s,
+        status: {
+          ...s.status,
+          [String(m.component)]: {
+            ok: Boolean(m.ok), detail: String(m.detail ?? ""), t: now,
+            info: m.info && typeof m.info === "object" ? (m.info as Record<string, unknown>) : undefined,
+          },
+        },
+      };
     case "reset":
       return { ...s, guide: null, trail: [] };
     default:
@@ -217,4 +226,16 @@ export function clockHour(user: Vec3, yawDeg: number, target: Vec3): number {
   const az = (Math.atan2(target[0] - user[0], target[1] - user[1]) * 180) / Math.PI - yawDeg;
   const h = Math.round((((az % 360) + 360) % 360) / 30) % 12;
   return h === 0 ? 12 : h;
+}
+
+/** Where the phone service placed the beacons (B1_x, B1_y, B1_z, ...), or null before it has. */
+export function beaconsFromStatus(s: RoomState): { id: string; position: Vec3 }[] | null {
+  const info = s.status.locator?.info;
+  if (!info) return null;
+  const out: { id: string; position: Vec3 }[] = [];
+  for (let k = 1; k <= 8; k++) {
+    const [x, y, z] = ["x", "y", "z"].map((a) => info[`B${k}_${a}`]);
+    if (typeof x === "number" && typeof y === "number" && typeof z === "number") out.push({ id: `B${k}`, position: [x, y, z] });
+  }
+  return out.length ? out : null;
 }
