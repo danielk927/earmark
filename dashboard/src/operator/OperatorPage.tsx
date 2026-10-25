@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { Ask, StatusRow } from "../room/widgets";
 import { SUBSCRIBE, useBus } from "../room/useBus";
 import type { Vec3 } from "../room/model";
-import { MAT, MAX_OFFSET_M, clampOffset, describeOffset, initialOffset, listenerPosition, manualTarget, nudge, type Offset } from "./control";
+import { MAT, MAX_OFFSET_M, clampOffset, competesForPosition, describeOffset, endsOwnPing, listenerPosition, manualTarget, nudge, offsetForNewTarget, type Offset } from "./control";
 import { addEvent, type OpEvent } from "./events";
 import "../room/room.css";
 import "./operator.css";
@@ -18,15 +18,29 @@ type Msg = Record<string, unknown> & { type: string };
 export function OperatorPage() {
   const [events, setEvents] = useState<OpEvent[]>([]);
   const [foreign, setForeign] = useState<{ source: string; t: number } | null>(null);
+  const [offset, setOffset] = useState<Offset>([0, 1.5]);
+  /** Where this page last placed the judge; a new target's dot is measured from here (see offsetForNewTarget). */
+  const lastListener = useRef<Vec3>(MAT);
+  /** The object id of a ping this page started, so the page can end it on arrival (the voice will not). */
+  const owned = useRef<string | null>(null);
+  const ownRef = useRef<(msg: Msg) => void>(() => {});
   const onMessage = useCallback((m: Msg) => {
     const now = Date.now() / 1000;
     // The hub never echoes this page's own messages, so any listener_pose here comes from someone else.
-    if (m.type === "listener_pose") setForeign({ source: String(m.source ?? "unknown"), t: now });
+    if (competesForPosition(m)) setForeign({ source: String(m.source ?? "unknown"), t: now });
+    if (m.type === "guide_start" && Array.isArray(m.target_position)) {
+      owned.current = null; // the voice took over
+      setOffset(clampOffset(offsetForNewTarget(m.target_position as Vec3, lastListener.current)));
+    }
+    if (m.type === "guide_stop") owned.current = null;
     setEvents((log) => addEvent(log, m, now));
+    if (endsOwnPing(owned.current, m)) {
+      ownRef.current({ type: "guide_stop", reason: "found", object_id: owned.current });
+      owned.current = null;
+    }
   }, []);
   const { state, send, echo, local } = useBus({ subscribe: OP_SUBSCRIBE, onMessage });
   const [control, setControl] = useState(true);
-  const [offset, setOffset] = useState<Offset>([0, 1.5]);
   const offsetRef = useRef(offset);
   useEffect(() => {
     offsetRef.current = offset;
@@ -46,15 +60,9 @@ export function OperatorPage() {
     },
     [send, local],
   );
-
-  // A new guidance target (the voice found an item, or a manual ping) puts the dot where that item is.
-  // For a ping started here, that is exactly where the dot already is.
-  const guideKey = guide ? `${guide.objectId}|${guide.target.join(",")}` : "";
-  const [seenKey, setSeenKey] = useState(guideKey);
-  if (guideKey !== seenKey) {
-    setSeenKey(guideKey);
-    if (guide) setOffset(initialOffset(guide.target));
-  }
+  useEffect(() => {
+    ownRef.current = own;
+  }, [own]);
 
   // Publish where the judge "is" so the target sounds at the dot: on every change, and at least every 300 ms.
   useEffect(() => {
@@ -67,6 +75,7 @@ export function OperatorPage() {
       const key = pos.join(",");
       if (key === lastPos && now - last < SLOW_MS) return;
       send({ type: "listener_pose", position: pos, quality: "ok", beacons_heard: 0, source: "manual" });
+      lastListener.current = pos;
       last = now;
       lastPos = key;
     }, FAST_MS);
@@ -77,9 +86,22 @@ export function OperatorPage() {
 
   const start = () => {
     const name = pingAs === "manual" ? "ping" : state.items[pingAs]?.name ?? pingAs;
+    owned.current = pingAs;
     own({ type: "guide_start", object_id: pingAs, name, target_position: manualTarget(offsetRef.current), precision: "exact", utterance_id: `operator_${Date.now()}` });
   };
-  const stop = () => guide && own({ type: "guide_stop", reason: "cancelled", object_id: guide.objectId });
+  const stop = () => {
+    if (!guide) return;
+    if (owned.current) {
+      own({ type: "guide_stop", reason: "cancelled", object_id: guide.objectId });
+      owned.current = null;
+      return;
+    }
+    // The voice started this ping and keeps its own timer, so ask the voice to stop (it sends guide_stop itself).
+    const msg = { type: "transcript", text: "stop", is_final: true, source: "typed" };
+    send(msg);
+    echo("stop");
+    setEvents((log) => addEvent(log, msg, Date.now() / 1000));
+  };
 
   const fresh = foreign && state.now - foreign.t < 3 ? foreign : null;
   const items = Object.values(state.items);
@@ -131,7 +153,7 @@ export function OperatorPage() {
                 Stop ping
               </button>
             ) : (
-              <button type="button" className="primary" onClick={start}>
+              <button type="button" className="primary" onClick={start} disabled={!state.connected}>
                 Start ping
               </button>
             )}
@@ -185,10 +207,11 @@ function Stage({ offset, onMove, yaw, pinging, places }: { offset: Offset; onMov
         }
       }}
       onPointerDown={(e) => {
+        if (e.button !== 0) return;
         const o = toOffset(e);
         if (!o) return;
         dragging.current = true;
-        (e.target as Element).setPointerCapture?.(e.pointerId);
+        e.currentTarget.setPointerCapture?.(e.pointerId);
         onMove(o);
       }}
       onPointerMove={(e) => {
@@ -198,6 +221,7 @@ function Stage({ offset, onMove, yaw, pinging, places }: { offset: Offset; onMov
       }}
       onPointerUp={() => (dragging.current = false)}
       onPointerCancel={() => (dragging.current = false)}
+      onLostPointerCapture={() => (dragging.current = false)}
     >
       {[1, 2, 3, 4].map((r) => (
         <g key={r}>
@@ -236,9 +260,11 @@ function clock(t: number) {
 }
 
 function EventLog({ events }: { events: OpEvent[] }) {
-  const end = useRef<HTMLLIElement>(null);
+  const list = useRef<HTMLOListElement>(null);
+  const stick = useRef(true); // follow new events only while the operator is at the bottom
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "nearest" });
+    const el = list.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
   }, [events]);
   return (
     <section className="room-card op-log" aria-label="Everything happening">
@@ -246,7 +272,13 @@ function EventLog({ events }: { events: OpEvent[] }) {
       {events.length === 0 ? (
         <p className="room-empty">Waiting for the hub. Speak, or type a question above.</p>
       ) : (
-        <ol>
+        <ol
+          ref={list}
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+          }}
+        >
           {events.map((e, i) => (
             <li key={`${e.t}-${i}`} className={`op-ev op-${e.kind} ${e.partial ? "partial" : ""} ${e.bad ? "bad" : ""}`}>
               <time>{clock(e.t)}</time>
@@ -254,7 +286,6 @@ function EventLog({ events }: { events: OpEvent[] }) {
               <span className="text">{e.text}</span>
             </li>
           ))}
-          <li ref={end} aria-hidden="true" />
         </ol>
       )}
     </section>

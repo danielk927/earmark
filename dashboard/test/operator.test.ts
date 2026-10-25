@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MAT, describeOffset, initialOffset, listenerPosition, manualTarget, nudge } from "../src/operator/control";
+import { MAT, describeOffset, listenerPosition, manualTarget, nudge, offsetForNewTarget } from "../src/operator/control";
 import { addEvent, type OpEvent } from "../src/operator/events";
 
 describe("operator control", () => {
   it("starts the dot where the item really is, seen from the mat", () => {
-    expect(initialOffset([0.6, 1.8, 0.4])).toEqual([0.6, 1.8]);
+    expect(offsetForNewTarget([0.6, 1.8, 0.4], MAT)).toEqual([0.6, 1.8]);
   });
 
   it("puts the listener so the item sounds exactly at the dot, at ear level", () => {
@@ -94,5 +94,31 @@ describe("operator event log", () => {
 
   it("ignores high-rate position and head messages", () => {
     expect(run({ type: "head_pose", yaw: 10, pitch: 0 }, { type: "listener_pose", position: [0, 0, 1.5] })).toEqual([]);
+  });
+});
+
+describe("operator decisions", () => {
+  it("a new target keeps the voice and the dot in agreement: offset from where the judge was last published", async () => {
+    const { offsetForNewTarget } = await import("../src/operator/control");
+    // nothing pinged yet: the judge was on the mat, so the dot is the item seen from the mat
+    expect(offsetForNewTarget([0.6, 0.6, 0], MAT)).toEqual([0.6, 0.6]);
+    // mid-ping the published judge was at (-1.2, 2.1): the sugar is heard (and spoken) from there
+    expect(offsetForNewTarget([0.6, 0.6, 0], [-1.2, 2.1, 0])).toEqual([1.8, -1.5]);
+  });
+
+  it("ends a ping started on this page when the AirPods app reports arrival", async () => {
+    const { endsOwnPing } = await import("../src/operator/control");
+    const arrived = { type: "guide_feedback", object_id: "manual", event: "arrived", turn: null, error_deg: 0 };
+    expect(endsOwnPing("manual", arrived)).toBe(true);
+    expect(endsOwnPing(null, arrived)).toBe(false); // the voice started it: the voice ends it
+    expect(endsOwnPing("manual", { ...arrived, event: "locked" })).toBe(false);
+    expect(endsOwnPing("salt", arrived)).toBe(false);
+  });
+
+  it("warns only about positions the Mac app would actually use", async () => {
+    const { competesForPosition } = await import("../src/operator/control");
+    expect(competesForPosition({ type: "listener_pose", quality: "ok", source: "beacons" })).toBe(true);
+    expect(competesForPosition({ type: "listener_pose", quality: "lost", source: "beacons" })).toBe(false);
+    expect(competesForPosition({ type: "head_pose" })).toBe(false);
   });
 });

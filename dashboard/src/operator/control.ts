@@ -20,11 +20,6 @@ export type Offset = [number, number];
 const round = (v: number) => Math.round(v * 1000) / 1000;
 const clamp = (v: number) => Math.max(-MAX_OFFSET_M, Math.min(MAX_OFFSET_M, v));
 
-/** A new guidance target starts the dot where the item really is, seen from the mat. */
-export function initialOffset(target: Vec3): Offset {
-  return [round(target[0] - MAT[0]), round(target[1] - MAT[1])];
-}
-
 /** The position to publish so the target sounds at `offset` from the judge; the mat when nothing is guided. */
 export function listenerPosition(target: Vec3 | null, offset: Offset): Vec3 {
   if (!target) return MAT;
@@ -49,4 +44,23 @@ export function clampOffset(o: Offset): Offset {
 export function nudge(o: Offset, key: string): Offset {
   const [dx, dy] = key === "ArrowUp" ? [0, NUDGE_M] : key === "ArrowDown" ? [0, -NUDGE_M] : key === "ArrowLeft" ? [-NUDGE_M, 0] : key === "ArrowRight" ? [NUDGE_M, 0] : [0, 0];
   return clampOffset([o[0] + dx, o[1] + dy]);
+}
+
+/**
+ * Where the dot starts for a new target: the target seen from where the judge was last published.
+ * The voice computes its spoken direction from that same position, so the dot, the ping and the words agree.
+ * With nothing pinged before, that position is the mat.
+ */
+export function offsetForNewTarget(target: Vec3, lastListener: Vec3): Offset {
+  return [round(target[0] - lastListener[0]), round(target[1] - lastListener[1])];
+}
+
+/** The AirPods app reached a ping this page started: the voice will not end it, so the page must. */
+export function endsOwnPing(ownedObjectId: string | null, m: Record<string, unknown>): boolean {
+  return ownedObjectId !== null && m.type === "guide_feedback" && m.event === "arrived" && m.object_id === ownedObjectId;
+}
+
+/** Another client is placing the judge (the Mac app ignores `lost` fixes, so those do not compete). */
+export function competesForPosition(m: Record<string, unknown>): boolean {
+  return m.type === "listener_pose" && m.quality !== "lost";
 }

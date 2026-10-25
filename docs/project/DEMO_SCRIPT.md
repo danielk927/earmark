@@ -74,7 +74,14 @@ If positioning does not work, the operator places the ping by hand while everyth
 5. Drag the dot, or use the arrow keys (10 cm per press).
    The ping in the AirPods follows the dot and stays fixed in the room when the judge turns their head; closer is faster and louder.
 6. Drop the dot within the dashed 0.5 m ring to finish: the arrival tone plays and Earmark says "You're here...".
-7. "Start ping" and "Stop ping" run a ping without asking Earmark (no spoken answer or arrival line for those).
+7. "Start ping" runs a ping without asking Earmark: it follows the dot and ends on arrival with the tone, but Earmark says nothing for it.
+8. "Stop ping" on a ping Earmark started asks Earmark to stop (it says "Okay, stopping."), so its own timer stops too.
+
+Things to know:
+
+- Keep the operator tab visible: a hidden tab is throttled, the position goes stale, and the ping falls back to the mat after 5 s.
+- Earmark stops its own ping after 60 s ("I've stopped the guide sound..."); ask again to restart it.
+- Asking for a second item mid-ping is fine: the new dot, the ping, and Earmark's spoken direction all agree.
 
 How it works: the page never moves the item.
 It publishes `listener_pose` (source `manual`, about 3 to 10 times a second) at item minus dot, so the Mac app and the voice both hear the item exactly at the dot, at ear height.
