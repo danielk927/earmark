@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { CSS2DObject, CSS2DRenderer } from "three/examples/jsm/renderers/CSS2DRenderer.js";
-import { beaconsFromStatus, type RoomState, type Vec3 } from "./model";
+import { beaconsFromStatus, fitDistance, fitRoom, type Fit, type RoomState, type Vec3 } from "./model";
 export interface Beacon {
   id: string;
   label: string;
@@ -132,9 +132,17 @@ export class RoomModel {
   private shownTarget = new THREE.Vector3();
   private yaw = 0;
   private yawTarget = 0;
+  private viewKind: "angle" | "top" = "angle";
+  private fitTarget: Fit;
+  private fit: Fit; // the area drawn now; it moves toward fitTarget a little each frame
+  private framed: Fit | null = null; // the area the camera was last aimed at
+  private floor!: THREE.Mesh;
+  private edge!: THREE.Line;
   onFloorClick: ((x: number, y: number) => void) | null = null;
 
   constructor(private host: HTMLElement, private beacons: Beacon[], private room = { w: 3.5, d: 3.5 }) {
+    this.fitTarget = fitRoom(beacons.map((b) => b.position), [], room);
+    this.fit = { ...this.fitTarget };
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(BG);
@@ -187,30 +195,54 @@ export class RoomModel {
   }
 
   view(kind: "angle" | "top") {
-    if (kind === "top") this.camera.position.set(0, 8.6, 0.01);
-    else this.camera.position.set(-3.1, 4.3, 5.3);
-    this.controls.target.set(0, 0.45, 0);
+    this.viewKind = kind;
+    const dir = kind === "top" ? new THREE.Vector3(0, 1, 0.01) : new THREE.Vector3(-3.1, 4.3, 5.3);
+    this.frameCamera(dir.normalize());
+  }
+
+  /** Aim the camera at the middle of the drawn area, far enough back to see all of it, looking along dir. */
+  private frameCamera(dir: THREE.Vector3) {
+    const f = this.fit;
+    const dist = fitDistance(f, this.viewKind, this.camera.fov, this.camera.aspect);
+    this.controls.target.set(f.cx, 0.45, -f.cy);
+    this.controls.maxDistance = Math.max(12, dist * 1.6);
+    this.camera.position.copy(this.controls.target).addScaledVector(dir, dist);
     this.controls.update();
+    this.framed = { ...f };
   }
 
   /** The floor: a plain dark slab with a thin outline, and the mat with its arrow. */
   private buildPlane() {
-    const { w, d } = this.room;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.5, d + 0.5), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }));
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -0.002;
-    this.scene.add(floor);
-    const edge = line([
-      new THREE.Vector3(-w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, -d / 2), new THREE.Vector3(w / 2, 0.004, d / 2),
-      new THREE.Vector3(-w / 2, 0.004, d / 2), new THREE.Vector3(-w / 2, 0.004, -d / 2),
+    // Both are drawn at unit size and stretched to the fitted area (see placeFit), so the area can grow smoothly.
+    this.floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }));
+    this.floor.rotation.x = -Math.PI / 2;
+    this.scene.add(this.floor);
+    this.edge = line([
+      new THREE.Vector3(-0.5, 0.004, -0.5), new THREE.Vector3(0.5, 0.004, -0.5), new THREE.Vector3(0.5, 0.004, 0.5),
+      new THREE.Vector3(-0.5, 0.004, 0.5), new THREE.Vector3(-0.5, 0.004, -0.5),
     ], INK, 0.7);
-    this.scene.add(edge);
+    this.scene.add(this.edge);
+    this.placeFit();
     const mat = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.08, side: THREE.DoubleSide }));
     mat.rotation.x = -Math.PI / 2;
     mat.position.y = 0.002;
     this.scene.add(mat);
     const arrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0.006, 0.2), 0.5, INK, 0.12, 0.08);
     this.scene.add(arrow);
+  }
+
+  private placeFit() {
+    const { cx, cy, w, d } = this.fit;
+    this.floor.scale.set(w + 0.5, d + 0.5, 1);
+    this.floor.position.set(cx, -0.002, -cy);
+    this.edge.scale.set(w, 1, d);
+    this.edge.position.set(cx, 0, -cy);
+  }
+
+  /** The area to show: the beacons, the mat, the person and the items. It grows to keep them in view. */
+  private updateFitTarget(s: RoomState) {
+    const extras = [s.user, ...Object.values(s.items).flatMap((i) => (i.position ? [i.position] : []))];
+    this.fitTarget = fitRoom(this.beacons.map((b) => b.position), extras, this.room);
   }
 
   private setBeaconsVisible(v: boolean) {
@@ -284,6 +316,7 @@ export class RoomModel {
       this.beaconsShown = true;
       this.setBeaconsVisible(true);
     }
+    this.updateFitTarget(s);
     this.shownTarget.copy(P([s.user[0], s.user[1], 0]));
     this.yawTarget = -((s.headYaw ?? 0) * Math.PI) / 180;
     this.gaze.visible = s.headYaw !== null;
@@ -295,6 +328,7 @@ export class RoomModel {
 
   private follow(t: number) {
     const s = this.state;
+    this.moveFit();
     this.shown.lerp(this.shownTarget, 0.18);
     this.person.position.copy(this.shown);
     this.yaw += (this.yawTarget - this.yaw) * 0.25;
@@ -329,6 +363,21 @@ export class RoomModel {
     }
   }
 
+  /** Ease the drawn area toward the target, and re-aim the camera when it has changed. */
+  private moveFit() {
+    const a = this.fit, b = this.fitTarget;
+    if (a.cx === b.cx && a.cy === b.cy && a.w === b.w && a.d === b.d) return;
+    const near = (k: keyof Fit) => Math.abs(a[k] - b[k]) < 0.002;
+    for (const k of ["cx", "cy", "w", "d"] as const) a[k] = near(k) ? b[k] : a[k] + (b[k] - a[k]) * 0.12;
+    this.placeFit();
+    const f = this.framed;
+    if (f && (f.cx !== a.cx || f.cy !== a.cy || f.w !== a.w || f.d !== a.d)) {
+      // Keep the way the person has turned the camera; only move it to the new middle and distance.
+      const dir = this.camera.position.clone().sub(this.controls.target).normalize();
+      this.frameCamera(dir);
+    }
+  }
+
   private loop = () => {
     this.frame = requestAnimationFrame(this.loop);
     this.follow(this.clock.getElapsedTime());
@@ -354,6 +403,8 @@ export class RoomModel {
     this.labels.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    // The shape of the window changed, so fit the area again, from the same side.
+    if (this.framed) this.frameCamera(this.camera.position.clone().sub(this.controls.target).normalize());
   }
 
   dispose() {

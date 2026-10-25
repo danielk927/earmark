@@ -239,3 +239,43 @@ export function beaconsFromStatus(s: RoomState): { id: string; position: Vec3 }[
   }
   return out.length ? out : null;
 }
+
+/** The floor area the map shows: its center (x, y) and its width (along x) and depth (along y), in meters. */
+export interface Fit {
+  cx: number;
+  cy: number;
+  w: number;
+  d: number;
+}
+
+export const FIT_MARGIN = 0.4;
+const FIT_MIN = 1.5; // never smaller than this, so a few close beacons do not zoom in too far
+
+/**
+ * The area to draw: the box around the beacons, the mat origin and anything else on the floor (the person, items),
+ * plus a margin, so the beacons sit near the edges. With no beacons known it keeps the fallback room size.
+ */
+export function fitRoom(beacons: Vec3[], extras: Vec3[], fallback: { w: number; d: number }): Fit {
+  const pts = [...beacons, ...extras, [0, 0, 0] as Vec3];
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of pts) {
+    x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+    y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+  }
+  x0 -= FIT_MARGIN; x1 += FIT_MARGIN; y0 -= FIT_MARGIN; y1 += FIT_MARGIN;
+  if (!beacons.length) {
+    x0 = Math.min(x0, -fallback.w / 2); x1 = Math.max(x1, fallback.w / 2);
+    y0 = Math.min(y0, -fallback.d / 2); y1 = Math.max(y1, fallback.d / 2);
+  }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  return { cx, cy, w: Math.max(x1 - x0, FIT_MIN), d: Math.max(y1 - y0, FIT_MIN) };
+}
+
+/** How far the camera must be from the middle of the fitted area to see all of it (fovDeg is the vertical field of view). */
+export function fitDistance(fit: Fit, kind: "top" | "angle", fovDeg: number, aspect: number): number {
+  const tanV = Math.tan((fovDeg * Math.PI) / 360);
+  if (kind === "top") return (Math.max(fit.d / 2, fit.w / 2 / aspect) / tanV) * 1.05;
+  // Angled: treat the area as a ball around its middle, so it fits from any side.
+  const half = Math.atan(tanV * Math.min(1, aspect));
+  return (Math.hypot(fit.w + 0.5, fit.d + 0.5) / 2) / Math.sin(half); // +0.5: the floor extends past the outline
+}

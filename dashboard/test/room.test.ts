@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beaconsFromStatus, clockHour, initialState, reduce, tick, type RoomState } from "../src/room/model";
+import { beaconsFromStatus, clockHour, fitDistance, fitRoom, initialState, reduce, tick, type RoomState } from "../src/room/model";
 
 const snapshot = {
   type: "snapshot",
@@ -97,5 +97,41 @@ describe("room model", () => {
     expect(clockHour([0, 0, 1], 0, [2, 0, 0])).toBe(3);
     expect(clockHour([0, 0, 1], 90, [2, 0, 0])).toBe(12);
     expect(clockHour([1, 1, 1], 0, [1, -1, 0])).toBe(6);
+  });
+});
+
+describe("room fit", () => {
+  const room = { w: 3.5, d: 3.5 };
+  it("sizes the area from the beacons and the mat plus a 0.4 m margin", () => {
+    const f = fitRoom([[-0.1, 1.2, 0.8], [1.2, -0.1, 0.8], [-1.2, -1.1, 0.8]], [], room);
+    expect(f.w).toBeCloseTo(1.2 + 1.2 + 0.8);
+    expect(f.d).toBeCloseTo(1.2 + 1.1 + 0.8);
+    expect(f.cx).toBeCloseTo(0);
+    expect(f.cy).toBeCloseTo(0.05);
+  });
+  it("keeps the mat inside even when the beacons are on one side", () => {
+    const f = fitRoom([[1, 1, 0.8], [2, 1, 0.8]], [], room);
+    expect(f.cx - f.w / 2).toBeCloseTo(-0.4);
+    expect(f.cy - f.d / 2).toBeCloseTo(-0.4);
+  });
+  it("grows to include a person or item that is further out", () => {
+    const f = fitRoom([[1, 1, 0.8]], [[3, -2, 1.5]], room);
+    expect(f.cx + f.w / 2).toBeCloseTo(3.4);
+    expect(f.cy - f.d / 2).toBeCloseTo(-2.4);
+  });
+  it("keeps the current size when no beacons are known, and never gets tiny", () => {
+    const f = fitRoom([], [], room);
+    expect([f.cx, f.cy, f.w, f.d]).toEqual([0, 0, 3.5, 3.5]);
+    expect(fitRoom([[0.1, 0.1, 1]], [], room).w).toBeGreaterThanOrEqual(1.5);
+  });
+  it("puts the camera further back for a bigger area, and for a narrower window", () => {
+    const small = { cx: 0, cy: 0, w: 3, d: 3 };
+    const big = { cx: 0, cy: 0, w: 6, d: 6 };
+    for (const kind of ["top", "angle"] as const) {
+      expect(fitDistance(big, kind, 34, 1.5)).toBeGreaterThan(fitDistance(small, kind, 34, 1.5));
+      expect(fitDistance(small, kind, 34, 0.7)).toBeGreaterThan(fitDistance(small, kind, 34, 1.5));
+    }
+    // The top view sees the whole area: half the depth fits inside the vertical view.
+    expect(fitDistance(small, "top", 34, 2) * Math.tan((34 * Math.PI) / 360)).toBeGreaterThanOrEqual(1.5);
   });
 });
