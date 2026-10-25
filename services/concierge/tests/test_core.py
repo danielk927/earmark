@@ -1,5 +1,6 @@
 """Core flows: ambiguity, labels, pickups while guiding, stop, reset, trials, feedback, timeout."""
 import asyncio
+import re
 import time
 
 from conftest import Harness, make_settings, snapshot, state
@@ -268,8 +269,9 @@ async def test_where_did_i_put_it_before_gives_both_places_with_times(h):
                  state("keys", area="bag", position=[-1.5, 0, 0.3], last_seen_t=now - 60))
     out = await h.say("Where did I put my keys before?")
     [text] = h.spoken(out)
-    assert text.startswith("The keys are near the bag, noted at ")
-    assert "Before that, they were near the drawer, noted at " in text
+    # Real clock: within 20 minutes after midnight the earlier note is "yesterday at".
+    assert re.match(r"The keys are near the bag, noted (yesterday )?at ", text)
+    assert re.search(r"Before that, they were near the drawer, noted (yesterday )?at ", text)
 
 
 async def test_history_with_one_place_says_so(h):
