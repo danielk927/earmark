@@ -30,6 +30,7 @@ let diagnostics = engine.diagnostics
   `state`, `guidance`, `diagnostics` and `calibrationProgress` are safe from any thread and take about 0.01 ms each.
 - `audioNow` is in seconds on the `sampleTime / sampleRate` clock.
 - Call `invalidateCalibration()` after an audio route change or engine restart, then calibrate again.
+- Capture at 48 kHz (44.1 kHz works). Blocks below 40 kHz are ignored: an AirPods-mic route at 16/24 kHz can't hear the chirps.
 - Until calibration succeeds, `state` reports the calibration point with `uncertainty` 0 and status `.notCalibrated`, and `guidance` has `valid == false`.
 - The value types have public memberwise initializers, so a `MockEngine` can build them.
 
@@ -75,7 +76,12 @@ A synthetic recording in the same format tests that path until A's recordings la
   Trimming on |r| as written fails when a clump of echoes tilts the first least-squares fit.
 - **Recovery solves only overdetermined beacon sets.**
   A 3-beacon subset in free 3D has as many ranges as unknowns, always fits with zero residual, and would always win.
-- **`state(at:)` extrapolates at most 1 s past the last detection**, so a stale velocity can't carry the position across the room.
+- **While recovering or lost, search windows cover every possible range** (0 to the largest beacon spacing + 1 m), not ±8 ms around the estimate.
+  Otherwise a filter more than about 2.7 m off never sees a chirp again and can't recover.
+- **`state(at:)` extrapolates at most 1 s past the last detection and never backwards**, so a stale velocity can't carry the position across the room.
+- **The engine invalidates calibration by itself** when the sample rate changes or sampleTime goes backwards (an audio engine restart), or restarts calibration if one is running.
+  Calling `invalidateCalibration()` is still right; this guards against stale `tracking` with valid guidance if the call is missed.
+- Blocks below 40 kHz (which can't carry an 18–20 kHz chirp) or with a non-finite rate are ignored, and NaN or infinite samples are zeroed.
 - `RoomConfig.load` rejects a scene whose chirp or timing differs from C3, duplicate slots, or positions without three numbers.
 
 ## Known limits

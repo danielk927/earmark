@@ -14,8 +14,10 @@ struct Detection {
 enum WindowSchedule {
     /// Before calibration: wall-clock slots. `beaconForSlot[k]` is the beacon index in slot k, if any.
     case slots(beaconForSlot: [Int?])
-    /// After calibration: around the predicted arrival. `range(k, t)` is |p̂(t) − B_k|.
-    case predicted(calibration: Calibration, speedOfSound: Double, range: (Int, Double) -> Double)
+    /// After calibration: around the predicted arrival. `range(k, t)` is |p̂(t) − B_k|. While recovering
+    /// or lost the estimate can't be trusted, so `searchRanges` widens each window to every range from
+    /// its lower to its upper bound.
+    case predicted(calibration: Calibration, speedOfSound: Double, range: (Int, Double) -> Double, searchRanges: ClosedRange<Double>?)
 }
 
 /// Matched filter, noise estimate, search windows and peak choice from B3.
@@ -40,7 +42,10 @@ final class ChirpDetector {
 
     /// Correlates one block. Touches only detector-private state, so it needs no lock.
     func ingest(_ block: AudioBlock) {
-        let out = correlator.push(samples: block.samples, sampleTime: block.sampleTime)
+        // One NaN would spread through the FFT and poison the noise average for good.
+        var samples = block.samples
+        if !vDSP.sum(samples).isFinite { samples = samples.map { $0.isFinite ? $0 : 0 } }
+        let out = correlator.push(samples: samples, sampleTime: block.sampleTime)
         if out.restarted || history.end != out.start {
             history.restart(at: out.start)
             noiseCursor = out.start
@@ -100,8 +105,8 @@ final class ChirpDetector {
             guard beaconForSlot.contains(where: { $0 != nil }) else { return nil }
             let slotsPerCycle = Int64((Parameters.cycle / Parameters.slotSpacing).rounded())
             let cursorSlot = Int64(((cursorTime + wallOffset + Parameters.preCalWindowBefore) / Parameters.slotSpacing).rounded(.down))
-            // Start fresh, or resynchronize after the wall clock jumped ahead.
-            if nextSlot == nil || nextSlot! < cursorSlot - slotsPerCycle { nextSlot = cursorSlot }
+            // Start fresh, or resynchronize after the wall clock jumped either way.
+            if nextSlot == nil || abs(nextSlot! - cursorSlot) > slotsPerCycle { nextSlot = cursorSlot }
             var g = nextSlot!
             while true {
                 let slot = Int(((g % slotsPerCycle) + slotsPerCycle) % slotsPerCycle)
@@ -113,19 +118,24 @@ final class ChirpDetector {
                 g += 1
             }
 
-        case .predicted(let calibration, let c, let range):
+        case .predicted(let calibration, let c, let range, let searchRanges):
             if nextCycle.count != calibration.beacons.count {
                 nextCycle = Array(repeating: nil, count: calibration.beacons.count)
             }
             var best: Window?
             for (k, timing) in calibration.beacons.enumerated() {
                 let cursorCycle = Int64(((cursorTime - timing.a) / timing.b).rounded(.down))
-                if nextCycle[k] == nil || nextCycle[k]! < cursorCycle - 1 { nextCycle[k] = cursorCycle }
+                if nextCycle[k] == nil || abs(nextCycle[k]! - cursorCycle) > 1 { nextCycle[k] = cursorCycle }
                 let n = nextCycle[k]!
                 let nominal = timing.a + timing.b * Double(n)
-                let predicted = nominal + (range(k, nominal) - timing.d) / c
                 let half = Parameters.postCalWindowHalfWidth
-                let (s, e) = samples(from: predicted - half, to: predicted + half)
+                let (s, e): (Int64, Int64)
+                if let wide = searchRanges {
+                    (s, e) = samples(from: nominal + (wide.lowerBound - timing.d) / c - half, to: nominal + (wide.upperBound - timing.d) / c + half)
+                } else {
+                    let predicted = nominal + (range(k, nominal) - timing.d) / c
+                    (s, e) = samples(from: predicted - half, to: predicted + half)
+                }
                 if best == nil || s < best!.start { best = Window(beacon: k, key: n, start: s, end: e) }
             }
             return best

@@ -23,6 +23,7 @@ enum Parameters {
     static let ambiguityGap = 0.000_25          // s
     static let noiseTimeConstant = 2.0          // s
     static let noiseWarmup = 0.05               // s of noise samples before any detection
+    static let minSampleRate = 40_000.0         // Hz; below this the 18–20 kHz chirp can't be captured
 
     // Calibration
     static let calibrationDuration = 15.0       // s
@@ -33,6 +34,7 @@ enum Parameters {
     static let timingNoiseFloor = 0.000_020     // s
     static let maxCalibrationResidual = 0.03    // m
     static let minSlotGap = 0.040               // s
+    static let calibrationMaxSpan = 30.0        // s of detections kept while calibrating
 
     // Tracker
     // σ_a is 0.5, not the spec's 1.0: with 1.0 the predicted range spread of a beacon heard once a second
@@ -57,6 +59,9 @@ enum Parameters {
     static let recoveryVelocitySigma = 0.3      // m/s
     // Not in the spec: on entering recovery, P is raised to at least this so ungated updates can move it.
     static let recoveringPositionSigma = 0.3    // m
+    // Not in the spec: while recovering or lost, windows cover every range from 0 to the largest
+    // beacon-to-beacon distance plus this, since ±8 ms around a wrong estimate may miss every chirp.
+    static let recoverySearchMargin = 1.0       // m
     static let lostAfter = 3.0                  // s of failed recovery
     static let heightSigma = 0.05               // m
 

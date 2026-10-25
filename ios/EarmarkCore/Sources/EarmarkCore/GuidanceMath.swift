@@ -7,9 +7,10 @@ struct GuidanceSmoother {
     private var vector = SIMD3<Double>(0, 0, 0)
     private var time = 0.0
 
-    /// Starts over on the first call and whenever the destination changes or the caller says so.
+    /// Starts over on the first call, whenever the destination changes or the caller says so, and when
+    /// time jumps back by more than a moment (small jitter in the caller's clock is ignored).
     mutating func smooth(_ raw: SIMD3<Double>, at t: Double, destination: String, restart: Bool) -> SIMD3<Double> {
-        if restart || destination != self.destination {
+        if restart || destination != self.destination || t < time - 0.5 {
             self.destination = destination
             vector = raw
             time = t

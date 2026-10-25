@@ -41,9 +41,9 @@ struct Tracker {
     var uncertainty: Double { (P[0] + P[7] + P[14]).squareRoot() }
 
     /// p + v·(t − t_last), without changing the filter. Extrapolation is capped at the no-update
-    /// timeout so a stale velocity can't carry the position across the room.
+    /// timeout so a stale velocity can't carry the position across the room, and never runs backwards.
     func state(at t: Double) -> TrackState {
-        let dt = min(t - tLast, Parameters.noUpdateTimeout)
+        let dt = min(max(t - tLast, 0), Parameters.noUpdateTimeout)
         return TrackState(time: t, position: position + velocity * dt, velocity: velocity, uncertainty: uncertainty, status: status)
     }
 

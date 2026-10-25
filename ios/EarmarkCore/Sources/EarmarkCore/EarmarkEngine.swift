@@ -12,8 +12,11 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
     private let kappa: Double
     private let lock = NSLock()
 
+    private let searchRanges: ClosedRange<Double>
+
     // Capture queue only.
     private var detector: ChirpDetector?
+    private var expectedSampleTime: Int64?
 
     // Guarded by `lock`.
     private var status: TrackStatus = .notCalibrated
@@ -46,26 +49,45 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
         try config.validate()
         self.config = config
         self.kappa = kappa
-        beaconPositions = config.beaconPositions
+        let positions = config.beaconPositions
+        beaconPositions = positions
         speedOfSound = config.speedOfSound
+        let spans = positions.flatMap { a in positions.map { simd_distance(a, $0) } }
+        searchRanges = 0...(spans.max()! + Parameters.recoverySearchMargin)
         beaconStats = Array(repeating: BeaconStats(), count: config.beacons.count)
     }
 
     // MARK: Audio
 
     public func process(_ block: AudioBlock) {
-        guard !block.samples.isEmpty, block.sampleRate > 0 else { return }
+        guard !block.samples.isEmpty, block.sampleRate.isFinite, block.sampleRate >= Parameters.minSampleRate else { return }
         let started = DispatchTime.now().uptimeNanoseconds
-        if detector?.sampleRate != block.sampleRate { detector = ChirpDetector(sampleRate: block.sampleRate) }
+        // A new sample rate or an audio clock that went backwards (engine restart) breaks the clock
+        // models, so start over instead of reporting stale positions.
+        let newClock = detector != nil && (detector!.sampleRate != block.sampleRate || block.sampleTime < expectedSampleTime!)
+        if detector == nil || newClock { detector = ChirpDetector(sampleRate: block.sampleRate) }
+        expectedSampleTime = block.sampleTime + Int64(block.samples.count)
         let detector = detector!
         detector.ingest(block)
 
         lock.lock()
         defer { lock.unlock() }
+        if newClock { restartForNewClock() }
         let detections = detector.detect(schedule: currentSchedule(), generation: scheduleGeneration)
         handle(detections, streamTime: detector.streamTime, dataStart: Double(block.sampleTime) / block.sampleRate)
         let ms = Double(DispatchTime.now().uptimeNanoseconds - started) / 1e6
         processingMs = processingMs == 0 ? ms : processingMs + 0.1 * (ms - processingMs)
+    }
+
+    private func restartForNewClock() {
+        beaconStats = Array(repeating: BeaconStats(), count: config.beacons.count)
+        if status == .calibrating {
+            calibrationStart = nil
+            calibrationDetections = []
+            scheduleGeneration += 1
+        } else {
+            resetCalibration()
+        }
     }
 
     /// Feeds detections that bypass the signal path (tests use the detection simulator this way).
@@ -85,9 +107,10 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
     private func currentSchedule() -> WindowSchedule {
         if let calibration, let tracker, status != .calibrating {
             let positions = beaconPositions
-            return .predicted(calibration: calibration, speedOfSound: speedOfSound) { k, t in
+            let wide = status == .recovering || status == .lost ? searchRanges : nil
+            return .predicted(calibration: calibration, speedOfSound: speedOfSound, range: { k, t in
                 simd_distance(tracker.state(at: t).position, positions[k])
-            }
+            }, searchRanges: wide)
         }
         var beaconForSlot = [Int?](repeating: nil, count: Parameters.maxBeacons)
         for (k, beacon) in config.beacons.enumerated() { beaconForSlot[beacon.slot] = k }
@@ -109,6 +132,7 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
             switch status {
             case .calibrating:
                 if d.arrivalTime >= calibrationStart! { calibrationDetections.append(d) }
+                calibrationDetections.removeAll { $0.arrivalTime < d.arrivalTime - Parameters.calibrationMaxSpan }
             case .tracking, .recovering, .lost:
                 if var tracker {
                     let result = tracker.update(d)
@@ -176,6 +200,10 @@ public final class EarmarkEngine: EarmarkEngineProtocol {
     public func invalidateCalibration() {
         lock.lock()
         defer { lock.unlock() }
+        resetCalibration()
+    }
+
+    private func resetCalibration() {
         status = .notCalibrated
         calibration = nil
         tracker = nil

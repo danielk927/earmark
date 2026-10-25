@@ -80,7 +80,9 @@ final class StreamingCorrelator {
         let start = pendingStart
         var envelope: [Float] = []
         let m = templateLength
-        while pending.count >= m {
+        // Transform once at least `minimumOutputs` new values are ready, so tiny pushes don't each cost an FFT.
+        let minimumOutputs = min(1024, n - m + 1)
+        while pending.count - m + 1 >= minimumOutputs {
             // Segments shorter than N are zero-padded at the end; outputs j = M-1 ..< count stay exact.
             let available = min(n, pending.count)
             pending.withUnsafeBufferPointer { src in
