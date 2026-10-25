@@ -1,0 +1,55 @@
+/* The operator page: the room view's palette, a draggable top-down stage, and a full event log. */
+.op { grid-template-columns: minmax(0, 1fr) 440px; }
+.op-stage { position: relative; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.op-svg { width: 100%; height: 100%; touch-action: none; cursor: crosshair; user-select: none; }
+.op-svg:focus { outline: none; }
+.op-svg:focus-visible { outline: 2px solid var(--r-accent); outline-offset: -6px; }
+.op-hint { position: absolute; left: 18px; top: 14px; margin: 0; color: var(--r-soft); font-size: 0.95rem; }
+
+.op-ring { fill: none; stroke: var(--r-line); stroke-width: 0.012; }
+.op-ring-label { fill: var(--r-soft); font-size: 0.13px; }
+.op-arrive { fill: none; stroke: var(--r-accent); stroke-width: 0.012; stroke-dasharray: 0.05 0.05; opacity: 0.7; }
+.op-axis { fill: var(--r-soft); font-size: 0.16px; text-anchor: middle; letter-spacing: 0.02em; }
+.op-axis.start { text-anchor: start; }
+.op-axis.end { text-anchor: end; }
+.op-place circle { fill: var(--r-soft); opacity: 0.5; }
+.op-place text { fill: var(--r-soft); opacity: 0.7; font-size: 0.11px; text-anchor: middle; }
+.op-cone { fill: var(--r-accent); fill-opacity: 0.12; stroke: var(--r-accent); stroke-opacity: 0.45; stroke-width: 0.01; }
+.op-line { stroke: var(--r-accent); stroke-width: 0.014; stroke-dasharray: 0.06 0.06; opacity: 0.6; }
+.op-judge { fill: var(--r-card); stroke: var(--r-ink); stroke-width: 0.025; }
+.op-nose { fill: none; stroke: var(--r-ink); stroke-width: 0.025; stroke-linejoin: round; }
+.op-judge-label { fill: var(--r-ink); font-size: 0.13px; text-anchor: middle; }
+.op-dot circle { fill: var(--r-bg); stroke: var(--r-accent); stroke-width: 0.03; }
+.op-dot.on circle { fill: var(--r-accent); }
+.op-dot .op-pulse { fill: none !important; stroke: var(--r-accent); stroke-width: 0.02; transform-box: fill-box; transform-origin: center;
+  animation: op-pulse 0.9s ease-out infinite; }
+@keyframes op-pulse { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .op-dot .op-pulse { animation: none; opacity: 0.4; } }
+
+.op-panel { gap: 10px; }
+.op-warn { margin: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--r-bad); color: var(--r-bad); background: var(--r-card); }
+.op-ping.on { border-color: var(--r-accent); }
+.op-ping-state { font-size: 1.35rem; font-weight: 800; }
+.op-ping-where { display: flex; flex-direction: column; gap: 2px; margin: 6px 0 10px !important; font-size: 1.1rem; font-weight: 700; }
+.op-ping-where span { font-size: 0.9rem; font-weight: 400; color: var(--r-soft); }
+.op-controls { display: flex; align-items: end; gap: 10px; margin-bottom: 10px; }
+.op-controls label { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--r-soft); }
+.op-controls select:disabled { opacity: 0.5; }
+.op-controls select { font: inherit; text-transform: none; letter-spacing: normal; color: var(--r-ink); background: var(--r-bg);
+  border: 1px solid var(--r-line); border-radius: 10px; padding: 7px 10px; }
+.op-controls button { font: inherit; font-weight: 700; color: var(--r-ink); background: var(--r-card); border: 1px solid var(--r-line);
+  border-radius: 999px; padding: 8px 16px; cursor: pointer; white-space: nowrap; }
+.op-controls button.primary { background: var(--r-accent); color: #2a0e2e; border-color: var(--r-accent); }
+.op-controls button:focus-visible, .op-controls select:focus-visible { outline: 2px solid var(--r-accent); outline-offset: 2px; }
+
+.op-log { flex: 1; min-height: 220px; display: flex; flex-direction: column; }
+.op-log ol { flex: 1; overflow-y: auto; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.op-ev { display: grid; grid-template-columns: 64px 104px 1fr; gap: 8px; font-size: 0.9rem; line-height: 1.35; }
+.op-ev time { color: var(--r-soft); font-variant-numeric: tabular-nums; }
+.op-ev .who { color: var(--r-soft); }
+.op-heard .text { color: var(--r-ink); }
+.op-heard.partial .text { font-style: italic; color: var(--r-soft); }
+.op-said .who, .op-said .text { color: var(--r-accent); }
+.op-guide .text { color: var(--r-guide); }
+.op-ev.bad .text { color: var(--r-bad); }

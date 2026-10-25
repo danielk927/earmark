@@ -17,8 +17,19 @@ import { makeFixtures } from "./data/fixtures";
 
 const root = createRoot(document.getElementById("root")!);
 
-// The live room view (/room) talks only to the local Earmark bus, so it needs no Convex.
-if (window.location.pathname.replace(/\/+$/, "") === "/room") {
+const path = window.location.pathname.replace(/\/+$/, "");
+
+// The live room view (/room) and the operator page (/operator) talk only to the local Earmark bus, so they need no Convex.
+if (path === "/operator") {
+  void import("./operator/OperatorPage").then(({ OperatorPage }) =>
+    root.render(
+      <StrictMode>
+        <OperatorPage />
+      </StrictMode>,
+    ),
+  );
+}
+if (path === "/room") {
   void import("./room/RoomPage").then(({ RoomPage }) =>
     root.render(
       <StrictMode>
@@ -29,7 +40,7 @@ if (window.location.pathname.replace(/\/+$/, "") === "/room") {
 }
 let mode: AppMode = resolveMode(window.location.search, import.meta.env.VITE_CONVEX_URL as string | undefined);
 
-const isRoom = window.location.pathname.replace(/\/+$/, "") === "/room";
+const isRoom = path === "/room" || path === "/operator";
 if (isRoom) {
   // rendered above
 } else if (mode.kind === "convex") {

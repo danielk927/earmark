@@ -57,4 +57,27 @@ Numbers in brackets come from tomorrow's real trials and latency runs; never say
 | AirPods audio degraded (hands-free) | Set the input to the MacBook mic, reconnect the AirPods | - |
 | Cartesia down | Nothing; cached phrases and the system voice take over, Apple Speech listens | A different voice |
 | LLM slow | Nothing; the keyword grammar answers within the same turn | - |
+| Phones or beacons cannot place the judge | Open the operator page (below), stop the locator, drag the ping | Same experience; the ping is placed by hand |
 | Everything on fire | Play the backup demo video | - |
+
+## Manual ping: the operator page
+
+If positioning does not work, the operator places the ping by hand while everything else stays live: the judge's voice, Earmark's answers, AirPods head tracking, arrival, and memory.
+
+1. Run the stack as usual (`make demo-sim` or `make demo-live`), with the Mac app and AirPods connected.
+2. Stop anything else that sends positions: the locator / `services/ranging`, and the "Simulate walking" box on `/room`.
+   The page warns in red if another position source is live.
+3. Open `http://localhost:5173/operator` on the operator's laptop (`cd dashboard && npm run dev`).
+   The judge stands on the mat at the center of the screen, facing up (forward); the cone shows where their head points, live from the AirPods.
+4. The judge asks "Where's the salt?" (or type it in "Ask Earmark").
+   Earmark answers as usual and the dot jumps to where the salt is.
+5. Drag the dot, or use the arrow keys (10 cm per press).
+   The ping in the AirPods follows the dot and stays fixed in the room when the judge turns their head; closer is faster and louder.
+6. Drop the dot within the dashed 0.5 m ring to finish: the arrival tone plays and Earmark says "You're here...".
+7. "Start ping" and "Stop ping" run a ping without asking Earmark (no spoken answer or arrival line for those).
+
+How it works: the page never moves the item.
+It publishes `listener_pose` (source `manual`, about 3 to 10 times a second) at item minus dot, so the Mac app and the voice both hear the item exactly at the dot, at ear height.
+No Mac app, concierge, or contract changes are involved.
+The right-hand log shows everything on the bus: transcripts as they form, Earmark's words, every guidance event, speech engine changes, pickups, saved places, and status changes.
+

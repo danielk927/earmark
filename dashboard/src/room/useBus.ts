@@ -7,6 +7,8 @@ const SUBSCRIBE = [
   "guide_feedback", "transcript", "speak", "speak_text", "speak_cached", "place_item", "pickup", "status", "reset",
 ];
 
+export { SUBSCRIBE };
+
 export function busUrl(): string {
   const env = import.meta.env.VITE_BUS_URL as string | undefined;
   if (env) return env;
@@ -25,8 +27,9 @@ function reducer(s: RoomState, a: Action): RoomState {
   return tick(s, now);
 }
 
-/** Live room state from the Earmark bus, plus `send` for messages the page itself publishes. */
-export function useBus(): {
+/** Live room state from the Earmark bus, plus `send` for messages the page itself publishes.
+ * `subscribe` replaces the default message list; `onMessage` sees every message received (for raw logs). */
+export function useBus(opts: { subscribe?: string[]; onMessage?: (msg: Record<string, unknown> & { type: string }) => void } = {}): {
   state: RoomState;
   send: (msg: Record<string, unknown>) => void;
   /** Show something the user typed in the conversation (the hub does not echo messages back to their sender). */
@@ -36,6 +39,11 @@ export function useBus(): {
 } {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const ws = useRef<WebSocket | null>(null);
+  const onMessage = useRef(opts.onMessage);
+  useEffect(() => {
+    onMessage.current = opts.onMessage;
+  });
+  const subscribe = useRef(opts.subscribe ?? SUBSCRIBE);
 
   useEffect(() => {
     let stopped = false;
@@ -46,12 +54,15 @@ export function useBus(): {
       ws.current = sock;
       sock.onopen = () => {
         delay = 500;
-        sock.send(JSON.stringify({ type: "hello", component: "dashboard", subscribe: SUBSCRIBE, t: Date.now() / 1000 }));
+        sock.send(JSON.stringify({ type: "hello", component: "dashboard", subscribe: subscribe.current, t: Date.now() / 1000 }));
       };
       sock.onmessage = (ev) => {
         try {
           const msg = JSON.parse(String(ev.data));
-          if (msg && typeof msg.type === "string") dispatch({ kind: "msg", msg });
+          if (msg && typeof msg.type === "string") {
+            dispatch({ kind: "msg", msg });
+            onMessage.current?.(msg);
+          }
         } catch {
           // not JSON: ignore
         }
