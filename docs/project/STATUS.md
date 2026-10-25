@@ -1,9 +1,17 @@
 # Earmark status
 
-Last updated: 2026-10-24 night (positioning fixed for the real-phone test, two-beacon positions, bug sweep across every service).
+Last updated: 2026-10-25 (AirPods stem squeeze to talk, "here" saved where you said it, phone reconnects).
 Sponsor prizes, what each wants, and what we do: `docs/sponsors/TRACKS.md`. What is left to do and who does it: `docs/project/NEXT_STEPS.md`.
 
 ## What changed in the latest pass
+
+- **Squeeze an AirPod stem to talk** (Mac app, push-to-talk mode): squeeze once, hear a short rising sound, speak; it stops by itself 1.5 s after you stop talking (falling sound), or on a second squeeze, after 5 s with no speech, or at 20 s. A squeeze also cuts Earmark off mid-sentence. The squeeze reaches the app as a play/pause command, so Earmark claims Now Playing; music or a video playing on the Mac can take the squeeze instead. Taking an AirPod out sends the same command; that false start ends after 5 s. Tested with unit tests only: **not yet tried on real AirPods.**
+- **"I'm leaving my keys here" is saved where you said it.** The concierge read the position after the language model answered, so a user already walking back was saved at the mat (this was the failing `test_put_here` end-to-end test).
+- **The user's phone reconnecting no longer gives wrong positions.** Its sample counter skips the seconds it was offline, so the old calibration gave confident nonsense; the Mac now drops the calibration, sends a `lost` pose and asks for a recalibration. An error in the solver or a console hook no longer stops the position service.
+- **Smaller Mac fixes:** speech or an earcon arriving while the audio engine is stopped (a route change) no longer crashes the app; holding Space across a listen-mode switch no longer leaves the mic open; the routing debounce test no longer fails on a busy machine.
+- **Known, not changed:** with exactly three beacons at one height, a single wrong distance cannot be detected and the position is still marked `ok` (`services/ranging/README.md`, "Known limits").
+
+## Earlier pass (2026-10-24 night)
 
 - **Why calibration failed on real phones (found by analysing `services/ranging/runs/*.wav`):** the beacon phone was set to Beacon 2 (a down chirp, 125 ms into the cycle) while the Mac was told B1 (an up chirp), and the detector also reported weak opposite-sweep "ghost" chirps 32 ms after each real one. The Mac calibrated on the ghosts ("ragged", "phase off by +88 ms") and then gave random distances. Fed the right beacon, the same recordings calibrate to 0.028 ms (about 1 cm) and hold 1.00 m ±2 cm for 100 s.
   Fixed: ghost suppression in the detector; a plain-words warning when chirps arrive from a beacon number nobody configured (and no calibration start while a configured beacon is silent); replay now uses the recording's own temperature and calibration length.
