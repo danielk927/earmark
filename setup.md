@@ -7,7 +7,7 @@
 
 ## Get ready
 1. Put the Mac and the judge phone on the venue Wi-Fi. No hotspots: they are not allowed at the venue.
-2. Run `make mac` once (builds the Mac app), and `brew install cloudflared` once (the tunnel, see below).
+2. Run `make mac` once (builds the Mac app).
 3. Put a mat on the floor where you will stand. Its middle is the centre. Forward is the way you will face.
 
 ## Place the 3 beacon phones
@@ -20,20 +20,29 @@ Put the 3 phones in a triangle around the mat, so you stand in the middle of it.
                        |
                      1.2 m
                        |
-                    ┌─────┐
-                    │ mat │
+                                    ● pills
+                    ┌─────┐         (0.7 m right,
+                    │ mat │          0.4 m forward)
                     └─────┘
                    /       \
-              1.2 m         1.2 m
+              1.2 m         1.1 m
                  /           \
              [B3]----1.5 m----[B2]
              left            right
 ```
 
-- B1: 1.2 m straight ahead of the mat.
-- B2: 1.2 m from the mat, back and to the right.
-- B3: 1.2 m from the mat, back and to the left.
-- B2 and B3 are 1.5 m apart (4 ft 11 in). Check it with the tape.
+Measure from the middle of the mat:
+
+| What | Where | Distance from the mat |
+|---|---|---|
+| B1 | straight ahead | 1.2 m |
+| B2 | back and to the right | 1.1 m (0.75 m right, 0.8 m back) |
+| B3 | back and to the left | 1.2 m (0.75 m left, 0.94 m back) |
+| Pills | at your 2 o'clock | 0.8 m (0.7 m right, 0.4 m forward) |
+
+B2 and B3 are 1.5 m apart (4 ft 11 in). Check it with the tape.
+
+The pills are already in Earmark when `make session` starts, so there is something to find straight away. Put a real bottle at that spot if you like, about 0.75 m high (on a table or chair). From the pills, B1 is 1.1 m away, B2 is 1.2 m and B3 is 2.0 m. To move the pills, change `position` in `config/demo_item.json`.
 
 On each beacon phone:
 1. Open Earmark Phone, choose **Beacon (no Mac)**.
@@ -43,15 +52,15 @@ On each beacon phone:
 Beacons need no Wi-Fi at all.
 
 ## Start everything
-Stop any old Earmark terminals first (Ctrl-C). Then run one command. Everything starts with no items. You add them by voice later:
+Stop any old Earmark terminals first (Ctrl-C). Then run one command. Everything starts with one item, the pills (see above). You add more by voice:
 
 ```
-make session TUNNEL=1
+make session TUNNEL=ssh
 ```
 
 It starts the hub, the voice, the room page and the Mac app, then waits for the phones.
 
-`TUNNEL=1` is because the venue Wi-Fi keeps phones from reaching the Mac directly. The judge phone connects through a Cloudflare tunnel instead: ordinary internet traffic over the venue Wi-Fi, about 1 Mbit/s, no hotspot. The terminal prints a name like `some-words.trycloudflare.com`; it changes every time you run `make session`. On a Wi-Fi that lets phones reach the Mac (at home), plain `make session` works.
+`TUNNEL=1` is because the venue Wi-Fi keeps phones from reaching the Mac directly. The judge phone connects through a Cloudflare tunnel instead: ordinary internet traffic over the venue Wi-Fi, about 1 Mbit/s, no hotspot. The terminal prints a name like `some-words.trycloudflare.com`; it changes every time you run `make session`. On a Wi-Fi that lets phones reach the Mac (at home), plain `make session` works. If Cloudflare says it is refusing new tunnels (too many requests), run `make session TUNNEL=ssh` instead. It uses localhost.run and prints a name ending in `.lhr.life`; type that on the judge phone the same way.
 
 ## Connect the judge phone
 1. Put the judge phone on the venue Wi-Fi.
@@ -67,7 +76,7 @@ Hold the judge phone at chest height, bottom edge facing out. Press **Enter** in
 1. Connect the AirPods to the Mac. Turn Spatial Audio **Off** (menu-bar AirPods icon). The app makes its own 3D sound.
 2. In the Mac app, accept the motion and microphone prompts.
 3. Stand on the mat facing forward. Press **R** to recenter.
-5. Back on the mat, squeeze one AirPod stem once (a short rising sound means Earmark is listening) and say it: "Where are my keys?". It stops listening by itself when you stop talking (a falling sound). Or hold **Space** in the Mac app window while you speak. Speak clearly and keep the room quiet.
-   - Squeeze does nothing? Make sure no music or video is playing on the Mac (it takes the squeeze). A teammate can hold Space for you, or type into the Ask box on the room page.
+5. Back on the mat, hold **Space** in the Mac app window and say it: "Where are my keys?". Let go when done. Speak clearly and keep the room quiet.
+   - Can't reach the Mac? A teammate can hold Space for you, or type into the box under the Hold to talk button, or into the Ask box on the room page.
 
 You should hear the ping from the item. It gets faster and louder as you get close. At half a meter it stops and says "You're here".

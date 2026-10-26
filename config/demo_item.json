@@ -1,0 +1,15 @@
+{
+  "note": "The pills Earmark knows about from the start of `make session`. Meters from the middle of the mat: x right, y forward, z up (a table is about 0.75). Put the real bottle there, or just walk toward the sound. Set position to null for no starting item.",
+  "name": "pills",
+  "aliases": [
+    "heart pills",
+    "medication",
+    "medicine",
+    "blood pressure medicine"
+  ],
+  "position": [
+    -2.0,
+    0.2,
+    0.75
+  ]
+}

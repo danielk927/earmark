@@ -1,5 +1,5 @@
 {
-  "note": "Where the beacon phones sit, in meters from the floor under the middle of the mat: x right, y forward, z up. This is the fixed triangle in setup.md (B1 1.2 m ahead, B2 and B3 1.2 m back-right and back-left, 1.5 m apart). Edit these numbers or run `make beacons` if you place them differently. Keep the beacons at about the same height, well below the held phone (about 0.75 m).",
+  "note": "Where the beacon phones sit, in meters from the floor under the middle of the mat: x right, y forward, z up. This is the fixed triangle in setup.md (B1 1.2 m ahead, B2 1.1 m and B3 1.2 m from the mat, back-right and back-left, 1.5 m apart). Edit these numbers or run `make beacons` if you place them differently. Keep the beacons at about the same height, well below the held phone (about 0.75 m).",
   "room": {
     "width_m": 3.5,
     "depth_m": 3.5
@@ -19,7 +19,7 @@
       "label": "back right",
       "position": [
         0.75,
-        -0.94,
+        -0.8,
         0.75
       ]
     },

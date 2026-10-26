@@ -14,6 +14,7 @@
 # NO_MAC=1 skips opening the Mac app; NO_DASHBOARD=1 skips the room page.
 # TUNNEL=1 is for Wi-Fi that keeps phones from reaching the Mac (no hotspots allowed): the judge phone connects
 # through a Cloudflare tunnel instead (needs `brew install cloudflared`), and this prints the name to type on it.
+# TUNNEL=ssh does the same through localhost.run (no install); use it if Cloudflare says too many requests (429).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONPATH="$PWD/contracts/python:$PWD/services/hub:$PWD/services/concierge:$PWD/services/memory_agent:$PWD/services/ranging${PYTHONPATH:+:$PYTHONPATH}"
@@ -43,6 +44,8 @@ pids+=($!)
 for _ in $(seq 1 40); do port_open 8765 && break; sleep 0.5; done
 port_open 8765 || { echo "hub did not start; see logs/hub.log" >&2; exit 1; }
 
+uv run --quiet --project services/hub python scripts/seed_demo_item.py || echo "could not add the starting item (see config/demo_item.json)" >&2
+
 echo "voice: starting (logs/concierge.log)"
 set -a; [[ -f .env ]] && source .env; set +a
 uv run --quiet --project services/concierge earmark-concierge > logs/concierge.log 2>&1 &
@@ -66,7 +69,19 @@ if [[ -z "${NO_MAC:-}" ]]; then
 fi
 
 host=""
-if [[ -n "${TUNNEL:-}" ]]; then
+if [[ "${TUNNEL:-}" == "ssh" ]]; then
+  # Same idea through localhost.run (plain ssh, no install, no account), for when Cloudflare refuses new tunnels (HTTP 429).
+  echo "tunnel: starting through localhost.run (logs/tunnel.log); the judge phone's audio goes out and back to this Mac"
+  ssh -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ExitOnForwardFailure=yes \
+    -R 80:localhost:8766 nokey@localhost.run > logs/tunnel.log 2>&1 &
+  pids+=($!)
+  for _ in $(seq 1 60); do
+    host=$(grep -oE '[a-z0-9]+\.lhr\.life' logs/tunnel.log | head -1)
+    [[ -n "$host" ]] && break
+    sleep 0.5
+  done
+  [[ -n "$host" ]] || { echo "the tunnel did not start; see logs/tunnel.log" >&2; exit 1; }
+elif [[ -n "${TUNNEL:-}" ]]; then
   command -v cloudflared >/dev/null 2>&1 || { echo "TUNNEL=1 needs cloudflared: brew install cloudflared" >&2; exit 1; }
   echo "tunnel: starting (logs/tunnel.log); the judge phone's audio goes out through Cloudflare and back to this Mac"
   cloudflared tunnel --no-autoupdate --url http://localhost:8766 > logs/tunnel.log 2>&1 &
@@ -74,9 +89,14 @@ if [[ -n "${TUNNEL:-}" ]]; then
   for _ in $(seq 1 60); do
     host=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' logs/tunnel.log | head -1 | sed 's|https://||')
     [[ -n "$host" ]] && break
+    grep -q "status 429" logs/tunnel.log 2>/dev/null && break
     sleep 0.5
   done
-  [[ -n "$host" ]] || { echo "the tunnel did not start; see logs/tunnel.log" >&2; exit 1; }
+  if [[ -z "$host" ]]; then
+    grep -q "status 429" logs/tunnel.log 2>/dev/null && echo "Cloudflare is refusing new tunnels from this network (too many requests). Try again later, or run: make session TUNNEL=ssh" >&2
+    echo "the tunnel did not start; see logs/tunnel.log" >&2
+    exit 1
+  fi
 fi
 
 echo
