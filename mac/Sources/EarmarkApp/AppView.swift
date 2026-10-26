@@ -295,7 +295,7 @@ private struct CaptionsCard: View {
 
     private var listeningHint: String {
         if m.flags.noMic { return "Microphone off" }
-        return m.listenMode == .pushToTalk ? "Hold Space or squeeze an AirPod, then speak" : "Listening for speech"
+        return m.listenMode == .pushToTalk ? "Hold Space, then speak" : "Listening for speech"
     }
 
     private func captionBlock(title: String, icon: String, text: String?, placeholder: String, active: Bool, tag: String?) -> some View {
@@ -395,7 +395,7 @@ private struct TalkButton: View {
             .gesture(DragGesture(minimumDistance: 0).onChanged { _ in m.setPTT(true) }.onEnded { _ in m.setPTT(false) })
             .accessibilityElement()
             .accessibilityLabel("Hold to talk")
-            .accessibilityHint("Hold the Space bar while you speak, or squeeze an AirPod stem once and speak")
+            .accessibilityHint("Hold the Space bar while you speak")
             .accessibilityAddTraits(.isButton)
     }
 }

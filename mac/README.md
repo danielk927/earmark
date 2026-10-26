@@ -55,9 +55,7 @@ Environment: `EARMARK_BUS_URL`, `EARMARK_PHRASES_DIR` (cached phrase WAVs), `EAR
 - `R`: recenter (both apps).
 - `Space` (hold): push to talk.
 - Push to talk lets go by itself when the window or app loses focus, and after 30 s.
-- AirPods stem squeeze (or the keyboard play/pause key): talk without the keyboard, in push-to-talk mode. Squeeze once and speak.
-  A rising two-note sound means Earmark is listening; a falling one means it stopped. It stops on a second squeeze, 1.5 s after you stop speaking, after 5 s with no speech, or after 20 s. A squeeze also cuts Earmark off if it is talking.
-  It works with the window in the background. Earmark claims Now Playing for this, so music or a video playing in another app can take the squeeze instead.
+- AirPods stem squeeze: turned off in the app (it took over the Mac's media keys). The code is still there (`StemButton`, `SqueezeToTalk`); talk with Space or the typing box.
 - Left and right arrows: turn the virtual head 15 deg (Shift: 5 deg) when the mock head is on.
 - These never fire while typing in a text field.
 

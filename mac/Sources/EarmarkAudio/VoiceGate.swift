@@ -10,7 +10,7 @@ public enum ListenMode: String, CaseIterable, Sendable, Identifiable {
     public var id: String { rawValue }
     public var displayName: String {
         switch self {
-        case .pushToTalk: "Push to talk (hold Space or squeeze an AirPod)"
+        case .pushToTalk: "Push to talk (hold Space)"
         case .alwaysListening: "Always listening"
         }
     }

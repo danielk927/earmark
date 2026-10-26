@@ -164,10 +164,7 @@ final class AppModel: ObservableObject {
         busClient.start()
 
         installKeys()
-        if !flags.noMic {
-            stem.onSqueeze = { [weak self] in self?.squeezed() }
-            stem.start()
-        }
+        // The AirPod squeeze is off: it made Earmark take over the Mac's media keys. Talk with Space or the typing box.
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 50, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
