@@ -14,7 +14,7 @@ Longer per-sponsor notes are in `docs/sponsors/sponsor-packs/`.
 | Moss: Best use of Moss | AirPods Pro or Max, interviews | Yes | Key set and working (warm it up once before a demo); thresholds not yet tuned |
 | Convex: Best use of Convex | $5,000 cash | Yes | Live on the cloud dev deployment with demo data |
 | Microsoft: Built for the Real World / Customer Impact | Surface laptops (grand); tech talk and mentorship | Yes | Docs written; needs real customer research |
-| Fetch.ai: ASI:One Agent Challenge | $1,250 / $750 / $500 plus internship interviews | Optional | Agent works offline; needs Agentverse registration |
+| Fetch.ai: ASI:One Agent Challenge | $1,500 / $1,000 / $500 on the prizes page (check Devpost) | Yes | Registered on Agentverse, answers in ASI:One (shared chat: https://asi1.ai/shared-chat/50656f42-32ee-4cc6-b697-85bfc004b9ec); needs the demo video |
 | Bitdeer, Creao, Hyphenate, finance tracks | - | No | Dropped. They do not fit without forcing it |
 
 ## Anthropic: Claude for Public Benefit
@@ -70,7 +70,7 @@ Bitdeer (low prize value; the project now uses Claude instead), Creao (needs a C
 
 - [ ] Join the Cal Hacks 13.0 Devpost.
 - [ ] Opt in to Anthropic, Cartesia, Moss, Convex, Microsoft (and Fetch.ai if the agent is registered).
-- [ ] Keys in `.env`: Fetch.ai seed (Anthropic, Cartesia, Moss, Convex are set).
+- [x] Keys in `.env`: Fetch.ai seed (Anthropic, Cartesia, Moss, Convex are set).
 - [x] Convex cloud deployment (dev deployment `diligent-ptarmigan-12`).
 - [x] AirPods spatial test run (passed, reported by the team; scores not recorded: see `docs/project/STATUS.md`).
 - [ ] One conversation with a blind or low-vision person, plus a quote.

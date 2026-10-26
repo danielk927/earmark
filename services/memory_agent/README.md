@@ -12,8 +12,10 @@ It never gives medical advice.
 | | |
 | - | - |
 | Agent name | `earmark-memory` (`MEMORY_AGENT_NAME`) |
-| Agent address | `agent1q...` (placeholder: fill in after setting `MEMORY_AGENT_SEED`; print it with `uv run earmark-memory address`) |
-| Agentverse profile | `https://agentverse.ai/agents/details/<address>/profile` (placeholder) |
+| Agent address | `agent1q0uf83a4rgsmtcl3m72fmqy5vlr2856xkjtgagu6uf0axeh65tct6tw2xkv` (print it with `uv run earmark-memory address`) |
+| Agentverse profile | https://agentverse.ai/agents/details/agent1q0uf83a4rgsmtcl3m72fmqy5vlr2856xkjtgagu6uf0axeh65tct6tw2xkv/profile |
+| ASI:One agent page | https://asi1.ai/ai/agent1q0uf83a4rgsmtcl3m72fmqy5vlr2856xkjtgagu6uf0axeh65tct6tw2xkv |
+| Shared ASI:One chat | https://asi1.ai/shared-chat/50656f42-32ee-4cc6-b697-85bfc004b9ec |
 | Protocol | `AgentChatProtocol` 0.3.0, manifest published |
 | Agentverse README | [`AGENTVERSE_README.md`](AGENTVERSE_README.md), published through `readme_path` |
 
